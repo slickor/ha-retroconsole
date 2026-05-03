@@ -9,6 +9,7 @@ Ziel: Wir wissen, dass URL, Token und Netzwerk funktionieren.
 - Anzahl und Beispiele von Entities anzeigen.
 - Fehler lesbar melden.
 - Einfache Service-Calls fuer `light`, `switch`, `scene` und `script` testen.
+- Interaktive Terminal-Favoritenliste als Vorstufe zur Controller-UI.
 
 ## Phase 1: Datenmodell
 

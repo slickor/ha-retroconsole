@@ -38,6 +38,12 @@ Mit `--yes` wird der Service wirklich ausgefuehrt:
 python tools/ha_action.py light.licht_garage_schalter_1 --yes
 ```
 
+Eine einfache interaktive Favoritenliste startest du so:
+
+```powershell
+python tools/ha_favorites.py --config config.json
+```
+
 Falls `python` auf Windows nicht gefunden wird, probiere:
 
 ```powershell
