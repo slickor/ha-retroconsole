@@ -65,6 +65,15 @@ def load_config(path: Path, require_favorites: bool = False) -> dict[str, Any]:
     return config
 
 
+def save_config(path: Path, config: dict[str, Any]) -> None:
+    try:
+        with path.open("w", encoding="utf-8") as handle:
+            json.dump(config, handle, indent=2, ensure_ascii=False)
+            handle.write("\n")
+    except OSError as exc:
+        raise SystemExit(f"Could not save config: {exc}")
+
+
 def request_json(
     base_url: str,
     token: str,

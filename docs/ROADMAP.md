@@ -1,6 +1,6 @@
 # Roadmap
 
-## Phase 0: Verbindung pruefen
+## Phase 0: Verbindung pruefen (abgeschlossen)
 
 Ziel: Wir wissen, dass URL, Token und Netzwerk funktionieren.
 
@@ -29,15 +29,18 @@ Ziel: Bedienlogik testen, noch ohne PortMaster.
 - Navigation per Tastatur.
 - Toggle/Service-Call fuer einfache Domains.
 - Fehler- und Loading-Zustaende.
+- `pygame`-basierter UI-Prototyp erstellt.
 
 ## Phase 3: Native Handheld-App
 
-Ziel: Controllerfreundliche SDL2-App.
+Ziel: Die Desktop-Prototypeing-Logik in eine native Handheld-App überführen.
 
-- 640x480 und 1280x720 Layouts.
-- D-Pad/A/B/X/Y/Start/Select Mapping.
-- Grobe Pixel-/Retro-Optik.
-- Konfiguration im App-Ordner.
+- SDL2- oder pygame-basierte App als nächster Schritt.
+- Layouts für 640x480 und 1280x720 definieren.
+- D-Pad/A/B/X/Y/Start/Select Mapping implementieren.
+- Tastatur-Steuerung als PC-Fallback erhalten.
+- Retro-freundliche, klare UI mit großen Auswahlfeldern und sichtbarer Statusleiste.
+- App-Konfiguration und Laufzeitdateien im App-Ordner organisieren.
 
 ## Phase 4: PortMaster-Paket
 

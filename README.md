@@ -6,9 +6,9 @@ Das Ziel ist eine kleine, controllerfreundliche App fuer Geraete wie R36S und Tr
 
 ## Aktueller Stand
 
-Phase 0: Verbindung testen.
+Phase 2: Erster controllerfreundlicher Desktop-Prototyp.
 
-Im ersten Schritt gibt es nur ein kleines Python-Werkzeug, das ohne externe Abhaengigkeiten laeuft und prueft, ob Home Assistant erreichbar ist.
+Das Projekt hat den ersten REST-Check und die Konsolen-Tools erfolgreich umgesetzt. Jetzt gibt es einen `pygame`-Prototyp als Grundlage fuer eine controllerfreundliche UI auf Handheld-Formaten.
 
 ## Schnellstart
 
@@ -48,6 +48,13 @@ Eine tastaturgesteuerte Konsolen-UI startest du so:
 
 ```powershell
 python tools/ha_tui.py --config config.json
+```
+
+Ein erster pygame-Prototyp läuft mit:
+
+```powershell
+pip install pygame
+python tools/ha_pygame.py --config config.json
 ```
 
 Favoriten koennen einfache Entity-IDs oder Objekte mit Label und Aktion sein:
