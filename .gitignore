@@ -1,8 +1,9 @@
 config.json
+config*.json
+!config.example.json
 *.log
 *.zip
 build/
 dist/
 __pycache__/
 *.pyc
-

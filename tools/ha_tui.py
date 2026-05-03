@@ -29,6 +29,7 @@ def fit_message(changes: list[str]) -> str:
         return f"Changed {changes[0]}"
     return f"Changed {len(changes)} favorites: " + "; ".join(changes[:2])
 
+
 def clear_screen() -> None:
     os.system("cls" if os.name == "nt" else "clear")
 
@@ -48,15 +49,15 @@ def render(
     message: str,
 ) -> None:
     clear_screen()
-    width = 74
+    width = 58
     print("+" + "-" * width + "+")
-    print("|" + " HOME ASSISTANT".ljust(width) + "|")
-    print("|" + "".ljust(width) + "|")
+    print("|" + " HOME ASSISTANT".center(width) + "|")
+    print("|" + " Favorites".center(width) + "|")
 
     if not favorites:
         print("|" + " No favorites configured. Add entity_ids to config.json.".ljust(width) + "|")
     else:
-        visible_rows = 14
+        visible_rows = 9
         start = max(0, min(selected - visible_rows + 1, len(favorites) - visible_rows))
         end = min(len(favorites), start + visible_rows)
         for index in range(start, end):
@@ -67,15 +68,16 @@ def render(
             value = state.get("state", "missing") if state is not None else "missing"
             action = resolve_action(entity_id, favorite_action(favorite))
             prefix = ">" if index == selected else " "
-            marker = "run" if action else "---"
-            row = f" {prefix} {fit_text(name, 34)} {fit_text(value.upper(), 12)} {marker} "
+            marker = "A" if action else "-"
+            row = f" {prefix} {fit_text(name, 27)} {fit_text(value.upper(), 10)} [{marker}] "
             print("|" + row.ljust(width) + "|")
 
         for _ in range(visible_rows - (end - start)):
             print("|" + "".ljust(width) + "|")
 
     print("|" + "".ljust(width) + "|")
-    print("|" + " Up/Down select   Enter run   R refresh   Q quit".ljust(width) + "|")
+    print("|" + " D-Pad select   A run   X refresh   B quit".center(width) + "|")
+    print("|" + " PC: arrows     Enter   R           Q".center(width) + "|")
     if message:
         print("|" + fit_text(" " + message, width) + "|")
     else:
@@ -134,9 +136,9 @@ def run_loop(config: dict[str, Any], timeout: float) -> None:
         key = read_key()
         message = ""
 
-        if key in {"q", "\x1b"}:
+        if key in {"q", "b", "\x1b"}:
             return
-        if key in {"r", "refresh"}:
+        if key in {"r", "x", "refresh"}:
             states = fetch_states_map(config["base_url"], config["token"], timeout)
             message = "Refreshed."
             continue
