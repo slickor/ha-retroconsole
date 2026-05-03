@@ -32,11 +32,11 @@ Goal: Test the control logic without PortMaster.
 - Error and loading states.
 - `pygame`-based UI prototype created.
 
-## Phase 3: Native handheld app
+## Phase 3: Native handheld app (in progress)
 
 Goal: Move desktop prototyping logic into a native handheld app.
 
-- SDL2 or pygame-based app as the next step.
+- SDL2 prototype script available as the first native test.
 - Define layouts for 640x480 and 1280x720.
 - Implement D-Pad/A/B/X/Y/Start/Select mapping.
 - Keep keyboard control as a PC fallback.

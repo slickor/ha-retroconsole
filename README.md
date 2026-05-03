@@ -6,9 +6,9 @@ The goal is a small, controller-friendly app for devices like the R36S and TrimU
 
 ## Current Status
 
-Phase 2: First controller-friendly desktop prototype.
+Phase 3: Native handheld prototype in progress.
 
-The project has completed the initial REST check and console tools. It now includes a `pygame` prototype as a foundation for a controller-friendly handheld UI, including a favorites editor mode and gamepad-friendly navigation.
+The project has completed the initial REST check, console tools, and a `pygame` prototype. It now also includes an experimental SDL2 test app (`tools/ha_sdl2.py`) to validate native handheld-style rendering and input.
 
 ## Quickstart
 
@@ -59,6 +59,15 @@ python tools/ha_pygame.py --config config.json
 ```
 
 Inside the prototype, press `Y` (or `F` on PC) to open the favorites editor. Use the arrow keys to move, `A`/Enter to toggle favorites, and `R` to refresh.
+
+The SDL2 test app runs with:
+
+```powershell
+pip install pysdl2
+python tools/ha_sdl2.py --config config.json
+```
+
+This app uses the same config and favorites logic while testing native SDL2 rendering and keyboard input.
 
 Favorites can be either simple entity IDs or objects with label and action:
 
