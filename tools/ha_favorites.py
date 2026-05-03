@@ -119,6 +119,22 @@ def refresh_after_action(
     return latest_states
 
 
+def changed_favorites(
+    favorites: list[str],
+    before: dict[str, dict[str, Any]],
+    after: dict[str, dict[str, Any]],
+) -> list[str]:
+    changes = []
+    for entity_id in favorites:
+        before_item = before.get(entity_id)
+        after_item = after.get(entity_id)
+        before_state = before_item.get("state", "missing") if before_item is not None else "missing"
+        after_state = after_item.get("state", "missing") if after_item is not None else "missing"
+        if before_state != after_state:
+            changes.append(f"{entity_id}: {before_state} -> {after_state}")
+    return changes
+
+
 def entity_domain(entity_id: str) -> str:
     return entity_id.split(".", 1)[0] if "." in entity_id else ""
 
@@ -195,6 +211,7 @@ def run_loop(config: dict[str, Any], timeout: float) -> None:
         domain, service = action
         previous = states.get(entity_id)
         previous_state = str(previous.get("state", "")) if previous is not None else None
+        before_states = states
         home_assistant_request(
             config["base_url"],
             config["token"],
@@ -210,6 +227,13 @@ def run_loop(config: dict[str, Any], timeout: float) -> None:
             entity_id,
             previous_state,
         )
+        changes = changed_favorites(config["favorites"], before_states, states)
+        if changes:
+            print()
+            print("Changed favorites:")
+            for change in changes:
+                print(f"  {change}")
+            input("Press Enter to continue.")
 
 
 def parse_args() -> argparse.Namespace:
