@@ -44,6 +44,12 @@ Eine einfache interaktive Favoritenliste startest du so:
 python tools/ha_favorites.py --config config.json
 ```
 
+Eine tastaturgesteuerte Konsolen-UI startest du so:
+
+```powershell
+python tools/ha_tui.py --config config.json
+```
+
 Falls `python` auf Windows nicht gefunden wird, probiere:
 
 ```powershell

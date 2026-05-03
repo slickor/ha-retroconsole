@@ -10,6 +10,7 @@ Ziel: Wir wissen, dass URL, Token und Netzwerk funktionieren.
 - Fehler lesbar melden.
 - Einfache Service-Calls fuer `light`, `switch`, `scene` und `script` testen.
 - Interaktive Terminal-Favoritenliste als Vorstufe zur Controller-UI.
+- Tastaturgesteuerte TUI mit Auswahlcursor, Refresh und Enter-Aktion.
 
 ## Phase 1: Datenmodell
 
