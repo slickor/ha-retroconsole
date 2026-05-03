@@ -12,7 +12,7 @@ Goal: Confirm that the URL, token, and network work.
 - Provide an interactive terminal favorites list as a precursor to the controller UI.
 - Provide a keyboard-driven TUI with selection cursor, refresh, and Enter action.
 
-## Phase 1: Data model
+## Phase 1: Data model (completed)
 
 Goal: Turn Home Assistant entities into a simple structure for a handheld UI.
 
@@ -21,7 +21,7 @@ Goal: Turn Home Assistant entities into a simple structure for a handheld UI.
 - Use display names from `attributes.friendly_name`.
 - Prioritize relevant domains: `light`, `switch`, `scene`, `script`, `sensor`, `binary_sensor`, `climate`.
 
-## Phase 2: Desktop prototype
+## Phase 2: Desktop prototype (completed)
 
 Goal: Test the control logic without PortMaster.
 
