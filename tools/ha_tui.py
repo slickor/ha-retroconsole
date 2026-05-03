@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -92,6 +93,27 @@ def fetch_states(base_url: str, token: str, timeout: float) -> dict[str, dict[st
     if not isinstance(states, list):
         raise SystemExit("Unexpected Home Assistant response: expected a list.")
     return {str(item.get("entity_id", "")): item for item in states}
+
+
+def refresh_after_action(
+    base_url: str,
+    token: str,
+    timeout: float,
+    entity_id: str,
+    previous_state: str | None,
+) -> dict[str, dict[str, Any]]:
+    latest_states = fetch_states(base_url, token, timeout)
+    if previous_state not in {"on", "off"}:
+        return latest_states
+
+    for _ in range(8):
+        latest = latest_states.get(entity_id)
+        latest_state = str(latest.get("state", "")) if latest is not None else None
+        if latest_state in {"on", "off"} and latest_state != previous_state:
+            return latest_states
+        time.sleep(0.25)
+        latest_states = fetch_states(base_url, token, timeout)
+    return latest_states
 
 
 def entity_domain(entity_id: str) -> str:
@@ -241,6 +263,8 @@ def run_loop(config: dict[str, Any], timeout: float) -> None:
             continue
 
         domain, service = action
+        previous = states.get(entity_id)
+        previous_state = str(previous.get("state", "")) if previous is not None else None
         home_assistant_request(
             config["base_url"],
             config["token"],
@@ -249,7 +273,13 @@ def run_loop(config: dict[str, Any], timeout: float) -> None:
             method="POST",
             body={"entity_id": entity_id},
         )
-        states = fetch_states(config["base_url"], config["token"], timeout)
+        states = refresh_after_action(
+            config["base_url"],
+            config["token"],
+            timeout,
+            entity_id,
+            previous_state,
+        )
         message = f"Ran {domain}.{service} for {entity_id}."
 
 
@@ -269,4 +299,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
