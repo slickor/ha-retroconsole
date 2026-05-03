@@ -93,7 +93,6 @@ class HASDL2App:
             if self.mode == "favorites":
                 self.load_entities()
         except Exception as e:
-            self.message = f"Error: {str(e)}"
             self.set_message(f"Error: {str(e)}")
 
     def set_message(self, text):
@@ -132,11 +131,9 @@ class HASDL2App:
         index = next((i for i, fav in enumerate(favorites) if favorite_entity_id(fav) == entity_id), None)
         if index is not None:
             del favorites[index]
-            self.message = "Favorite removed"
             self.set_message("Favorite removed")
         else:
             favorites.append({"entity_id": entity_id, "label": "", "action": "auto"})
-            self.message = "Favorite added"
             self.set_message("Favorite added")
         self.config["favorites"] = favorites
         self.favorites = favorites
@@ -152,7 +149,6 @@ class HASDL2App:
 
         resolved = resolve_action(entity_id, action)
         if resolved is None:
-            self.message = "Entity is read-only"
             self.set_message("Entity is read-only")
             return
 
@@ -176,10 +172,8 @@ class HASDL2App:
                 entity_id,
                 previous_state,
             )
-            self.message = f"Executed {service} on {entity_id}"
             self.set_message(f"Executed {service} on {entity_id}")
         except Exception as e:
-            self.message = f"Error: {str(e)}"
             self.set_message(f"Error: {str(e)}")
 
     def handle_input(self):
@@ -191,7 +185,6 @@ class HASDL2App:
                 if event.key.keysym.sym == sdl2.SDLK_ESCAPE:
                     if self.mode == "favorites":
                         self.mode = "main"
-                        self.message = "Favorites editor closed"
                         self.set_message("Favorites editor closed")
                     else:
                         self.running = False
@@ -221,11 +214,9 @@ class HASDL2App:
                     if self.mode == "main":
                         self.mode = "favorites"
                         self.load_entities()
-                        self.message = "Edit favorites"
                         self.set_message("Edit favorites")
                 elif event.key.keysym.sym == sdl2.SDLK_r:
                     self.load_data()
-                    self.message = "Refreshed"
                     self.set_message("Refreshed")
 
     def render_text(self, text, x, y, color):
