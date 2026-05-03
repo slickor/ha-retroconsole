@@ -20,6 +20,24 @@ Im ersten Schritt gibt es nur ein kleines Python-Werkzeug, das ohne externe Abha
 python tools/ha_check.py --config config.json
 ```
 
+Entities lassen sich gezielt filtern:
+
+```powershell
+python tools/ha_check.py --config config.json --domain light --limit 30
+```
+
+Einen einfachen Service kannst du zuerst trocken testen:
+
+```powershell
+python tools/ha_action.py light.licht_garage_schalter_1
+```
+
+Mit `--yes` wird der Service wirklich ausgefuehrt:
+
+```powershell
+python tools/ha_action.py light.licht_garage_schalter_1 --yes
+```
+
 Falls `python` auf Windows nicht gefunden wird, probiere:
 
 ```powershell

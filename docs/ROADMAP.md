@@ -8,6 +8,7 @@ Ziel: Wir wissen, dass URL, Token und Netzwerk funktionieren.
 - `/api/states` laden.
 - Anzahl und Beispiele von Entities anzeigen.
 - Fehler lesbar melden.
+- Einfache Service-Calls fuer `light`, `switch`, `scene` und `script` testen.
 
 ## Phase 1: Datenmodell
 
@@ -55,4 +56,3 @@ Ziel: Stabil auf echten Geraeten.
 - TrimUI Smart Pro testen.
 - Logs pruefen.
 - Dokumentation fuer Installation und Konfiguration schreiben.
-
