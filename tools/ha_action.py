@@ -4,102 +4,22 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
-from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+
+from ha_client import SUPPORTED_ACTIONS, call_service, entity_domain, load_config, resolve_action
 
 
-SUPPORTED_ACTIONS = {
-    "light": {"toggle", "turn_on", "turn_off"},
-    "switch": {"toggle", "turn_on", "turn_off"},
-    "scene": {"turn_on"},
-    "script": {"turn_on"},
-}
-
-
-def load_config(path: Path) -> dict[str, Any]:
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            config = json.load(handle)
-    except FileNotFoundError:
-        raise SystemExit(f"Config not found: {path}")
-    except json.JSONDecodeError as exc:
-        raise SystemExit(f"Config is not valid JSON: {exc}")
-
-    base_url = str(config.get("base_url", "")).strip().rstrip("/")
-    token = str(config.get("token", "")).strip()
-
-    if not base_url:
-        raise SystemExit("Missing config value: base_url")
-    if not token or token == "PASTE_LONG_LIVED_ACCESS_TOKEN_HERE":
-        raise SystemExit("Missing config value: token")
-
-    config["base_url"] = base_url
-    config["token"] = token
-    return config
-
-
-def entity_domain(entity_id: str) -> str:
-    return entity_id.split(".", 1)[0] if "." in entity_id else ""
-
-
-def resolve_action(entity_id: str, action: str) -> tuple[str, str]:
+def require_action(entity_id: str, action: str) -> tuple[str, str]:
+    resolved = resolve_action(entity_id, action)
     domain = entity_domain(entity_id)
+    if resolved is not None:
+        return resolved
     if domain not in SUPPORTED_ACTIONS:
         supported = ", ".join(sorted(SUPPORTED_ACTIONS))
         raise SystemExit(f"Unsupported entity domain '{domain}'. Supported: {supported}")
-
-    if action == "auto":
-        action = "toggle" if "toggle" in SUPPORTED_ACTIONS[domain] else "turn_on"
-
-    if action not in SUPPORTED_ACTIONS[domain]:
-        allowed = ", ".join(sorted(SUPPORTED_ACTIONS[domain]))
-        raise SystemExit(f"Unsupported action '{action}' for {domain}. Allowed: {allowed}")
-
-    return domain, action
-
-
-def call_service(
-    base_url: str,
-    token: str,
-    domain: str,
-    service: str,
-    entity_id: str,
-    timeout: float,
-) -> Any:
-    body = json.dumps({"entity_id": entity_id}).encode("utf-8")
-    request = Request(
-        f"{base_url}/api/services/{domain}/{service}",
-        data=body,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-    )
-
-    try:
-        with urlopen(request, timeout=timeout) as response:
-            payload = response.read().decode("utf-8")
-    except HTTPError as exc:
-        if exc.code in {401, 403}:
-            raise SystemExit("Home Assistant rejected the token.")
-        raise SystemExit(f"Home Assistant HTTP error: {exc.code} {exc.reason}")
-    except URLError as exc:
-        raise SystemExit(f"Could not reach Home Assistant: {exc.reason}")
-    except TimeoutError:
-        raise SystemExit("Connection timed out.")
-
-    if not payload:
-        return None
-
-    try:
-        return json.loads(payload)
-    except json.JSONDecodeError:
-        return payload
+    allowed = ", ".join(sorted(SUPPORTED_ACTIONS[domain]))
+    raise SystemExit(f"Unsupported action '{action}' for {domain}. Allowed: {allowed}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -120,7 +40,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     config = load_config(Path(args.config))
-    domain, service = resolve_action(args.entity_id, args.action)
+    domain, service = require_action(args.entity_id, args.action)
 
     print(f"Entity:  {args.entity_id}")
     print(f"Service: {domain}.{service}")
@@ -145,4 +65,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

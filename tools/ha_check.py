@@ -4,81 +4,12 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
-
-def load_config(path: Path) -> dict[str, Any]:
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            config = json.load(handle)
-    except FileNotFoundError:
-        raise SystemExit(f"Config not found: {path}")
-    except json.JSONDecodeError as exc:
-        raise SystemExit(f"Config is not valid JSON: {exc}")
-
-    base_url = str(config.get("base_url", "")).strip().rstrip("/")
-    token = str(config.get("token", "")).strip()
-
-    if not base_url:
-        raise SystemExit("Missing config value: base_url")
-    if not token or token == "PASTE_LONG_LIVED_ACCESS_TOKEN_HERE":
-        raise SystemExit("Missing config value: token")
-
-    config["base_url"] = base_url
-    config["token"] = token
-    return config
-
-
-def fetch_states(base_url: str, token: str, timeout: float) -> list[dict[str, Any]]:
-    request = Request(
-        f"{base_url}/api/states",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-    )
-
-    try:
-        with urlopen(request, timeout=timeout) as response:
-            payload = response.read().decode("utf-8")
-    except HTTPError as exc:
-        if exc.code in {401, 403}:
-            raise SystemExit("Home Assistant rejected the token.")
-        raise SystemExit(f"Home Assistant HTTP error: {exc.code} {exc.reason}")
-    except URLError as exc:
-        raise SystemExit(f"Could not reach Home Assistant: {exc.reason}")
-    except TimeoutError:
-        raise SystemExit("Connection timed out.")
-
-    try:
-        states = json.loads(payload)
-    except json.JSONDecodeError as exc:
-        raise SystemExit(f"Home Assistant returned invalid JSON: {exc}")
-
-    if not isinstance(states, list):
-        raise SystemExit("Unexpected Home Assistant response: expected a list.")
-
-    return states
-
-
-def entity_domain(entity_id: str) -> str:
-    return entity_id.split(".", 1)[0] if "." in entity_id else "unknown"
-
-
-def display_name(entity: dict[str, Any]) -> str:
-    entity_id = str(entity.get("entity_id", "unknown"))
-    attributes = entity.get("attributes")
-    if isinstance(attributes, dict):
-        friendly_name = attributes.get("friendly_name")
-        if friendly_name:
-            return str(friendly_name)
-    return entity_id
+from ha_client import display_name, entity_domain, fetch_states_list, load_config
 
 
 def print_summary(
@@ -104,7 +35,7 @@ def print_summary(
             if entity is None:
                 print(f"  {entity_id}: not found")
                 continue
-            print(f"  {entity_id}: {entity.get('state', 'unknown')} ({display_name(entity)})")
+            print(f"  {entity_id}: {entity.get('state', 'unknown')} ({display_name(entity_id, entity)})")
 
     print()
     print("Entity candidates:")
@@ -113,7 +44,7 @@ def print_summary(
     for entity in states:
         entity_id = str(entity.get("entity_id", ""))
         domain = entity_domain(entity_id)
-        name = display_name(entity)
+        name = display_name(entity_id, entity)
         if domain_filter and domain not in domain_filter:
             continue
         if not domain_filter and domain not in controllable:
@@ -146,7 +77,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     config = load_config(Path(args.config))
-    states = fetch_states(config["base_url"], config["token"], args.timeout)
+    states = fetch_states_list(config["base_url"], config["token"], args.timeout)
     favorites = config.get("favorites", [])
     if not isinstance(favorites, list):
         favorites = []
