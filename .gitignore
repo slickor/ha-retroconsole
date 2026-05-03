@@ -1,9 +1,11 @@
-config.json
-config*.json
-!config.example.json
-*.log
-*.zip
-build/
-dist/
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Private configuration
+config.json
+log.txt
+.vscode/

@@ -1,22 +1,22 @@
-# PortMaster Notes
+# PortMaster Implementation Notes
 
-Expected package structure:
+Specific considerations for running `ha-portmaster-client` on retro handhelds.
 
-```text
-homeassistant/
-  port.json
-  README.md
-  gameinfo.xml
-  screenshot.png
-  Home Assistant.sh
-  homeassistant/
-    homeassistant.aarch64
-    conf/
-      config.example.json
-    licenses/
-```
+## Requirements
+- **Python:** Most ArkOS/JELOS/Rocknix builds include Python 3.10+.
+- **SDL2:** Needs `pysdl2` and `pysdl2-dll`. On Linux handhelds, we should use the system-provided SDL2 libraries via `LD_LIBRARY_PATH`.
+- **Network:** The device must have an active Wi-Fi connection to reach the Home Assistant instance.
 
-The app should be considered `Ready to Run`, but for actual use the user must create their own `config.json` with the Home Assistant URL and token.
+## Controller Mapping
+PortMaster devices usually map the D-Pad and buttons to standard SDL keys or GameController events.
+- **A:** Typically `SDLK_RETURN` or `SDLK_SPACE`.
+- **B:** Typically `SDLK_ESCAPE` or `SDLK_BACKSPACE`.
+- **D-Pad:** Standard arrow keys.
 
-Important design decision: no WebView / Lovelace clone. The app uses the Home Assistant REST API directly and may optionally add WebSocket events later.
+## Packaging Structure
+The final port should be placed in `/roms/ports/` (or equivalent) with a `.sh` launcher script that sets up the environment and calls the Python script.
 
+### Key paths on typical devices:
+- **Config:** Should be stored in the same folder as the script or in a `conf/` subfolder.
+- **Logging:** Redirect stdout/stderr to a `log.txt` in the port folder for easier debugging on device.
+- **Resolution:** Hardcoded to 640x480 for now, but should ideally be dynamic or configurable for TrimUI (1280x720).

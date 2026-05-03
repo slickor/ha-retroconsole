@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 
 import sdl2
@@ -36,6 +37,7 @@ class HASDL2App:
         self.entities = []
         self.selected = 0
         self.picker_selected = 0
+        self.picker_scroll = 0
         self.mode = "main"
         self.running = True
         self.message = "Loading..."
@@ -57,10 +59,14 @@ class HASDL2App:
             self.width, self.height, 0
         )
         self.renderer = sdl2.SDL_CreateRenderer(self.window, -1, sdl2.SDL_RENDERER_ACCELERATED)
+        
+        # Cross-platform font candidates
         font_candidates = [
             "C:\\Windows\\Fonts\\arial.ttf",
             "C:\\Windows\\Fonts\\verdana.ttf",
             "C:\\Windows\\Fonts\\segoeui.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans.ttf"
         ]
         selected_font = None
         for candidate in font_candidates:
@@ -83,11 +89,16 @@ class HASDL2App:
                 self.config["token"], 
                 timeout=10.0
             )
-            self.message = "Connected"
+            self.set_message("Connected")
             if self.mode == "favorites":
                 self.load_entities()
         except Exception as e:
             self.message = f"Error: {str(e)}"
+            self.set_message(f"Error: {str(e)}")
+
+    def set_message(self, text):
+        self.message = text
+        self.message_time = time.time()
 
     def save_config(self):
         if self.config_path is None:
@@ -111,6 +122,7 @@ class HASDL2App:
         entities.sort(key=lambda item: (item["domain"], item["label"].lower(), item["entity_id"]))
         self.entities = entities
         self.picker_selected = 0
+        self.picker_scroll = 0
 
     def is_favorite(self, entity_id: str) -> bool:
         return any(favorite_entity_id(fav) == entity_id for fav in self.config.get("favorites", []))
@@ -121,9 +133,11 @@ class HASDL2App:
         if index is not None:
             del favorites[index]
             self.message = "Favorite removed"
+            self.set_message("Favorite removed")
         else:
             favorites.append({"entity_id": entity_id, "label": "", "action": "auto"})
             self.message = "Favorite added"
+            self.set_message("Favorite added")
         self.config["favorites"] = favorites
         self.favorites = favorites
         self.save_config()
@@ -139,6 +153,7 @@ class HASDL2App:
         resolved = resolve_action(entity_id, action)
         if resolved is None:
             self.message = "Entity is read-only"
+            self.set_message("Entity is read-only")
             return
 
         domain, service = resolved
@@ -162,8 +177,10 @@ class HASDL2App:
                 previous_state,
             )
             self.message = f"Executed {service} on {entity_id}"
+            self.set_message(f"Executed {service} on {entity_id}")
         except Exception as e:
             self.message = f"Error: {str(e)}"
+            self.set_message(f"Error: {str(e)}")
 
     def handle_input(self):
         events = sdl2.ext.get_events()
@@ -175,6 +192,7 @@ class HASDL2App:
                     if self.mode == "favorites":
                         self.mode = "main"
                         self.message = "Favorites editor closed"
+                        self.set_message("Favorites editor closed")
                     else:
                         self.running = False
                 elif event.key.keysym.sym == sdl2.SDLK_UP:
@@ -182,11 +200,16 @@ class HASDL2App:
                         self.selected = max(0, self.selected - 1)
                     else:
                         self.picker_selected = max(0, self.picker_selected - 1)
+                        if self.picker_selected < self.picker_scroll:
+                            self.picker_scroll = self.picker_selected
                 elif event.key.keysym.sym == sdl2.SDLK_DOWN:
                     if self.mode == "main":
                         self.selected = min(len(self.favorites) - 1, self.selected + 1)
                     else:
                         self.picker_selected = min(len(self.entities) - 1, self.picker_selected + 1)
+                        visible_rows = max((self.height - 90 - 60) // 28, 1)
+                        if self.picker_selected >= self.picker_scroll + visible_rows:
+                            self.picker_scroll = self.picker_selected - visible_rows + 1
                 elif event.key.keysym.sym in {sdl2.SDLK_RETURN, sdl2.SDLK_KP_ENTER}:
                     if self.mode == "main":
                         self.execute_action()
@@ -199,9 +222,11 @@ class HASDL2App:
                         self.mode = "favorites"
                         self.load_entities()
                         self.message = "Edit favorites"
+                        self.set_message("Edit favorites")
                 elif event.key.keysym.sym == sdl2.SDLK_r:
                     self.load_data()
                     self.message = "Refreshed"
+                    self.set_message("Refreshed")
 
     def render_text(self, text, x, y, color):
         if not self.font:
@@ -266,22 +291,26 @@ class HASDL2App:
             y += 30
 
         self.render_text_small("Up/Down: Navigate | Enter: Execute | F: Edit favorites | R: Refresh | Esc: Exit", 20, self.height - 40, COLOR_TEXT)
-        if self.message:
+        # Show message for 3 seconds
+        if self.message and (time.time() - self.message_time < 3.0):
             self.render_text_small(self.message, 20, self.height - 20, COLOR_TEXT)
 
     def render_favorites_editor(self):
         favorite_ids = {favorite_entity_id(fav) for fav in self.favorites}
         y = 60
-        for i, entity in enumerate(self.entities):
+        visible_rows = max((self.height - 90 - 60) // 28, 1)
+        start = self.picker_scroll
+        end = min(len(self.entities), start + visible_rows)
+
+        for i in range(start, end):
+            entity = self.entities[i]
             marker = "*" if entity["entity_id"] in favorite_ids else " "
             color = COLOR_HIGHLIGHT if i == self.picker_selected else COLOR_TEXT
             self.render_text(f"[{marker}] {entity['label']} ({entity['state']})", 20, y, color)
             y += 28
-            if y > self.height - 90:
-                break
 
         self.render_text_small("Up/Down: Navigate | Enter: Toggle favorite | R: Refresh | Esc: Back", 20, self.height - 40, COLOR_TEXT)
-        if self.message:
+        if self.message and (time.time() - self.message_time < 3.0):
             self.render_text_small(self.message, 20, self.height - 20, COLOR_TEXT)
 
     def run(self):

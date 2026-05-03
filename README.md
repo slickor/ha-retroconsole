@@ -6,7 +6,7 @@ The goal is a small, controller-friendly app for devices like the R36S and TrimU
 
 ## Current Status
 
-Phase 3: Native handheld prototype in progress.
+Phase 3: Native handheld prototype (SDL2) functional on desktop. Ready for initial PortMaster packaging.
 
 The project has completed the initial REST check, console tools, and a `pygame` prototype. It now also includes an experimental SDL2 test app (`tools/ha_sdl2.py`) to validate native handheld-style rendering and input.
 
@@ -63,7 +63,7 @@ Inside the prototype, press `Y` (or `F` on PC) to open the favorites editor. Use
 The SDL2 test app runs with:
 
 ```powershell
-pip install pysdl2
+pip install pysdl2 pysdl2-dll
 python tools/ha_sdl2.py --config config.json
 ```
 

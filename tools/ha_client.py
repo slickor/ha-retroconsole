@@ -51,8 +51,10 @@ def load_config(path: Path, require_favorites: bool = False) -> dict[str, Any]:
 
     if not base_url:
         raise SystemExit("Missing config value: base_url")
-    if not token or token == "PASTE_LONG_LIVED_ACCESS_TOKEN_HERE":
-        raise SystemExit("Missing config value: token")
+    if not token:
+        print("Warning: No token provided in config.")
+    elif token == "PASTE_LONG_LIVED_ACCESS_TOKEN_HERE":
+        print("Warning: Placeholder token detected. Please update config.json.")
     if require_favorites and not isinstance(favorites, list):
         raise SystemExit("Config value 'favorites' must be a list.")
 

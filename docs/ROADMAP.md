@@ -34,13 +34,14 @@ Goal: Test the control logic without PortMaster.
 
 ## Phase 3: Native handheld app (in progress)
 
-Goal: Move desktop prototyping logic into a native handheld app.
+Goal: Move desktop prototyping logic into a native SDL2-based handheld app.
 
-- SDL2 prototype script available as the first native test.
-- Define layouts for 640x480 and 1280x720.
-- Implement D-Pad/A/B/X/Y/Start/Select mapping.
-- Keep keyboard control as a PC fallback.
-- Create a retro-friendly, clear UI with large selection areas and visible status bar.
+- [x] SDL2 prototype script available as the first native test.
+- [x] Define layouts for 640x480 (standard handheld resolution).
+- [x] Keyboard control as a PC fallback.
+- [x] Basic message/notification system (3s fade-out).
+- [ ] Implement native Gamepad/D-Pad mapping (`SDL_GAMECONTROLLER`).
+- [ ] Improved UI with icons and better visual grouping.
 - Organize app configuration and runtime files in the app folder.
 
 ## Phase 4: PortMaster package
