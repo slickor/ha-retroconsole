@@ -50,6 +50,19 @@ Eine tastaturgesteuerte Konsolen-UI startest du so:
 python tools/ha_tui.py --config config.json
 ```
 
+Favoriten koennen einfache Entity-IDs oder Objekte mit Label und Aktion sein:
+
+```json
+"favorites": [
+  "light.licht_garage_schalter_1",
+  {
+    "entity_id": "script.announce_show_5",
+    "label": "Announcement",
+    "action": "turn_on"
+  }
+]
+```
+
 Falls `python` auf Windows nicht gefunden wird, probiere:
 
 ```powershell

@@ -12,7 +12,9 @@ from typing import Any
 from ha_client import (
     call_service,
     changed_favorites,
-    display_name,
+    favorite_action,
+    favorite_entity_id,
+    favorite_label,
     fetch_states_map,
     load_config,
     refresh_after_action,
@@ -24,7 +26,7 @@ def clear_screen() -> None:
     os.system("cls" if os.name == "nt" else "clear")
 
 
-def print_favorites(favorites: list[str], states: dict[str, dict[str, Any]]) -> None:
+def print_favorites(favorites: list[str | dict[str, str]], states: dict[str, dict[str, Any]]) -> None:
     print("Home Assistant Favorites")
     print()
     if not favorites:
@@ -32,12 +34,13 @@ def print_favorites(favorites: list[str], states: dict[str, dict[str, Any]]) -> 
         print()
         return
 
-    for index, entity_id in enumerate(favorites, start=1):
+    for index, favorite in enumerate(favorites, start=1):
+        entity_id = favorite_entity_id(favorite)
         state = states.get(entity_id)
         value = state.get("state", "missing") if state is not None else "missing"
-        action = resolve_action(entity_id)
+        action = resolve_action(entity_id, favorite_action(favorite))
         marker = " " if action else "-"
-        print(f"{index:>2}. [{marker}] {display_name(entity_id, state):<32} {value:<12} {entity_id}")
+        print(f"{index:>2}. [{marker}] {favorite_label(favorite, state):<32} {value:<12} {entity_id}")
 
     print()
     print("[number] run  r refresh  q quit")
@@ -66,8 +69,9 @@ def run_loop(config: dict[str, Any], timeout: float) -> None:
             input("Invalid favorite number. Press Enter to continue.")
             continue
 
-        entity_id = config["favorites"][index]
-        action = resolve_action(entity_id)
+        favorite = config["favorites"][index]
+        entity_id = favorite_entity_id(favorite)
+        action = resolve_action(entity_id, favorite_action(favorite))
         if action is None:
             input("This entity is read-only for now. Press Enter to continue.")
             continue

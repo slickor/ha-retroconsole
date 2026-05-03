@@ -18,6 +18,24 @@ SUPPORTED_ACTIONS = {
 }
 
 
+def normalize_favorite(item: Any) -> dict[str, str]:
+    if isinstance(item, str):
+        entity_id = item.strip()
+        if not entity_id:
+            raise SystemExit("Favorite entity_id must not be empty.")
+        return {"entity_id": entity_id, "label": "", "action": "auto"}
+
+    if not isinstance(item, dict):
+        raise SystemExit("Each favorite must be an entity_id string or an object.")
+
+    entity_id = str(item.get("entity_id", "")).strip()
+    label = str(item.get("label", "")).strip()
+    action = str(item.get("action", "auto")).strip() or "auto"
+    if not entity_id:
+        raise SystemExit("Favorite object is missing entity_id.")
+    return {"entity_id": entity_id, "label": label, "action": action}
+
+
 def load_config(path: Path, require_favorites: bool = False) -> dict[str, Any]:
     try:
         with path.open("r", encoding="utf-8") as handle:
@@ -41,7 +59,7 @@ def load_config(path: Path, require_favorites: bool = False) -> dict[str, Any]:
     config["base_url"] = base_url
     config["token"] = token
     if isinstance(favorites, list):
-        config["favorites"] = [str(item) for item in favorites]
+        config["favorites"] = [normalize_favorite(item) for item in favorites]
     else:
         config["favorites"] = []
     return config
@@ -111,6 +129,25 @@ def display_name(entity_id: str, state: dict[str, Any] | None) -> str:
     return entity_id
 
 
+def favorite_entity_id(favorite: str | dict[str, str]) -> str:
+    if isinstance(favorite, dict):
+        return favorite["entity_id"]
+    return str(favorite)
+
+
+def favorite_label(favorite: str | dict[str, str], state: dict[str, Any] | None) -> str:
+    entity_id = favorite_entity_id(favorite)
+    if isinstance(favorite, dict) and favorite.get("label"):
+        return favorite["label"]
+    return display_name(entity_id, state)
+
+
+def favorite_action(favorite: str | dict[str, str]) -> str:
+    if isinstance(favorite, dict):
+        return favorite.get("action", "auto")
+    return "auto"
+
+
 def resolve_action(entity_id: str, action: str = "auto") -> tuple[str, str] | None:
     domain = entity_domain(entity_id)
     if domain not in SUPPORTED_ACTIONS:
@@ -165,12 +202,13 @@ def refresh_after_action(
 
 
 def changed_favorites(
-    favorites: list[str],
+    favorites: list[str | dict[str, str]],
     before: dict[str, dict[str, Any]],
     after: dict[str, dict[str, Any]],
 ) -> list[str]:
     changes = []
-    for entity_id in favorites:
+    for favorite in favorites:
+        entity_id = favorite_entity_id(favorite)
         before_item = before.get(entity_id)
         after_item = after.get(entity_id)
         before_state = before_item.get("state", "missing") if before_item is not None else "missing"
@@ -178,4 +216,3 @@ def changed_favorites(
         if before_state != after_state:
             changes.append(f"{entity_id}: {before_state} -> {after_state}")
     return changes
-

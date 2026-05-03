@@ -12,7 +12,9 @@ from typing import Any
 from ha_client import (
     call_service,
     changed_favorites,
-    display_name,
+    favorite_action,
+    favorite_entity_id,
+    favorite_label,
     fetch_states_map,
     load_config,
     refresh_after_action,
@@ -40,7 +42,7 @@ def fit_text(value: str, width: int) -> str:
 
 
 def render(
-    favorites: list[str],
+    favorites: list[str | dict[str, str]],
     states: dict[str, dict[str, Any]],
     selected: int,
     message: str,
@@ -58,11 +60,12 @@ def render(
         start = max(0, min(selected - visible_rows + 1, len(favorites) - visible_rows))
         end = min(len(favorites), start + visible_rows)
         for index in range(start, end):
-            entity_id = favorites[index]
+            favorite = favorites[index]
+            entity_id = favorite_entity_id(favorite)
             state = states.get(entity_id)
-            name = display_name(entity_id, state)
+            name = favorite_label(favorite, state)
             value = state.get("state", "missing") if state is not None else "missing"
-            action = resolve_action(entity_id)
+            action = resolve_action(entity_id, favorite_action(favorite))
             prefix = ">" if index == selected else " "
             marker = "run" if action else "---"
             row = f" {prefix} {fit_text(name, 34)} {fit_text(value.upper(), 12)} {marker} "
@@ -146,8 +149,9 @@ def run_loop(config: dict[str, Any], timeout: float) -> None:
         if key != "enter" or not favorites:
             continue
 
-        entity_id = favorites[selected]
-        action = resolve_action(entity_id)
+        favorite = favorites[selected]
+        entity_id = favorite_entity_id(favorite)
+        action = resolve_action(entity_id, favorite_action(favorite))
         if action is None:
             message = "This entity is read-only for now."
             continue

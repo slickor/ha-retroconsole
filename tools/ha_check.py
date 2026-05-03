@@ -9,7 +9,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from ha_client import display_name, entity_domain, fetch_states_list, load_config
+from ha_client import display_name, entity_domain, favorite_entity_id, fetch_states_list, load_config
 
 
 def print_summary(
@@ -30,7 +30,8 @@ def print_summary(
         print()
         print("Favorites:")
         by_id = {str(item.get("entity_id", "")): item for item in states}
-        for entity_id in favorites:
+        for favorite in favorites:
+            entity_id = favorite_entity_id(favorite)
             entity = by_id.get(entity_id)
             if entity is None:
                 print(f"  {entity_id}: not found")
@@ -83,7 +84,7 @@ def main() -> int:
         favorites = []
     domain_filter = {str(item).strip() for item in args.domain if str(item).strip()}
     search = str(args.search).strip().lower()
-    print_summary(states, [str(item) for item in favorites], domain_filter, search, args.limit)
+    print_summary(states, favorites, domain_filter, search, args.limit)
     return 0
 
 
