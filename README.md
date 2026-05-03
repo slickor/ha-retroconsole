@@ -8,7 +8,7 @@ The goal is a small, controller-friendly app for devices like the R36S and TrimU
 
 Phase 2: First controller-friendly desktop prototype.
 
-The project has completed the initial REST check and console tools. It now includes a `pygame` prototype as a foundation for a controller-friendly handheld UI.
+The project has completed the initial REST check and console tools. It now includes a `pygame` prototype as a foundation for a controller-friendly handheld UI, including a favorites editor mode and gamepad-friendly navigation.
 
 ## Quickstart
 
@@ -57,6 +57,8 @@ The first pygame prototype runs with:
 pip install pygame
 python tools/ha_pygame.py --config config.json
 ```
+
+Inside the prototype, press `Y` (or `F` on PC) to open the favorites editor. Use the arrow keys to move, `A`/Enter to toggle favorites, and `R` to refresh.
 
 Favorites can be either simple entity IDs or objects with label and action:
 

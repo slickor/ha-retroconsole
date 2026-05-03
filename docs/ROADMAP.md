@@ -26,7 +26,8 @@ Goal: Turn Home Assistant entities into a simple structure for a handheld UI.
 Goal: Test the control logic without PortMaster.
 
 - Favorite list.
-- Keyboard navigation.
+- Favorites editor mode in the prototype.
+- Keyboard/gamepad-friendly navigation.
 - Toggle/service call for simple domains.
 - Error and loading states.
 - `pygame`-based UI prototype created.
