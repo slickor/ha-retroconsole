@@ -1,63 +1,64 @@
 # Home Assistant PortMaster Client
 
-Ein experimenteller Home-Assistant-Client fuer Linux-Retro-Handhelds mit PortMaster.
+An experimental Home Assistant client for Linux retro handhelds using PortMaster.
 
-Das Ziel ist eine kleine, controllerfreundliche App fuer Geraete wie R36S und TrimUI Smart Pro. Die App soll nicht die komplette Home-Assistant-Weboberflaeche nachbauen, sondern Favoriten, Sensoren, Schalter, Lichter, Szenen und Skripte direkt ueber die Home-Assistant-API bedienen.
+The goal is a small, controller-friendly app for devices like the R36S and TrimUI Smart Pro. The app is not intended to recreate the full Home Assistant web UI, but to control favorites, sensors, switches, lights, scenes, and scripts directly via the Home Assistant REST API.
 
-## Aktueller Stand
+## Current Status
 
-Phase 2: Erster controllerfreundlicher Desktop-Prototyp.
+Phase 2: First controller-friendly desktop prototype.
 
-Das Projekt hat den ersten REST-Check und die Konsolen-Tools erfolgreich umgesetzt. Jetzt gibt es einen `pygame`-Prototyp als Grundlage fuer eine controllerfreundliche UI auf Handheld-Formaten.
+The project has completed the initial REST check and console tools. It now includes a `pygame` prototype as a foundation for a controller-friendly handheld UI.
 
-## Schnellstart
+## Quickstart
 
-1. Kopiere `config.example.json` nach `config.json`.
-2. Trage deine Home-Assistant-URL und einen Long-Lived Access Token ein.
-3. Starte den Test:
+1. Copy `config.example.json` to `config.json`.
+2. Enter your Home Assistant URL and a Long-Lived Access Token.
+   - Create the token in Home Assistant under your user profile: `Profile -> Security -> Long-lived access tokens`.
+3. Run the connectivity test:
 
 ```powershell
 python tools/ha_check.py --config config.json
 ```
 
-Entities lassen sich gezielt filtern:
+You can filter entities specifically:
 
 ```powershell
 python tools/ha_check.py --config config.json --domain light --limit 30
 ```
 
-Einen einfachen Service kannst du zuerst trocken testen:
+You can dry-run a service first:
 
 ```powershell
 python tools/ha_action.py light.licht_garage_schalter_1
 ```
 
-Mit `--yes` wird der Service wirklich ausgefuehrt:
+Use `--yes` to execute the service:
 
 ```powershell
 python tools/ha_action.py light.licht_garage_schalter_1 --yes
 ```
 
-Eine einfache interaktive Favoritenliste startest du so:
+Start an interactive favorites list with:
 
 ```powershell
 python tools/ha_favorites.py --config config.json
 ```
 
-Eine tastaturgesteuerte Konsolen-UI startest du so:
+Start a keyboard-driven console UI with:
 
 ```powershell
 python tools/ha_tui.py --config config.json
 ```
 
-Ein erster pygame-Prototyp läuft mit:
+The first pygame prototype runs with:
 
 ```powershell
 pip install pygame
 python tools/ha_pygame.py --config config.json
 ```
 
-Favoriten koennen einfache Entity-IDs oder Objekte mit Label und Aktion sein:
+Favorites can be either simple entity IDs or objects with label and action:
 
 ```json
 "favorites": [
@@ -70,27 +71,27 @@ Favoriten koennen einfache Entity-IDs oder Objekte mit Label und Aktion sein:
 ]
 ```
 
-Falls `python` auf Windows nicht gefunden wird, probiere:
+If `python` is not found on Windows, try:
 
 ```powershell
 py tools/ha_check.py --config config.json
 ```
 
-Der Token wird in Home Assistant ueber dein Benutzerprofil erstellt:
+The token is created in Home Assistant from your user profile under:
 
-`Profil -> Sicherheit -> Long-lived access tokens`
+`Profile -> Security -> Long-lived access tokens`
 
 ## Roadmap
 
-- Phase 0: Home-Assistant-Verbindung per REST testen.
-- Phase 1: Entities laden und gruppieren.
-- Phase 2: Erste controllerfreundliche Desktop-UI.
-- Phase 3: SDL2-App fuer Handheld-Aufloesungen.
-- Phase 4: PortMaster-Paket bauen.
-- Phase 5: Tests auf R36S und TrimUI Smart Pro.
+- Phase 0: Test Home Assistant connectivity via REST.
+- Phase 1: Load and group entities.
+- Phase 2: First controller-friendly desktop UI.
+- Phase 3: SDL2 app for handheld resolutions.
+- Phase 4: Build a PortMaster package.
+- Phase 5: Test on R36S and TrimUI Smart Pro.
 
-Siehe auch [docs/ROADMAP.md](docs/ROADMAP.md).
+See also [docs/ROADMAP.md](docs/ROADMAP.md).
 
-## Sicherheit
+## Security
 
-`config.json` enthaelt deinen privaten Home-Assistant-Token und wird deshalb nicht committed.
+`config.json` contains your private Home Assistant token and should not be committed.

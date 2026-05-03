@@ -19,6 +19,17 @@ def render_text(surface: pygame.Surface, font: pygame.font.Font, text: str, colo
     surface.blit(rendered, pos)
 
 
+def fit_text(text: str, font: pygame.font.Font, max_width: int) -> str:
+    if font.size(text)[0] <= max_width:
+        return text
+    if max_width <= 20:
+        return text[:max_width]
+    truncated = text
+    while font.size(truncated + "...")[0] > max_width and len(truncated) > 0:
+        truncated = truncated[:-1]
+    return truncated + "..."
+
+
 def render_message(surface: pygame.Surface, font: pygame.font.Font, message: str, width: int, y: int) -> None:
     if not message:
         return
@@ -50,8 +61,8 @@ def render_favorites(
 ) -> None:
     item_height = 50
     item_y = 80
-    visible_items = 7
-    start_index = max(0, min(selected - 3, len(favorites) - visible_items))
+    visible_items = 5
+    start_index = max(0, min(selected - 2, len(favorites) - visible_items))
     end_index = min(len(favorites), start_index + visible_items)
 
     if not favorites:
@@ -82,8 +93,10 @@ def render_favorites(
         if not is_controllable:
             text_color = COLOR_INACTIVE
 
-        render_text(surface, font_item, label[:30], text_color, (40, item_y + 10))
-        render_text(surface, font_small, str(value).upper(), text_color, (width - 120, item_y + 10))
+        label_text = fit_text(label, font_item, width - 220)
+        render_text(surface, font_item, label_text, text_color, (40, item_y + 10))
+        value_text = fit_text(str(value).upper(), font_small, 60)
+        render_text(surface, font_small, value_text, text_color, (width - 120, item_y + 10))
 
         marker = "A" if is_controllable else "-"
         marker_color = COLOR_SUCCESS if is_controllable else COLOR_INACTIVE
@@ -104,8 +117,8 @@ def render_entity_picker(
 ) -> None:
     item_height = 50
     item_y = 80
-    visible_items = 7
-    start_index = max(0, min(selected - 3, len(entities) - visible_items))
+    visible_items = 5
+    start_index = max(0, min(selected - 2, len(entities) - visible_items))
     end_index = min(len(entities), start_index + visible_items)
 
     if not entities:
@@ -127,8 +140,10 @@ def render_entity_picker(
             pygame.draw.rect(surface, COLOR_BORDER, bg_rect, 1)
 
         text_color = COLOR_TEXT_HIGHLIGHT if is_selected else COLOR_TEXT
-        render_text(surface, font_item, label[:30], text_color, (40, item_y + 10))
-        render_text(surface, font_small, value, text_color, (width - 120, item_y + 10))
+        label_text = fit_text(label, font_item, width - 220)
+        render_text(surface, font_item, label_text, text_color, (40, item_y + 10))
+        value_text = fit_text(value, font_small, 60)
+        render_text(surface, font_small, value_text, text_color, (width - 120, item_y + 10))
         render_text(surface, font_small, f"[{marker}]", COLOR_SUCCESS if marker == "*" else COLOR_INACTIVE, (width - 60, item_y + 10))
 
         item_y += item_height

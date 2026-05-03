@@ -146,17 +146,19 @@ class HAPortPilot:
             self.width,
         )
 
-        controls_y = self.height - 110
+        controls_y = self.height - 115
         pygame.draw.line(self.screen, COLOR_BORDER, (0, controls_y), (self.width, controls_y), 2)
         controls = [
-            "D-Pad: Navigate",
-            "A: Execute",
-            "Y: Favorites",
-            "X: Refresh",
-            "B: Exit",
+            ("D-Pad: Navigate", "PC: Arrows"),
+            ("A: Execute", "PC: Enter"),
+            ("Y: Favorites", "PC: F"),
+            ("X: Refresh", "PC: R"),
+            ("B: Exit", "PC: Esc/B"),
         ]
-        for i, ctrl in enumerate(controls):
-            render_text(self.screen, self.font_small, ctrl, COLOR_TEXT, (20, controls_y + 12 + i * 22))
+        for i, (ctrl, pc) in enumerate(controls):
+            y = controls_y + 12 + i * 22
+            render_text(self.screen, self.font_small, ctrl, COLOR_TEXT, (20, y))
+            render_text(self.screen, self.font_small, pc, COLOR_TEXT, (260, y))
 
         render_message(self.screen, self.font_small, self.message, self.width, controls_y + 50)
 
@@ -175,16 +177,18 @@ class HAPortPilot:
             self.width,
         )
 
-        controls_y = self.height - 110
+        controls_y = self.height - 115
         pygame.draw.line(self.screen, COLOR_BORDER, (0, controls_y), (self.width, controls_y), 2)
         controls = [
-            "D-Pad: Navigate",
-            "A: Toggle",
-            "X: Refresh",
-            "B: Back",
+            ("D-Pad: Navigate", "PC: Arrows"),
+            ("A: Toggle", "PC: Enter"),
+            ("X: Refresh", "PC: R"),
+            ("B: Back", "PC: Esc/B"),
         ]
-        for i, ctrl in enumerate(controls):
-            render_text(self.screen, self.font_small, ctrl, COLOR_TEXT, (20, controls_y + 12 + i * 22))
+        for i, (ctrl, pc) in enumerate(controls):
+            y = controls_y + 12 + i * 22
+            render_text(self.screen, self.font_small, ctrl, COLOR_TEXT, (20, y))
+            render_text(self.screen, self.font_small, pc, COLOR_TEXT, (260, y))
 
         render_message(self.screen, self.font_small, self.message, self.width, controls_y + 50)
 
