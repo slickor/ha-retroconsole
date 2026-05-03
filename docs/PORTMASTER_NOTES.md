@@ -1,6 +1,6 @@
 # PortMaster Notes
 
-Voraussichtliche Paketstruktur:
+Expected package structure:
 
 ```text
 homeassistant/
@@ -16,7 +16,7 @@ homeassistant/
     licenses/
 ```
 
-Die App sollte als `Ready to Run` gelten koennen, aber fuer echte Nutzung muss der Nutzer eine eigene `config.json` mit Home-Assistant-URL und Token anlegen.
+The app should be considered `Ready to Run`, but for actual use the user must create their own `config.json` with the Home Assistant URL and token.
 
-Wichtige Designentscheidung: kein WebView/Lovelace-Clone. Die App nutzt die Home-Assistant-REST-API direkt und spaeter optional WebSocket-Events.
+Important design decision: no WebView / Lovelace clone. The app uses the Home Assistant REST API directly and may optionally add WebSocket events later.
 
