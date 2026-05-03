@@ -67,7 +67,7 @@ pip install pysdl2
 python tools/ha_sdl2.py --config config.json
 ```
 
-This app uses the same config and favorites logic while testing native SDL2 rendering and keyboard input.
+Use `F` to open the favorites editor, then `Enter` to toggle a favorite. This app uses the same config and favorites logic while testing native SDL2 rendering and keyboard input.
 
 Favorites can be either simple entity IDs or objects with label and action:
 
