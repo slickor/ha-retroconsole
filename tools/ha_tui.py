@@ -21,6 +21,8 @@ from ha_client import (
     resolve_action,
 )
 
+VERSION = "0.5.0"
+
 
 def fit_message(changes: list[str]) -> str:
     if not changes:
@@ -79,9 +81,10 @@ def render(
     print("|" + " D-Pad select   A run   X refresh   B quit".center(width) + "|")
     print("|" + " PC: arrows     Enter   R           Q".center(width) + "|")
     if message:
-        print("|" + fit_text(" " + message, width) + "|")
+        msg_area = fit_text(" " + message, width - len(VERSION) - 2)
+        print("|" + msg_area.ljust(width - len(VERSION) - 1) + VERSION + " |")
     else:
-        print("|" + "".ljust(width) + "|")
+        print("|" + VERSION.rjust(width - 1) + " |")
     print("+" + "-" * width + "+")
 
 

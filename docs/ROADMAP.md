@@ -62,6 +62,6 @@ Goal: A deployable App for target devices.
 Goal: Stable operation on real devices.
 
 - Test on R36S.
-- Test on TrimUI Smart Pro.
+- [x] Test on TrimUI Smart Pro (Initial boot and UI functional).
 - Check logs.
 - Write installation and configuration documentation.

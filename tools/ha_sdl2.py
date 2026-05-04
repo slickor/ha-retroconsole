@@ -26,6 +26,8 @@ from ha_client import (
     resolve_action,
 )
 
+VERSION = "0.5.0"
+
 # Farben (SDL2 RGB)
 COLOR_BG = sdl2.SDL_Color(0, 0, 0, 255)
 COLOR_TEXT = sdl2.SDL_Color(255, 255, 255, 255)
@@ -144,7 +146,7 @@ class HASDL2App:
         try:
             result = target_func(*args, **kwargs)
             self.task_queue.put({"status": "success", "result": result, "type": self.pending_task_type})
-        except Exception as e:
+        except BaseException as e:
             self.task_queue.put({"status": "error", "error": str(e), "type": self.pending_task_type})
 
     def _find_icon(self, icon_dir, name):
@@ -447,10 +449,15 @@ class HASDL2App:
             self.render_text_small(state_str, self.width - 100, y + 4, state_color)
             y += 30
 
-        self.render_text_small("Up/Down: Navigate | Enter: Execute | F: Edit favorites | R: Refresh | Esc: Exit", 20, self.height - 40, COLOR_TEXT)
-        # Show message for 1 second
-        if self.message and (time.time() - self.message_time < 1.0):
+        self.render_text_small("D-Pad: Navigate | A: Execute | Y: Favorites | X: Refresh | B: Exit", 20, self.height - 40, COLOR_TEXT)
+        # Show message for 1 second (or 5 if it's an error)
+        is_error = self.message.startswith("Error")
+        display_time = 5.0 if is_error else 1.0
+        if self.message and (time.time() - self.message_time < display_time):
             self.render_text_small(self.message, 20, self.height - 20, COLOR_TEXT)
+
+        # Render version number in the bottom right
+        self.render_text_small(VERSION, self.width - 60, self.height - 20, COLOR_TEXT_DIM)
 
     def render_favorites_editor(self):
         favorite_ids = {favorite_entity_id(fav) for fav in self.favorites}
@@ -504,9 +511,12 @@ class HASDL2App:
             self.render_text_small(entity['state'], self.width - 100, y + 4, COLOR_TEXT_DIM)
             y += 28
 
-        self.render_text_small("Up/Down: Navigate | Enter: Toggle favorite | R: Refresh | Esc: Back", 20, self.height - 40, COLOR_TEXT)
+        self.render_text_small("D-Pad: Navigate | A: Toggle favorite | X: Refresh | B: Back", 20, self.height - 40, COLOR_TEXT)
         if self.message and (time.time() - self.message_time < 1.0):
             self.render_text_small(self.message, 20, self.height - 20, COLOR_TEXT)
+
+        # Render version number in the bottom right
+        self.render_text_small(VERSION, self.width - 60, self.height - 20, COLOR_TEXT_DIM)
 
     def run(self):
         self.init_sdl()

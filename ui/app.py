@@ -42,6 +42,8 @@ from ui.widgets import (
     render_text,
 )
 
+VERSION = "0.5.0"
+
 
 class HARetroApp:
     def __init__(self, config: dict[str, Any], timeout: float = 10.0, config_path: Path | None = None):
@@ -162,6 +164,9 @@ class HARetroApp:
 
         render_message(self.screen, self.font_small, self.message, self.width, controls_y + 50)
 
+        version_surface = self.font_small.render(VERSION, True, COLOR_INACTIVE)
+        self.screen.blit(version_surface, (self.width - 60, self.height - 25))
+
     def render_picker(self) -> None:
         title_surface = self.font_title.render("Edit Favorites", True, COLOR_TEXT_HIGHLIGHT)
         self.screen.blit(title_surface, (20, 20))
@@ -191,6 +196,9 @@ class HARetroApp:
             render_text(self.screen, self.font_small, pc, COLOR_TEXT, (260, y))
 
         render_message(self.screen, self.font_small, self.message, self.width, controls_y + 50)
+
+        version_surface = self.font_small.render(VERSION, True, COLOR_INACTIVE)
+        self.screen.blit(version_surface, (self.width - 60, self.height - 25))
 
     def handle_input(self) -> None:
         actions = poll_actions()

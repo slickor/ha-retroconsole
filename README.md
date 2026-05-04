@@ -10,6 +10,12 @@ Phase 3: Native handheld prototype (SDL2) functional on desktop. Ready for initi
 
 The project has completed the initial REST check, console tools, and a `pygame` prototype. It now also includes an experimental SDL2 test app (`tools/ha_sdl2.py`) to validate native handheld-style rendering and input.
 
+## Connectivity Note
+
+**Important:** Many handheld Linux distributions (like those used on the R36S or TrimUI Smart Pro) do not support mDNS out of the box. 
+
+It is highly recommended to use the **IP address** of your Home Assistant server (e.g., `http://192.168.1.100:8123`) in your `config.json` instead of `http://homeassistant.local:8123`.
+
 ## Quickstart
 
 1. Copy `config.example.json` to `config.json`.
@@ -101,7 +107,7 @@ The token is created in Home Assistant from your user profile under:
 - Phase 4: Build a deployable App.
 - Phase 5: Test on R36S and TrimUI Smart Pro.
 
-See also [docs/ROADMAP.md](docs/ROADMAP.md).
+See also docs/ROADMAP.md and CHANGELOG.md.
 
 ## Special Thanks
 
