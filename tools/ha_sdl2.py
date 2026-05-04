@@ -68,9 +68,13 @@ class HASDL2App:
             b"HA RetroConsole", 
             sdl2.SDL_WINDOWPOS_CENTERED, 
             sdl2.SDL_WINDOWPOS_CENTERED, 
-            self.width, self.height, 0
+            self.width, self.height, sdl2.SDL_WINDOW_FULLSCREEN_DESKTOP
         )
         self.renderer = sdl2.SDL_CreateRenderer(self.window, -1, sdl2.SDL_RENDERER_ACCELERATED)
+        
+        # Set logical size to 640x480. SDL2 will handle scaling and letterboxing 
+        # automatically on high-res screens like the TrimUI Smart Pro (720p).
+        sdl2.SDL_RenderSetLogicalSize(self.renderer, self.width, self.height)
         
         # Cross-platform font candidates including relative asset path
         script_dir = os.path.dirname(os.path.abspath(__file__))
