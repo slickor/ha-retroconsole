@@ -9,3 +9,4 @@ config.json
 dist/
 build/
 *.egg-info/
+*.zip
