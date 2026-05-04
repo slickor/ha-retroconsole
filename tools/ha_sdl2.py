@@ -71,6 +71,7 @@ class HASDL2App:
             self.width, self.height, sdl2.SDL_WINDOW_FULLSCREEN_DESKTOP
         )
         self.renderer = sdl2.SDL_CreateRenderer(self.window, -1, sdl2.SDL_RENDERER_ACCELERATED)
+        sdl2.SDL_SetHint(sdl2.SDL_HINT_RENDER_SCALE_QUALITY, b"1")
         
         # Set logical size to 640x480. SDL2 will handle scaling and letterboxing 
         # automatically on high-res screens like the TrimUI Smart Pro (720p).

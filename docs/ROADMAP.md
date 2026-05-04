@@ -44,7 +44,7 @@ Goal: Move desktop prototyping logic into a native SDL2-based handheld app.
 - [x] Improved UI with icons and better visual grouping.
 - [x] Organize app configuration and runtime files in the app folder.
 
-## Phase 4: deployable App
+## Phase 4: deployable App (completed)
 
 Goal: A deployable App for target devices.
 
@@ -57,7 +57,7 @@ Goal: A deployable App for target devices.
 - [x] License files
 - [x] Binaries/Environment setup strategy
 
-## Phase 5: Device testing
+## Phase 5: Device testing (in progress)
 
 Goal: Stable operation on real devices.
 

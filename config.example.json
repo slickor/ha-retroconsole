@@ -2,9 +2,10 @@
   "base_url": "http://homeassistant.local:8123",
   "token": "PASTE_LONG_LIVED_ACCESS_TOKEN_HERE",
   "favorites": [
+    "light.your_light_id",
     {
-      "entity_id": "light.example",
-      "label": "Example Light",
+      "entity_id": "switch.your_switch_id",
+      "label": "Desk Lamp",
       "action": "toggle"
     }
   ]

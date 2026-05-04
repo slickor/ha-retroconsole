@@ -4,13 +4,12 @@
 GAMEDIR=$(dirname "$0")
 cd "$GAMEDIR"
 
-echo "Creating virtual environment (this might take a minute)..."
-python3 -m venv venv
-
-echo "Installing Python dependencies..."
-# We use the pip inside the venv to ensure isolation
-./venv/bin/python -m pip install --upgrade pip
-./venv/bin/python -m pip install -r requirements.txt
-
-echo "Setup complete!"
-touch .installed
+echo "Installing Python dependencies into local libs folder..."
+# We install directly into a local directory to avoid venv path issues
+if python3 -m pip install --target="./libs" -r requirements.txt; then
+    echo "Setup complete!"
+    touch .installed
+else
+    echo "Installation failed. Check internet connection."
+    exit 1
+fi

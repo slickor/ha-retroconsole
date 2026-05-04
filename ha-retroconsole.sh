@@ -25,20 +25,17 @@ exec > >(tee "$GAMEDIR/log.txt") 2>&1
 # Ensure uinput is writable for gamepads
 $ESUDO chmod 666 /dev/uinput
 
-# Check if venv exists, if not, run installer
-if [ ! -d "venv" ]; then
+# Check if libs exist, if not, run installer
+if [ ! -d "libs" ]; then
     echo "First run detected, installing..."
     bash ./install.sh
 fi
 
 export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 export PYTHONUNBUFFERED=1
+export PYTHONPATH="$GAMEDIR/libs:$PYTHONPATH"
 
 echo "Starting HA RetroConsole..."
-
-# Wir nutzen die virtuelle Umgebung, die wir in Phase 3 angelegt haben.
-# Auf dem Handheld muss diese ggf. einmalig vor Ort erstellt werden 
-# oder wir liefern die Abhängigkeiten vorkompiliert mit.
-./venv/bin/python tools/ha_sdl2.py --config config.json
+python3 tools/ha_sdl2.py --config config.json
 
 echo "HA RetroConsole closed."
