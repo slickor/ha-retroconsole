@@ -53,7 +53,7 @@ class HASDL2App:
         sdl2.SDL_Init(sdl2.SDL_INIT_VIDEO)
         ttf.TTF_Init()
         self.window = sdl2.SDL_CreateWindow(
-            b"HA SDL2 Test", 
+            b"HA RetroConsole", 
             sdl2.SDL_WINDOWPOS_CENTERED, 
             sdl2.SDL_WINDOWPOS_CENTERED, 
             self.width, self.height, 0
@@ -256,7 +256,7 @@ class HASDL2App:
         sdl2.SDL_RenderClear(self.renderer)
 
         # Header
-        title = "HA SDL2 Test"
+        title = "HA RetroConsole"
         if self.mode == "favorites":
             title = "Favorites Editor"
         self.render_text(title, 20, 20, COLOR_HIGHLIGHT)

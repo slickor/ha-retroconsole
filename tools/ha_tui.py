@@ -51,7 +51,7 @@ def render(
     clear_screen()
     width = 58
     print("+" + "-" * width + "+")
-    print("|" + " HOME ASSISTANT".center(width) + "|")
+    print("|" + " HA RETROCONSOLE".center(width) + "|")
     print("|" + " Favorites".center(width) + "|")
 
     if not favorites:

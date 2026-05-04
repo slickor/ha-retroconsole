@@ -1,8 +1,8 @@
-# Home Assistant PortMaster Client
+# HA Handheld - Home Assistant RetroConsole
 
-An experimental Home Assistant client for Linux retro handhelds using PortMaster.
+This project is a dedicated **Home Assistant client for retro handhelds** running Linux (designed for PortMaster).
 
-The goal is a small, controller-friendly app for devices like the R36S and TrimUI Smart Pro. The app is not intended to recreate the full Home Assistant web UI, but to control favorites, sensors, switches, lights, scenes, and scripts directly via the Home Assistant REST API.
+The goal is to provide a fast, controller-driven interface for devices like the R36S, TrimUI Smart Pro, and other handhelds, allowing you to control your smart home without needing a web browser or a heavy mobile app. It focuses on immediate control of favorites, sensors, switches, lights, scenes, and scripts via the Home Assistant REST API.
 
 ## Current Status
 

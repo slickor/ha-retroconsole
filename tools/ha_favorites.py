@@ -28,6 +28,7 @@ def clear_screen() -> None:
 
 def print_favorites(favorites: list[str | dict[str, str]], states: dict[str, dict[str, Any]]) -> None:
     print("Home Assistant Favorites")
+    print("HA RetroConsole")
     print()
     if not favorites:
         print("No favorites configured. Add entity_ids to config.json.")
