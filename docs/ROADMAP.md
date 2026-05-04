@@ -4,33 +4,33 @@
 
 Goal: Confirm that the URL, token, and network work.
 
-- Read `config.json`.
-- Load `/api/states`.
-- Display entity count and examples.
-- Report errors in a readable way.
-- Test simple service calls for `light`, `switch`, `scene`, and `script`.
-- Provide an interactive terminal favorites list as a precursor to the controller UI.
-- Provide a keyboard-driven TUI with selection cursor, refresh, and Enter action.
+- [x] Read `config.json`.
+- [x] Load `/api/states`.
+- [x] Display entity count and examples.
+- [x] Report errors in a readable way.
+- [x] Test simple service calls for `light`, `switch`, `scene`, and `script`.
+- [x] Provide an interactive terminal favorites list as a precursor to the controller UI.
+- [x] Provide a keyboard-driven TUI with selection cursor, refresh, and Enter action.
 
 ## Phase 1: Data model (completed)
 
 Goal: Turn Home Assistant entities into a simple structure for a handheld UI.
 
-- Group entities by domain.
-- Mark favorites from `config.json`.
-- Use display names from `attributes.friendly_name`.
-- Prioritize relevant domains: `light`, `switch`, `scene`, `script`, `sensor`, `binary_sensor`, `climate`.
+- [x] Group entities by domain.
+- [x] Mark favorites from `config.json`.
+- [x] Use display names from `attributes.friendly_name`.
+- [x] Prioritize relevant domains: `light`, `switch`, `scene`, `script`, `sensor`, `binary_sensor`, `climate`.
 
 ## Phase 2: Desktop prototype (completed)
 
 Goal: Test the control logic without PortMaster.
 
-- Favorite list.
-- Favorites editor mode in the prototype.
-- Keyboard/gamepad-friendly navigation.
-- Toggle/service call for simple domains.
-- Error and loading states.
-- `pygame`-based UI prototype created.
+- [x] Favorite list.
+- [x] Favorites editor mode in the prototype.
+- [x] Keyboard/gamepad-friendly navigation.
+- [x] Toggle/service call for simple domains.
+- [x] Error and loading states.
+- [x] `pygame`-based UI prototype created.
 
 ## Phase 3: Native handheld app (in progress)
 
