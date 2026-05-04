@@ -43,7 +43,7 @@ from ui.widgets import (
 )
 
 
-class HAPortPilot:
+class HARetroApp:
     def __init__(self, config: dict[str, Any], timeout: float = 10.0, config_path: Path | None = None):
         self.config = config
         self.timeout = timeout
@@ -62,7 +62,7 @@ class HAPortPilot:
         self.width = 640
         self.height = 480
         self.screen = pygame.display.set_mode((self.width, self.height))
-        pygame.display.set_caption("HA PortPilot")
+        pygame.display.set_caption("HA RetroConsole")
         self.clock = pygame.time.Clock()
         self.font_title = pygame.font.Font(None, 36)
         self.font_item = pygame.font.Font(None, 24)
@@ -124,7 +124,7 @@ class HAPortPilot:
 
     def render(self) -> None:
         self.screen.fill(COLOR_BG)
-        title_surface = self.font_title.render("HA PortPilot", True, COLOR_TEXT_HIGHLIGHT)
+        title_surface = self.font_title.render("HA RetroConsole", True, COLOR_TEXT_HIGHLIGHT)
         self.screen.blit(title_surface, (20, 20))
 
         if self.mode == "main":

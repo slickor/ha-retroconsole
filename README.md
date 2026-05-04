@@ -6,7 +6,7 @@ The goal is to provide a fast, controller-driven interface for devices like the 
 
 ## Current Status
 
-Phase 3: Native handheld prototype (SDL2) functional on desktop. Ready for initial PortMaster packaging.
+Phase 3: Native handheld prototype (SDL2) functional on desktop. Ready for initial App deployment.
 
 The project has completed the initial REST check, console tools, and a `pygame` prototype. It now also includes an experimental SDL2 test app (`tools/ha_sdl2.py`) to validate native handheld-style rendering and input.
 
@@ -98,7 +98,7 @@ The token is created in Home Assistant from your user profile under:
 - Phase 1: Load and group entities.
 - Phase 2: First controller-friendly desktop UI.
 - Phase 3: SDL2 app for handheld resolutions.
-- Phase 4: Build a PortMaster package.
+- Phase 4: Build a deployable App.
 - Phase 5: Test on R36S and TrimUI Smart Pro.
 
 See also [docs/ROADMAP.md](docs/ROADMAP.md).

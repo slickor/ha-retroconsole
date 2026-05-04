@@ -40,13 +40,13 @@ Goal: Move desktop prototyping logic into a native SDL2-based handheld app.
 - [x] Define layouts for 640x480 (standard handheld resolution).
 - [x] Keyboard control as a PC fallback.
 - [x] Basic message/notification system (3s fade-out).
-- [ ] Implement native Gamepad/D-Pad mapping (`SDL_GAMECONTROLLER`).
-- [ ] Improved UI with icons and better visual grouping.
+- [x] Implement native Gamepad/D-Pad mapping (`SDL_GAMECONTROLLER`).
+- [x] Improved UI with icons and better visual grouping.
 - Organize app configuration and runtime files in the app folder.
 
-## Phase 4: PortMaster package
+## Phase 4: deployable App
 
-Goal: A deployable PortMaster port.
+Goal: A deployable App for target devices.
 
 - `port.json`
 - `Home Assistant.sh`

@@ -25,7 +25,10 @@ from ha_client import (
 # Farben (SDL2 RGB)
 COLOR_BG = sdl2.SDL_Color(0, 0, 0, 255)
 COLOR_TEXT = sdl2.SDL_Color(255, 255, 255, 255)
+COLOR_TEXT_DIM = sdl2.SDL_Color(150, 150, 150, 255)
 COLOR_HIGHLIGHT = sdl2.SDL_Color(255, 255, 0, 255)
+COLOR_SUCCESS = sdl2.SDL_Color(0, 255, 100, 255)
+COLOR_SELECTION_BG = sdl2.SDL_Color(50, 50, 50, 255)
 COLOR_BORDER = sdl2.SDL_Color(128, 128, 128, 255)
 
 class HASDL2App:
@@ -48,9 +51,10 @@ class HASDL2App:
         self.renderer = None
         self.font = None
         self.font_small = None
+        self.game_controllers = []
 
     def init_sdl(self):
-        sdl2.SDL_Init(sdl2.SDL_INIT_VIDEO)
+        sdl2.SDL_Init(sdl2.SDL_INIT_VIDEO | sdl2.SDL_INIT_GAMECONTROLLER)
         ttf.TTF_Init()
         self.window = sdl2.SDL_CreateWindow(
             b"HA RetroConsole", 
@@ -81,6 +85,14 @@ class HASDL2App:
         self.font_small = ttf.TTF_OpenFont(selected_font.encode("utf-8"), 16)
         if not self.font_small:
             raise SystemExit(f"Could not load small font from: {selected_font}")
+
+        # Open game controllers
+        for i in range(sdl2.SDL_NumJoysticks()):
+            if sdl2.SDL_IsGameController(i):
+                controller = sdl2.SDL_GameControllerOpen(i)
+                if controller:
+                    self.game_controllers.append(controller)
+                    print(f"Opened game controller: {sdl2.SDL_GameControllerName(controller).decode('utf-8')}")
 
     def load_data(self):
         try:
@@ -122,6 +134,19 @@ class HASDL2App:
         self.entities = entities
         self.picker_selected = 0
         self.picker_scroll = 0
+
+    def get_domain_icon(self, entity_id):
+        domain = entity_domain(entity_id)
+        icons = {
+            "light": "[L]",
+            "switch": "[S]",
+            "scene": "[Sce]",
+            "script": "[Scr]",
+            "sensor": "[#]",
+            "binary_sensor": "[!]",
+            "climate": "[T]"
+        }
+        return icons.get(domain, "[?]")
 
     def is_favorite(self, entity_id: str) -> bool:
         return any(favorite_entity_id(fav) == entity_id for fav in self.config.get("favorites", []))
@@ -218,6 +243,43 @@ class HASDL2App:
                 elif event.key.keysym.sym == sdl2.SDLK_r:
                     self.load_data()
                     self.set_message("Refreshed")
+            elif event.type == sdl2.SDL_CONTROLLERBUTTONDOWN:
+                if event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_B:  # B button (East) -> Back/Quit
+                    if self.mode == "favorites":
+                        self.mode = "main"
+                        self.set_message("Favorites editor closed")
+                    else:
+                        self.running = False
+                elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP:
+                    if self.mode == "main":
+                        self.selected = max(0, self.selected - 1)
+                    else:
+                        self.picker_selected = max(0, self.picker_selected - 1)
+                        if self.picker_selected < self.picker_scroll:
+                            self.picker_scroll = self.picker_selected
+                elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+                    if self.mode == "main":
+                        self.selected = min(len(self.favorites) - 1, self.selected + 1)
+                    else:
+                        self.picker_selected = min(len(self.entities) - 1, self.picker_selected + 1)
+                        visible_rows = max((self.height - 90 - 60) // 28, 1)
+                        if self.picker_selected >= self.picker_scroll + visible_rows:
+                            self.picker_scroll = self.picker_selected - visible_rows + 1
+                elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_A:  # A button (South) -> Select/Execute
+                    if self.mode == "main":
+                        self.execute_action()
+                    else:
+                        if self.entities:
+                            entity = self.entities[self.picker_selected]
+                            self.toggle_favorite(entity["entity_id"])
+                elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_Y:  # Y button (North) -> Favorites
+                    if self.mode == "main":
+                        self.mode = "favorites"
+                        self.load_entities()
+                        self.set_message("Edit favorites")
+                elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_X:  # X button (West) -> Refresh
+                    self.load_data()
+                    self.set_message("Refreshed")
 
     def render_text(self, text, x, y, color):
         if not self.font:
@@ -251,15 +313,24 @@ class HASDL2App:
         sdl2.SDL_FreeSurface(surface)
         sdl2.SDL_DestroyTexture(texture)
 
+    def render_selection_bar(self, y, height=30):
+        rect = sdl2.SDL_Rect(10, y - 2, self.width - 20, height)
+        sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_SELECTION_BG.r, COLOR_SELECTION_BG.g, COLOR_SELECTION_BG.b, 255)
+        sdl2.SDL_RenderFillRect(self.renderer, rect)
+
     def render(self):
         sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_BG.r, COLOR_BG.g, COLOR_BG.b, COLOR_BG.a)
         sdl2.SDL_RenderClear(self.renderer)
 
         # Header
-        title = "HA RetroConsole"
+        title = "HA RetroConsole" 
         if self.mode == "favorites":
             title = "Favorites Editor"
         self.render_text(title, 20, 20, COLOR_HIGHLIGHT)
+        
+        # Divider below header
+        sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_BORDER.r, COLOR_BORDER.g, COLOR_BORDER.b, 255)
+        sdl2.SDL_RenderDrawLine(self.renderer, 0, 55, self.width, 55)
 
         if self.mode == "main":
             self.render_main()
@@ -276,9 +347,18 @@ class HASDL2App:
         for i, fav in enumerate(self.favorites):
             entity_id = favorite_entity_id(fav)
             state = self.states.get(entity_id, {})
+            state_str = state.get('state', 'unknown')
             label = favorite_label(fav, state)
+            icon = self.get_domain_icon(entity_id)
+            
+            if i == self.selected:
+                self.render_selection_bar(y)
+            
             color = COLOR_HIGHLIGHT if i == self.selected else COLOR_TEXT
-            self.render_text(f"{label} ({state.get('state', 'unknown')})", 20, y, color)
+            state_color = COLOR_SUCCESS if state_str == "on" else COLOR_TEXT_DIM
+            
+            self.render_text(f"{icon} {label}", 25, y, color)
+            self.render_text_small(state_str, self.width - 100, y + 4, state_color)
             y += 30
 
         self.render_text_small("Up/Down: Navigate | Enter: Execute | F: Edit favorites | R: Refresh | Esc: Exit", 20, self.height - 40, COLOR_TEXT)
@@ -292,12 +372,26 @@ class HASDL2App:
         visible_rows = max((self.height - 90 - 60) // 28, 1)
         start = self.picker_scroll
         end = min(len(self.entities), start + visible_rows)
+        
+        current_domain = None
 
         for i in range(start, end):
             entity = self.entities[i]
+            
+            # Domain group header
+            if entity["domain"] != current_domain:
+                current_domain = entity["domain"]
+                # (Optional: rendering a small domain label could go here)
+
             marker = "*" if entity["entity_id"] in favorite_ids else " "
+            
+            if i == self.picker_selected:
+                self.render_selection_bar(y, height=26)
+                
             color = COLOR_HIGHLIGHT if i == self.picker_selected else COLOR_TEXT
-            self.render_text(f"[{marker}] {entity['label']} ({entity['state']})", 20, y, color)
+            icon = self.get_domain_icon(entity["entity_id"])
+            self.render_text(f"[{marker}] {icon} {entity['label']}", 25, y, color)
+            self.render_text_small(entity['state'], self.width - 100, y + 4, COLOR_TEXT_DIM)
             y += 28
 
         self.render_text_small("Up/Down: Navigate | Enter: Toggle favorite | R: Refresh | Esc: Back", 20, self.height - 40, COLOR_TEXT)
@@ -320,6 +414,8 @@ class HASDL2App:
             ttf.TTF_CloseFont(self.font_small)
         if self.renderer:
             sdl2.SDL_DestroyRenderer(self.renderer)
+        for controller in self.game_controllers:
+            sdl2.SDL_GameControllerClose(controller)
         if self.window:
             sdl2.SDL_DestroyWindow(self.window)
         ttf.TTF_Quit()

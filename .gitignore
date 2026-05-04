@@ -1,11 +1,10 @@
+venv/
+.venv/
 __pycache__/
 *.py[cod]
-*$py.class
-.venv/
-venv/
-ENV/
-
-# Private configuration
+.DS_Store
 config.json
-log.txt
 .vscode/
+dist/
+build/
+*.egg-info/
