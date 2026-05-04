@@ -13,6 +13,7 @@ import sdl2.sdlttf as ttf
 from ha_client import (
     SUPPORTED_ACTIONS,
     call_service,
+    changed_favorites,
     display_name,
     entity_domain,
     favorite_action,
