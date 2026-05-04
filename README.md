@@ -103,6 +103,12 @@ The token is created in Home Assistant from your user profile under:
 
 See also [docs/ROADMAP.md](docs/ROADMAP.md).
 
+## Special Thanks
+
+A big thank you to [Remix Icon](https://remixicon.com/) for providing the excellent open-source icons under the Apache License 2.0.
+
+
+
 ## Security
 
 `config.json` contains your private Home Assistant token and should not be committed.

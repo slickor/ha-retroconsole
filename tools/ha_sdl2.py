@@ -1,10 +1,13 @@
 import sys
 import os
 import time
+import threading
+import queue
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 
 import sdl2
 import sdl2.ext
+import sdl2.sdlimage as sdlimage
 import sdl2.sdlttf as ttf
 
 from ha_client import (
@@ -51,10 +54,14 @@ class HASDL2App:
         self.renderer = None
         self.font = None
         self.font_small = None
+        self.domain_icons = {}  # Cache for loaded textures
+        self.task_queue = queue.Queue()
+        self.current_task_thread = None
         self.game_controllers = []
 
     def init_sdl(self):
         sdl2.SDL_Init(sdl2.SDL_INIT_VIDEO | sdl2.SDL_INIT_GAMECONTROLLER)
+        sdlimage.IMG_Init(sdlimage.IMG_INIT_PNG)
         ttf.TTF_Init()
         self.window = sdl2.SDL_CreateWindow(
             b"HA RetroConsole", 
@@ -64,8 +71,10 @@ class HASDL2App:
         )
         self.renderer = sdl2.SDL_CreateRenderer(self.window, -1, sdl2.SDL_RENDERER_ACCELERATED)
         
-        # Cross-platform font candidates
+        # Cross-platform font candidates including relative asset path
+        script_dir = os.path.dirname(os.path.abspath(__file__))
         font_candidates = [
+            os.path.join(script_dir, "..", "assets", "fonts", "DejaVuSans.ttf"),
             "C:\\Windows\\Fonts\\arial.ttf",
             "C:\\Windows\\Fonts\\verdana.ttf",
             "C:\\Windows\\Fonts\\segoeui.ttf",
@@ -80,11 +89,29 @@ class HASDL2App:
                 self.font = font
                 break
         if not self.font:
-            raise SystemExit("Could not load any Windows font; check your font path.")
+            raise SystemExit("Could not load any font. Ensure assets/fonts/DejaVuSans.ttf exists or system fonts are available.")
 
         self.font_small = ttf.TTF_OpenFont(selected_font.encode("utf-8"), 16)
         if not self.font_small:
             raise SystemExit(f"Could not load small font from: {selected_font}")
+
+        # Load domain icons (light.png, switch.png, etc.)
+        icon_dir = os.path.join(script_dir, "..", "assets", "icons")
+        domains = ["light", "switch", "scene", "script", "sensor", "binary_sensor", "climate"]
+        suffixes = ["", "_on", "_off"]
+        
+        for domain in domains:
+            for suffix in suffixes:
+                icon_name = f"{domain}{suffix}"
+                # We search for .png first, then fallback to .bmp
+                icon_path = self._find_icon(icon_dir, icon_name)
+                if os.path.exists(icon_path):
+                    surface = sdlimage.IMG_Load(icon_path.encode('utf-8'))
+                    if surface:
+                        texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
+                        if texture:
+                            self.domain_icons[icon_name] = texture
+                        sdl2.SDL_FreeSurface(surface)
 
         # Open game controllers
         for i in range(sdl2.SDL_NumJoysticks()):
@@ -94,18 +121,62 @@ class HASDL2App:
                     self.game_controllers.append(controller)
                     print(f"Opened game controller: {sdl2.SDL_GameControllerName(controller).decode('utf-8')}")
 
-    def load_data(self):
+    def _start_background_task(self, task_type, target_func, *args, **kwargs):
+        """Starts a function in a background thread and puts its result/error into the task_queue."""
+        if self.current_task_thread and self.current_task_thread.is_alive():
+            # A task is already running, ignore new task or handle as needed
+            print(f"Warning: A background task ({self.pending_task_type}) is already running. Ignoring new task ({task_type}).")
+            return
+
+        self.pending_task_type = task_type
+        self.current_task_thread = threading.Thread(target=self._run_task_wrapper, args=(target_func, args, kwargs))
+        self.current_task_thread.daemon = True  # Allow main program to exit even if thread is running
+        self.current_task_thread.start()
+
+    def _run_task_wrapper(self, target_func, args, kwargs):
+        """Wrapper to execute target_func and put result/error into the queue."""
         try:
-            self.states = fetch_states_map(
-                self.config["base_url"], 
-                self.config["token"], 
-                timeout=10.0
-            )
-            self.set_message("Connected")
-            if self.mode == "favorites":
-                self.load_entities()
+            result = target_func(*args, **kwargs)
+            self.task_queue.put({"status": "success", "result": result, "type": self.pending_task_type})
         except Exception as e:
-            self.set_message(f"Error: {str(e)}")
+            self.task_queue.put({"status": "error", "error": str(e), "type": self.pending_task_type})
+
+    def _find_icon(self, icon_dir, name):
+        png_path = os.path.join(icon_dir, f"{name}.png")
+        if os.path.exists(png_path):
+            return png_path
+        return os.path.join(icon_dir, f"{name}.bmp")
+
+    def _fetch_states_background(self):
+        """Fetches states in a background thread."""
+        return fetch_states_map(
+            self.config["base_url"],
+            self.config["token"],
+            timeout=10.0
+        )
+
+    def _execute_service_and_refresh_background(self, domain, service, entity_id, previous_state, favorite):
+        """Executes a service call and refreshes states in a background thread."""
+        call_service(
+            self.config["base_url"],
+            self.config["token"],
+            domain,
+            service,
+            entity_id,
+            timeout=10.0,
+        )
+        new_states = refresh_after_action(
+            self.config["base_url"],
+            self.config["token"],
+            10.0,
+            entity_id,
+            previous_state,
+        )
+        return {"new_states": new_states, "favorite": favorite}
+
+    def load_data(self):
+        self.set_message("Loading...")
+        self._start_background_task("load_data", self._fetch_states_background)
 
     def set_message(self, text):
         self.message = text
@@ -181,25 +252,12 @@ class HASDL2App:
         previous = self.states.get(entity_id)
         previous_state = str(previous.get("state", "")) if previous is not None else None
 
-        try:
-            call_service(
-                self.config["base_url"],
-                self.config["token"],
-                domain,
-                service,
-                entity_id,
-                timeout=10.0,
-            )
-            self.states = refresh_after_action(
-                self.config["base_url"],
-                self.config["token"],
-                10.0,
-                entity_id,
-                previous_state,
-            )
-            self.set_message(f"Executed {service} on {entity_id}")
-        except Exception as e:
-            self.set_message(f"Error: {str(e)}")
+        self.set_message(f"Executing {service} on {entity_id}...")
+        self._start_background_task(
+            "execute_action",
+            self._execute_service_and_refresh_background,
+            domain, service, entity_id, previous_state, favorite
+        )
 
     def handle_input(self):
         events = sdl2.ext.get_events()
@@ -349,7 +407,7 @@ class HASDL2App:
             state = self.states.get(entity_id, {})
             state_str = state.get('state', 'unknown')
             label = favorite_label(fav, state)
-            icon = self.get_domain_icon(entity_id)
+            domain = entity_domain(entity_id)
             
             if i == self.selected:
                 self.render_selection_bar(y)
@@ -357,13 +415,35 @@ class HASDL2App:
             color = COLOR_HIGHLIGHT if i == self.selected else COLOR_TEXT
             state_color = COLOR_SUCCESS if state_str == "on" else COLOR_TEXT_DIM
             
-            self.render_text(f"{icon} {label}", 25, y, color)
+            # Try state-specific icon first (e.g., light_on), then generic domain icon
+            icon_key = f"{domain}_{state_str}" if f"{domain}_{state_str}" in self.domain_icons else domain
+            icon_tex = self.domain_icons.get(icon_key)
+            
+            if icon_tex:
+                # Apply color mod based on state
+                if state_str == "on":
+                    if domain == "light":
+                        sdl2.SDL_SetTextureColorMod(icon_tex, COLOR_HIGHLIGHT.r, COLOR_HIGHLIGHT.g, COLOR_HIGHLIGHT.b)
+                    else:
+                        sdl2.SDL_SetTextureColorMod(icon_tex, COLOR_SUCCESS.r, COLOR_SUCCESS.g, COLOR_SUCCESS.b)
+                else:
+                    sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
+
+                dst = sdl2.SDL_Rect(25, y, 24, 24)
+                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                # Reset color mod for next usage
+                sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
+                self.render_text(label, 60, y, color)
+            else:
+                icon_text = self.get_domain_icon(entity_id)
+                self.render_text(f"{icon_text} {label}", 25, y, color)
+
             self.render_text_small(state_str, self.width - 100, y + 4, state_color)
             y += 30
 
         self.render_text_small("Up/Down: Navigate | Enter: Execute | F: Edit favorites | R: Refresh | Esc: Exit", 20, self.height - 40, COLOR_TEXT)
-        # Show message for 3 seconds
-        if self.message and (time.time() - self.message_time < 3.0):
+        # Show message for 1 second
+        if self.message and (time.time() - self.message_time < 1.0):
             self.render_text_small(self.message, 20, self.height - 20, COLOR_TEXT)
 
     def render_favorites_editor(self):
@@ -389,20 +469,70 @@ class HASDL2App:
                 self.render_selection_bar(y, height=26)
                 
             color = COLOR_HIGHLIGHT if i == self.picker_selected else COLOR_TEXT
-            icon = self.get_domain_icon(entity["entity_id"])
-            self.render_text(f"[{marker}] {icon} {entity['label']}", 25, y, color)
+            domain = entity["domain"]
+            state_str = entity["state"]
+            
+            # In picker, we prefer the 'on' icon as the representative version
+            icon_key = f"{domain}_on" if f"{domain}_on" in self.domain_icons else domain
+            icon_tex = self.domain_icons.get(icon_key)
+            
+            if icon_tex:
+                # Apply color mod based on actual entity state in picker too
+                if state_str == "on":
+                    if domain == "light":
+                        sdl2.SDL_SetTextureColorMod(icon_tex, COLOR_HIGHLIGHT.r, COLOR_HIGHLIGHT.g, COLOR_HIGHLIGHT.b)
+                    else:
+                        sdl2.SDL_SetTextureColorMod(icon_tex, COLOR_SUCCESS.r, COLOR_SUCCESS.g, COLOR_SUCCESS.b)
+                else:
+                    sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
+
+                dst = sdl2.SDL_Rect(45, y, 20, 20)
+                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
+                self.render_text(f"[{marker}]", 15, y, color)
+                self.render_text(entity['label'], 75, y, color)
+            else:
+                icon_text = self.get_domain_icon(entity["entity_id"])
+                self.render_text(f"[{marker}] {icon_text} {entity['label']}", 25, y, color)
+
             self.render_text_small(entity['state'], self.width - 100, y + 4, COLOR_TEXT_DIM)
             y += 28
 
         self.render_text_small("Up/Down: Navigate | Enter: Toggle favorite | R: Refresh | Esc: Back", 20, self.height - 40, COLOR_TEXT)
-        if self.message and (time.time() - self.message_time < 3.0):
+        if self.message and (time.time() - self.message_time < 1.0):
             self.render_text_small(self.message, 20, self.height - 20, COLOR_TEXT)
 
     def run(self):
         self.init_sdl()
         self.load_data()
+
+        # Process initial load_data result immediately if available
+        try:
+            task_result = self.task_queue.get_nowait()
+            self.current_task_thread = None
+            self.pending_task_type = None
+            if task_result["status"] == "success" and task_result["type"] == "load_data":
+                self.states = task_result["result"]
+                self.set_message("Connected")
+                if self.mode == "favorites":
+                    self.load_entities()
+            elif task_result["status"] == "error":
+                self.set_message(f"Error: {task_result['error']}")
+        except queue.Empty:
+            pass
+
         while self.running:
             self.handle_input()
+
+            # Process results from background tasks
+            try:
+                task_result = self.task_queue.get_nowait()
+                self.current_task_thread = None  # Task finished
+                self.pending_task_type = None
+                self._process_task_result(task_result)
+            except queue.Empty:
+                pass  # No task results yet
+
             self.render()
             sdl2.SDL_Delay(16)
         self.cleanup()
@@ -414,12 +544,33 @@ class HASDL2App:
             ttf.TTF_CloseFont(self.font_small)
         if self.renderer:
             sdl2.SDL_DestroyRenderer(self.renderer)
+        for tex in self.domain_icons.values():
+            sdl2.SDL_DestroyTexture(tex)
         for controller in self.game_controllers:
             sdl2.SDL_GameControllerClose(controller)
         if self.window:
             sdl2.SDL_DestroyWindow(self.window)
         ttf.TTF_Quit()
+        sdlimage.IMG_Quit()
         sdl2.SDL_Quit()
+
+    def _process_task_result(self, task_result):
+        """Handles the result of a completed background task."""
+        if task_result["status"] == "success":
+            if task_result["type"] == "load_data":
+                self.states = task_result["result"]
+                self.set_message("Connected")
+                if self.mode == "favorites":
+                    self.load_entities()
+            elif task_result["type"] == "execute_action":
+                new_states = task_result["result"]["new_states"]
+                favorite = task_result["result"]["favorite"]
+                before_states = self.states  # Capture states before update
+                self.states = new_states
+                changes = changed_favorites([favorite], before_states, self.states)
+                self.set_message(f"Executed: {changes[0]}" if changes else "Executed")
+        else:  # status == "error"
+            self.set_message(f"Error: {task_result['error']}")
 
 if __name__ == "__main__":
     import argparse

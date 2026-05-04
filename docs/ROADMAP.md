@@ -39,10 +39,10 @@ Goal: Move desktop prototyping logic into a native SDL2-based handheld app.
 - [x] SDL2 prototype script available as the first native test.
 - [x] Define layouts for 640x480 (standard handheld resolution).
 - [x] Keyboard control as a PC fallback.
-- [x] Basic message/notification system (3s fade-out).
+- [x] Basic message/notification system (1s display).
 - [x] Implement native Gamepad/D-Pad mapping (`SDL_GAMECONTROLLER`).
 - [x] Improved UI with icons and better visual grouping.
-- Organize app configuration and runtime files in the app folder.
+- [x] Organize app configuration and runtime files in the app folder.
 
 ## Phase 4: deployable App
 
@@ -51,6 +51,7 @@ Goal: A deployable App for target devices.
 - `port.json`
 - `Home Assistant.sh`
 - `gameinfo.xml`
+- [x] Switch from BMP to PNG for icons (requires SDL_image).
 - Screenshot/Cover
 - License files
 - Binaries for the target architecture
