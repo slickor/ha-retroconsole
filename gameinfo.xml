@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<gameList>
+	<game>
+		<path>./ha-retroconsole.sh</path>
+		<name>HA RetroConsole</name>
+		<desc>A dedicated Home Assistant client for retro handhelds. Control your smart home entities like lights, switches, and scripts via a fast, controller-optimized interface. Designed for devices like the R36S and TrimUI Smart Pro.</desc>
+		<releasedate>20240504T000000</releasedate>
+		<developer>slickor</developer>
+		<publisher>slickor</publisher>
+		<genre>Utility</genre>
+		<image>./screenshot.png</image>
+	</game>
+</gameList>

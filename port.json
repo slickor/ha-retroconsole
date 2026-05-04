@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "name": "HA RetroConsole",
+  "items": [
+    "ha-retroconsole.sh",
+    "ha-retroconsole/"
+  ],
+  "scripts": [
+    "ha-retroconsole.sh"
+  ],
+  "description": "Ein dedizierter Home Assistant Client für Retro-Handhelds zur Steuerung deines Smart Homes.",
+  "author": "slickor",
+  "source": "https://github.com/slickor/ha-retroconsole",
+  "architecture": "any"
+}

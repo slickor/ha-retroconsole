@@ -32,7 +32,7 @@ Goal: Test the control logic without PortMaster.
 - [x] Error and loading states.
 - [x] `pygame`-based UI prototype created.
 
-## Phase 3: Native handheld app (in progress)
+## Phase 3: Native handheld app (completed)
 
 Goal: Move desktop prototyping logic into a native SDL2-based handheld app.
 
@@ -48,13 +48,14 @@ Goal: Move desktop prototyping logic into a native SDL2-based handheld app.
 
 Goal: A deployable App for target devices.
 
-- `port.json`
-- `Home Assistant.sh`
-- `gameinfo.xml`
+- [x] `port.json`
+- [x] `ha-retroconsole.sh` (Launcher)
+- [x] `install.sh` (Environment setup)
+- [x] `gameinfo.xml`
 - [x] Switch from BMP to PNG for icons (requires SDL_image).
-- Screenshot/Cover
-- License files
-- Binaries for the target architecture
+- [x] Screenshot/Cover
+- [x] License files
+- [x] Binaries/Environment setup strategy
 
 ## Phase 5: Device testing
 
