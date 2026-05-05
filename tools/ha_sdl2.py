@@ -3,6 +3,7 @@ import os
 import time
 import threading
 import queue
+import ctypes
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 
 import sdl2
@@ -26,7 +27,7 @@ from ha_client import (
     resolve_action,
 )
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 
 # Farben (SDL2 RGB)
 COLOR_BG = sdl2.SDL_Color(0, 0, 0, 255)
@@ -44,10 +45,12 @@ class HASDL2App:
         self.states = {}
         self.favorites = self.config.get("favorites", [])
         self.entities = []
-        self.selected = 0
-        self.picker_selected = 0
+        self.selected = 0 # For main menu favorites
+        self.mode = "main" # "main" or "favorites"
+        self.favorites_editor_mode = "domains" # "domains" or "entities"
+        self.selected_domain_index = 0 # For domain selection in favorites editor
         self.picker_scroll = 0
-        self.mode = "main"
+        self.selected_entity_in_domain_index = 0 # For entity selection within a domain
         self.running = True
         self.message = "Loading..."
         self.message_time = 0
@@ -58,6 +61,8 @@ class HASDL2App:
         self.font = None
         self.font_small = None
         self.domain_icons = {}  # Cache for loaded textures
+        self.entities_by_domain = {} # Grouped entities for favorites editor
+        self.domain_list = [] # List of domains for favorites editor
         self.task_queue = queue.Queue()
         self.current_task_thread = None
         self.game_controllers = []
@@ -191,17 +196,17 @@ class HASDL2App:
         self.message_time = time.time()
 
     def save_config(self):
-        if self.config_path is None:
-            return
         save_config(self.config_path, self.config)
 
     def load_entities(self):
-        entities = []
+        entities_by_domain = {}
         for entity_id, state in self.states.items():
             domain = entity_domain(entity_id)
             if domain not in SUPPORTED_ACTIONS:
                 continue
-            entities.append(
+            if domain not in entities_by_domain:
+                entities_by_domain[domain] = []
+            entities_by_domain[domain].append(
                 {
                     "entity_id": entity_id,
                     "label": display_name(entity_id, state),
@@ -209,10 +214,15 @@ class HASDL2App:
                     "domain": domain,
                 }
             )
-        entities.sort(key=lambda item: (item["domain"], item["label"].lower(), item["entity_id"]))
-        self.entities = entities
-        self.picker_selected = 0
+        
+        for domain in entities_by_domain:
+            entities_by_domain[domain].sort(key=lambda item: (item["label"].lower(), item["entity_id"]))
+
+        self.entities_by_domain = entities_by_domain
+        self.domain_list = sorted(entities_by_domain.keys())
+        self.selected_domain_index = 0
         self.picker_scroll = 0
+        self.selected_entity_in_domain_index = 0
 
     def get_domain_icon(self, entity_id):
         domain = entity_domain(entity_id)
@@ -275,32 +285,57 @@ class HASDL2App:
             elif event.type == sdl2.SDL_KEYDOWN:
                 if event.key.keysym.sym == sdl2.SDLK_ESCAPE:
                     if self.mode == "favorites":
-                        self.mode = "main"
-                        self.set_message("Favorites editor closed")
+                        if self.favorites_editor_mode == "entities":
+                            self.favorites_editor_mode = "domains"
+                            self.set_message("Select a domain")
+                        else:
+                            self.mode = "main"
+                            self.set_message("Favorites editor closed")
                     else:
                         self.running = False
                 elif event.key.keysym.sym == sdl2.SDLK_UP:
                     if self.mode == "main":
                         self.selected = max(0, self.selected - 1)
-                    else:
-                        self.picker_selected = max(0, self.picker_selected - 1)
-                        if self.picker_selected < self.picker_scroll:
-                            self.picker_scroll = self.picker_selected
+                    elif self.mode == "favorites":
+                        if self.favorites_editor_mode == "domains":
+                            self.selected_domain_index = max(0, self.selected_domain_index - 3)
+                        else:
+                            self.selected_entity_in_domain_index = max(0, self.selected_entity_in_domain_index - 1)
+                            if self.selected_entity_in_domain_index < self.picker_scroll:
+                                self.picker_scroll = self.selected_entity_in_domain_index
                 elif event.key.keysym.sym == sdl2.SDLK_DOWN:
                     if self.mode == "main":
                         self.selected = min(len(self.favorites) - 1, self.selected + 1)
-                    else:
-                        self.picker_selected = min(len(self.entities) - 1, self.picker_selected + 1)
+                    elif self.mode == "favorites":
+                        if self.favorites_editor_mode == "domains":
+                            self.selected_domain_index = min(len(self.domain_list) - 1, self.selected_domain_index + 3)
+                        else:
+                            current_domain = self.domain_list[self.selected_domain_index]
+                            entities_count = len(self.entities_by_domain.get(current_domain, []))
+                            self.selected_entity_in_domain_index = min(entities_count - 1, self.selected_entity_in_domain_index + 1)
                         visible_rows = max((self.height - 90 - 60) // 28, 1)
-                        if self.picker_selected >= self.picker_scroll + visible_rows:
-                            self.picker_scroll = self.picker_selected - visible_rows + 1
+                        if self.selected_entity_in_domain_index >= self.picker_scroll + visible_rows:
+                            self.picker_scroll = self.selected_entity_in_domain_index - visible_rows + 1
+                elif event.key.keysym.sym == sdl2.SDLK_LEFT:
+                    if self.mode == "favorites" and self.favorites_editor_mode == "domains":
+                        self.selected_domain_index = max(0, self.selected_domain_index - 1)
+                elif event.key.keysym.sym == sdl2.SDLK_RIGHT:
+                    if self.mode == "favorites" and self.favorites_editor_mode == "domains":
+                        self.selected_domain_index = min(len(self.domain_list) - 1, self.selected_domain_index + 1)
                 elif event.key.keysym.sym in {sdl2.SDLK_RETURN, sdl2.SDLK_KP_ENTER}:
                     if self.mode == "main":
                         self.execute_action()
-                    else:
-                        if self.entities:
-                            entity = self.entities[self.picker_selected]
-                            self.toggle_favorite(entity["entity_id"])
+                    elif self.mode == "favorites":
+                        if self.favorites_editor_mode == "domains":
+                            self.favorites_editor_mode = "entities"
+                            self.picker_scroll = 0
+                            self.selected_entity_in_domain_index = 0
+                        else:
+                            current_domain = self.domain_list[self.selected_domain_index]
+                            entities = self.entities_by_domain.get(current_domain, [])
+                            if entities:
+                                entity = entities[self.selected_entity_in_domain_index]
+                                self.toggle_favorite(entity["entity_id"])
                 elif event.key.keysym.sym == sdl2.SDLK_f:
                     if self.mode == "main":
                         self.mode = "favorites"
@@ -312,32 +347,57 @@ class HASDL2App:
             elif event.type == sdl2.SDL_CONTROLLERBUTTONDOWN:
                 if event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_B:  # B button (East) -> Back/Quit
                     if self.mode == "favorites":
-                        self.mode = "main"
-                        self.set_message("Favorites editor closed")
+                        if self.favorites_editor_mode == "entities":
+                            self.favorites_editor_mode = "domains"
+                            self.set_message("Select a domain")
+                        else:
+                            self.mode = "main"
+                            self.set_message("Favorites editor closed")
                     else:
                         self.running = False
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP:
                     if self.mode == "main":
                         self.selected = max(0, self.selected - 1)
-                    else:
-                        self.picker_selected = max(0, self.picker_selected - 1)
-                        if self.picker_selected < self.picker_scroll:
-                            self.picker_scroll = self.picker_selected
+                    elif self.mode == "favorites":
+                        if self.favorites_editor_mode == "domains":
+                            self.selected_domain_index = max(0, self.selected_domain_index - 3)
+                        else:
+                            self.selected_entity_in_domain_index = max(0, self.selected_entity_in_domain_index - 1)
+                            if self.selected_entity_in_domain_index < self.picker_scroll:
+                                self.picker_scroll = self.selected_entity_in_domain_index
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN:
                     if self.mode == "main":
                         self.selected = min(len(self.favorites) - 1, self.selected + 1)
-                    else:
-                        self.picker_selected = min(len(self.entities) - 1, self.picker_selected + 1)
+                    elif self.mode == "favorites":
+                        if self.favorites_editor_mode == "domains":
+                            self.selected_domain_index = min(len(self.domain_list) - 1, self.selected_domain_index + 3)
+                        else:
+                            current_domain = self.domain_list[self.selected_domain_index]
+                            entities_count = len(self.entities_by_domain.get(current_domain, []))
+                            self.selected_entity_in_domain_index = min(entities_count - 1, self.selected_entity_in_domain_index + 1)
                         visible_rows = max((self.height - 90 - 60) // 28, 1)
-                        if self.picker_selected >= self.picker_scroll + visible_rows:
-                            self.picker_scroll = self.picker_selected - visible_rows + 1
+                        if self.selected_entity_in_domain_index >= self.picker_scroll + visible_rows:
+                            self.picker_scroll = self.selected_entity_in_domain_index - visible_rows + 1
+                elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+                    if self.mode == "favorites" and self.favorites_editor_mode == "domains":
+                        self.selected_domain_index = max(0, self.selected_domain_index - 1)
+                elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+                    if self.mode == "favorites" and self.favorites_editor_mode == "domains":
+                        self.selected_domain_index = min(len(self.domain_list) - 1, self.selected_domain_index + 1)
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_A:  # A button (South) -> Select/Execute
                     if self.mode == "main":
                         self.execute_action()
-                    else:
-                        if self.entities:
-                            entity = self.entities[self.picker_selected]
-                            self.toggle_favorite(entity["entity_id"])
+                    elif self.mode == "favorites":
+                        if self.favorites_editor_mode == "domains":
+                            self.favorites_editor_mode = "entities"
+                            self.picker_scroll = 0
+                            self.selected_entity_in_domain_index = 0
+                        else:
+                            current_domain = self.domain_list[self.selected_domain_index]
+                            entities = self.entities_by_domain.get(current_domain, [])
+                            if entities:
+                                entity = entities[self.selected_entity_in_domain_index]
+                                self.toggle_favorite(entity["entity_id"])
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_Y:  # Y button (North) -> Favorites
                     if self.mode == "main":
                         self.mode = "favorites"
@@ -406,10 +466,10 @@ class HASDL2App:
         sdl2.SDL_RenderPresent(self.renderer)
 
     def render_main(self):
-        y = 60
+        y_offset = 60
         if not self.favorites:
-            self.render_text("No favorites configured. Press F to edit.", 20, y, COLOR_TEXT)
-            y += 30
+            self.render_text("No favorites configured. Press Y to edit.", 20, y_offset, COLOR_TEXT)
+            y_offset += 30
         for i, fav in enumerate(self.favorites):
             entity_id = favorite_entity_id(fav)
             state = self.states.get(entity_id, {})
@@ -417,71 +477,151 @@ class HASDL2App:
             label = favorite_label(fav, state)
             domain = entity_domain(entity_id)
             
-            if i == self.selected:
-                self.render_selection_bar(y)
-            
-            color = COLOR_HIGHLIGHT if i == self.selected else COLOR_TEXT
-            state_color = COLOR_SUCCESS if state_str == "on" else COLOR_TEXT_DIM
-            
-            # Try state-specific icon first (e.g., light_on), then generic domain icon
-            icon_key = f"{domain}_{state_str}" if f"{domain}_{state_str}" in self.domain_icons else domain
-            icon_tex = self.domain_icons.get(icon_key)
-            
-            if icon_tex:
-                # Apply color mod based on state
-                if state_str == "on":
-                    if domain == "light":
-                        sdl2.SDL_SetTextureColorMod(icon_tex, COLOR_HIGHLIGHT.r, COLOR_HIGHLIGHT.g, COLOR_HIGHLIGHT.b)
-                    else:
-                        sdl2.SDL_SetTextureColorMod(icon_tex, COLOR_SUCCESS.r, COLOR_SUCCESS.g, COLOR_SUCCESS.b)
-                else:
-                    sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
-
-                dst = sdl2.SDL_Rect(25, y, 24, 24)
-                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
-                # Reset color mod for next usage
-                sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
-                self.render_text(label, 60, y, color)
-            else:
-                icon_text = self.get_domain_icon(entity_id)
-                self.render_text(f"{icon_text} {label}", 25, y, color)
-
-            self.render_text_small(state_str, self.width - 100, y + 4, state_color)
-            y += 30
+            self._render_favorite_item(i, fav, entity_id, state, state_str, label, domain, y_offset)
+            y_offset += 30
 
         self.render_text_small("D-Pad: Navigate | A: Execute | Y: Favorites | X: Refresh | B: Exit", 20, self.height - 40, COLOR_TEXT)
         # Show message for 1 second (or 5 if it's an error)
         is_error = self.message.startswith("Error")
         display_time = 5.0 if is_error else 1.0
         if self.message and (time.time() - self.message_time < display_time):
-            self.render_text_small(self.message, 20, self.height - 20, COLOR_TEXT)
+            self.render_text_small(self.message, 20, self.height - 20, COLOR_TEXT_DIM if is_error else COLOR_TEXT)
 
         # Render version number in the bottom right
         self.render_text_small(VERSION, self.width - 60, self.height - 20, COLOR_TEXT_DIM)
 
     def render_favorites_editor(self):
-        favorite_ids = {favorite_entity_id(fav) for fav in self.favorites}
-        y = 60
-        visible_rows = max((self.height - 90 - 60) // 28, 1)
-        start = self.picker_scroll
-        end = min(len(self.entities), start + visible_rows)
+        if self.favorites_editor_mode == "domains":
+            self._render_domain_selection()
+        else: # self.favorites_editor_mode == "entities"
+            self._render_entity_selection_for_domain()
+
+        # Common footer for favorites editor
+        if self.favorites_editor_mode == "domains":
+            self.render_text_small("D-Pad: Navigate | A: Select domain | B: Back to main | X: Refresh", 20, self.height - 40, COLOR_TEXT)
+        else: # entities mode
+            self.render_text_small("D-Pad: Navigate | A: Toggle favorite | B: Back to domains | X: Refresh", 20, self.height - 40, COLOR_TEXT)
+
+        if self.message and (time.time() - self.message_time < 1.0):
+            self.render_text_small(self.message, 20, self.height - 20, COLOR_TEXT)
+
+        # Render version number in the bottom right
+        self.render_text_small(VERSION, self.width - 60, self.height - 20, COLOR_TEXT_DIM)
+
+    def _render_favorite_item(self, index, fav, entity_id, state, state_str, label, domain, y_pos):
+        if index == self.selected:
+            self.render_selection_bar(y_pos)
         
-        current_domain = None
+        color = COLOR_HIGHLIGHT if index == self.selected else COLOR_TEXT
+        state_color = COLOR_SUCCESS if state_str == "on" else COLOR_TEXT_DIM
+        
+        icon_key = f"{domain}_on" if f"{domain}_on" in self.domain_icons else domain
+        icon_tex = self.domain_icons.get(icon_key)
+        
+        if icon_tex:
+            if state_str == "on":
+                if domain == "light":
+                    sdl2.SDL_SetTextureColorMod(icon_tex, COLOR_HIGHLIGHT.r, COLOR_HIGHLIGHT.g, COLOR_HIGHLIGHT.b)
+                else:
+                    sdl2.SDL_SetTextureColorMod(icon_tex, COLOR_SUCCESS.r, COLOR_SUCCESS.g, COLOR_SUCCESS.b)
+            else:
+                sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
+
+            dst = sdl2.SDL_Rect(25, y_pos, 24, 24)
+            sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+            sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
+            self.render_text(label, 60, y_pos, color)
+        else:
+            icon_text = self.get_domain_icon(entity_id)
+            self.render_text(f"{icon_text} {label}", 25, y_pos, color)
+
+        self.render_text_small(state_str, self.width - 100, y_pos + 4, state_color)
+
+    def _render_domain_selection(self):
+        y_start = 70
+        x_start = 20
+        icon_size = 64
+        cols = 3
+        
+        if not self.domain_list:
+            self.render_text("No domains with supported actions found.", x_start, y_start, COLOR_TEXT)
+            return
+
+        for i, domain in enumerate(self.domain_list):
+            row = i // cols
+            col = i % cols
+            
+            cell_width = (self.width - 2 * x_start) // cols
+            cell_height = icon_size + 30
+            
+            x_center_of_cell = x_start + col * cell_width + cell_width // 2
+            y_center_of_cell = y_start + row * cell_height + cell_height // 2
+
+            icon_x = x_center_of_cell - icon_size // 2
+            icon_y = y_center_of_cell - icon_size // 2 - 10
+
+            text_y = icon_y + icon_size + 5
+            
+            if i == self.selected_domain_index:
+                selection_rect_padding = 10
+                selection_rect = sdl2.SDL_Rect(
+                    icon_x - selection_rect_padding, 
+                    icon_y - selection_rect_padding, 
+                    icon_size + 2 * selection_rect_padding, 
+                    icon_size + 2 * selection_rect_padding + 20
+                )
+                sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_SELECTION_BG.r, COLOR_SELECTION_BG.g, COLOR_SELECTION_BG.b, 255)
+                sdl2.SDL_RenderFillRect(self.renderer, selection_rect)
+                sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_HIGHLIGHT.r, COLOR_HIGHLIGHT.g, COLOR_HIGHLIGHT.b, 255)
+                sdl2.SDL_RenderDrawRect(self.renderer, selection_rect)
+
+            icon_key = f"{domain}_on" if f"{domain}_on" in self.domain_icons else domain
+            icon_tex = self.domain_icons.get(icon_key)
+            if icon_tex:
+                dst = sdl2.SDL_Rect(icon_x, icon_y, icon_size, icon_size)
+                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+            else:
+                w, h = ctypes.c_int(), ctypes.c_int()
+                ttf.TTF_SizeText(self.font, domain.encode('utf-8'), ctypes.byref(w), ctypes.byref(h))
+                text_width, text_height = w.value, h.value
+                self.render_text(domain, icon_x + (icon_size - text_width) // 2, icon_y + (icon_size - text_height) // 2, COLOR_TEXT)
+            
+            text_label = domain.capitalize()
+            w_small, h_small = ctypes.c_int(), ctypes.c_int()
+            ttf.TTF_SizeText(self.font_small, text_label.encode('utf-8'), ctypes.byref(w_small), ctypes.byref(h_small))
+            text_width_small = w_small.value
+            self.render_text_small(text_label, icon_x + (icon_size - text_width_small) // 2, text_y, COLOR_TEXT)
+
+    def _render_entity_selection_for_domain(self):
+        if not self.domain_list:
+            self.render_text("No domains found.", 20, 70, COLOR_TEXT)
+            return
+
+        current_domain = self.domain_list[self.selected_domain_index]
+        current_entities = self.entities_by_domain.get(current_domain, [])
+        
+        self.render_text(f"Domain: {current_domain.capitalize()}", 20, 70, COLOR_HIGHLIGHT)
+        
+        y = 100
+        visible_rows = max((self.height - y - 60) // 28, 1)
+        start = self.picker_scroll
+        end = min(len(current_entities), start + visible_rows)
+        
+        favorite_ids = {favorite_entity_id(fav) for fav in self.favorites}
+
+        if not current_entities:
+            self.render_text("No entities in this domain.", 20, y, COLOR_TEXT)
+            return
 
         for i in range(start, end):
-            entity = self.entities[i]
-            
-            # Domain group header
-            if entity["domain"] != current_domain:
-                current_domain = entity["domain"]
-                # (Optional: rendering a small domain label could go here)
+            entity = current_entities[i]
 
             marker = "*" if entity["entity_id"] in favorite_ids else " "
             
-            if i == self.picker_selected:
+            if i == self.selected_entity_in_domain_index:
                 self.render_selection_bar(y, height=26)
                 
-            color = COLOR_HIGHLIGHT if i == self.picker_selected else COLOR_TEXT
+            color = COLOR_HIGHLIGHT if i == self.selected_entity_in_domain_index else COLOR_TEXT
             domain = entity["domain"]
             state_str = entity["state"]
             
@@ -510,13 +650,6 @@ class HASDL2App:
 
             self.render_text_small(entity['state'], self.width - 100, y + 4, COLOR_TEXT_DIM)
             y += 28
-
-        self.render_text_small("D-Pad: Navigate | A: Toggle favorite | X: Refresh | B: Back", 20, self.height - 40, COLOR_TEXT)
-        if self.message and (time.time() - self.message_time < 1.0):
-            self.render_text_small(self.message, 20, self.height - 20, COLOR_TEXT)
-
-        # Render version number in the bottom right
-        self.render_text_small(VERSION, self.width - 60, self.height - 20, COLOR_TEXT_DIM)
 
     def run(self):
         self.init_sdl()

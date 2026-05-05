@@ -33,10 +33,10 @@ Goal: Test the control logic without PortMaster.
 - [x] `pygame`-based UI prototype created.
 
 ## Phase 3: Native handheld app (completed)
-
 Goal: Move desktop prototyping logic into a native SDL2-based handheld app.
 
 - [x] SDL2 prototype script available as the first native test.
+- [x] Improved navigation and icon handling in SDL2 app.
 - [x] Define layouts for 640x480 (standard handheld resolution).
 - [x] Keyboard control as a PC fallback.
 - [x] Basic message/notification system (1s display).
@@ -45,7 +45,6 @@ Goal: Move desktop prototyping logic into a native SDL2-based handheld app.
 - [x] Organize app configuration and runtime files in the app folder.
 
 ## Phase 4: deployable App (completed)
-
 Goal: A deployable App for target devices.
 
 - [x] `port.json`

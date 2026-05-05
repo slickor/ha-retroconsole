@@ -6,9 +6,9 @@ The goal is to provide a fast, controller-driven interface for devices like the 
 
 ## Current Status
 
-Phase 3: Native handheld prototype (SDL2) functional on desktop. Ready for initial App deployment.
+Phase 3: Native handheld prototype (SDL2) functional on desktop. Phase 4: Deployable App created.
 
-The project has completed the initial REST check, console tools, and a `pygame` prototype. It now also includes an experimental SDL2 test app (`tools/ha_sdl2.py`) to validate native handheld-style rendering and input.
+The project has completed the initial REST check, console tools, and a `pygame` prototype. It now includes a native SDL2 app (`tools/ha_sdl2.py`) that is ready for deployment.
 
 ## Connectivity Note
 
@@ -69,7 +69,7 @@ Inside the prototype, press `Y` (or `F` on PC) to open the favorites editor. Use
 The SDL2 test app runs with:
 
 ```powershell
-pip install pysdl2 pysdl2-dll
+pip install pysdl2 pysdl2-dll # v0.6.0
 python tools/ha_sdl2.py --config config.json
 ```
 

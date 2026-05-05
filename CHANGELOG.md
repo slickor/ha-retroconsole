@@ -2,6 +2,18 @@
 
 Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei festgehalten.
 
+## [0.6.0] - 2024-05-05
+
+### Hinzugefügt
+- Verbesserte Navigation im Favoriten-Editor: D-Pad Links/Rechts für Domain-Auswahl, D-Pad Oben/Unten springt zeilenweise.
+- PowerShell-Skript (`run_sdl2_pc.ps1`) zum einfachen Starten und Installieren von Abhängigkeiten auf Windows-PCs.
+
+### Geändert
+- Icons in der Favoriten-Übersicht und Domain-Auswahl verwenden nun immer die `_on.png`-Variante für ein konsistenteres und ansprechenderes Design.
+
+### Behoben
+- Absturz beim Aufruf des Favoriten-Editors aufgrund eines `TypeError` in `ttf.TTF_SizeText`.
+
 ## [0.5.0] - 2024-05-04
 
 ### Hinzugefügt
