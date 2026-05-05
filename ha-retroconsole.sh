@@ -35,7 +35,7 @@ export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 export PYTHONUNBUFFERED=1
 export PYTHONPATH="$GAMEDIR/libs:$PYTHONPATH"
 
-echo "Starting HA RetroConsole..."
+echo "Starting Home Assistant - for retroconsoles..."
 python3 tools/ha_sdl2.py --config config.json
 
-echo "HA RetroConsole closed."
+echo "Home Assistant - for retroconsoles closed."

@@ -2,7 +2,7 @@
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "--- HA RetroConsole: SDL2 Test-Umgebung wird vorbereitet ---" -ForegroundColor Cyan
+Write-Host "--- Home Assistant - for retroconsoles: SDL2 Test-Umgebung wird vorbereitet ---" -ForegroundColor Cyan
 
 # 1. Prüfen ob wir im richtigen Verzeichnis sind
 if (-not (Test-Path "tools\ha_sdl2.py")) {
@@ -23,7 +23,7 @@ python -m pip install --upgrade pip
 pip install pysdl2 pysdl2-dll
 
 # 4. Starten der App
-Write-Host "[3/3] Starte HA RetroConsole (SDL2 Mode)..." -ForegroundColor Green
+Write-Host "[3/3] Starte Home Assistant - for retroconsoles (SDL2 Mode)..." -ForegroundColor Green
 Write-Host "Tasten: F = Favoriten-Editor, R = Refresh, ESC = Zurück/Beenden" -ForegroundColor Gray
 
 python tools/ha_sdl2.py --config config.json

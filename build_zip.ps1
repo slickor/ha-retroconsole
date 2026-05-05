@@ -6,7 +6,7 @@ $tempDir = "port_build"
 $versionMatch = Get-Content "tools/ha_sdl2.py" | Select-String 'VERSION = "(.*)"'
 $version = $versionMatch.Matches.Groups[1].Value
 
-Write-Host "Preparing PortMaster package for HA RetroConsole v$version..." -ForegroundColor Cyan
+Write-Host "Preparing PortMaster package for Home Assistant - for retroconsoles v$version..." -ForegroundColor Cyan
 
 # Cleanup old builds
 if (Test-Path $tempDir) { Remove-Item -Recurse -Force $tempDir }

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.3] - 2024-05-06
+
+### Added
+- Version number now displayed in the footer alongside keybindings.
+- "v" prefix added to the version number in the UI.
+
+### Changed
+- Main page title changed from "HA RetroConsole" to "Home Assistant - for retroconsoles".
+- Updated README and overall documentation to reflect the new project name.
+- Keybindings in the footer moved one line down to accommodate the message (if present) and share a line with the version number.
+
 ## [0.6.2] - 2024-05-06
 
 ### Added
@@ -20,9 +31,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Implemented scrolling and a scrollbar for domain selection in the Favorites Editor when there are more than 6 domains.
-
 - Improved navigation in Favorites Editor: D-Pad Left/Right for domain selection, D-Pad Up/Down jumps row-wise.
-- PowerShell script (`run_sdl2_pc.ps1`) for easy startup and dependency installation on Windows PCs.
 
 ### Changed
 - Icons in favorites overview and domain selection now always use the `_on.png` variant for a more consistent and appealing design.

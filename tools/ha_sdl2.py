@@ -27,7 +27,7 @@ from ha_client import (
     resolve_action,
 )
 
-VERSION = "0.6.2"
+VERSION = "0.6.3"
 
 # Farben (SDL2 RGB)
 COLOR_BG = sdl2.SDL_Color(0, 0, 0, 255)
@@ -73,7 +73,7 @@ class HASDL2App:
         sdlimage.IMG_Init(sdlimage.IMG_INIT_PNG)
         ttf.TTF_Init()
         self.window = sdl2.SDL_CreateWindow(
-            b"HA RetroConsole", 
+            b"Home Assistant - for retroconsoles", 
             sdl2.SDL_WINDOWPOS_CENTERED, 
             sdl2.SDL_WINDOWPOS_CENTERED, 
             self.width, self.height, sdl2.SDL_WINDOW_FULLSCREEN_DESKTOP
@@ -475,7 +475,7 @@ class HASDL2App:
         sdl2.SDL_RenderClear(self.renderer)
 
         # Header
-        title = "HA RetroConsole" 
+        title = "Home Assistant - for retroconsoles" 
         if self.mode == "favorites":
             title = "Favorites Editor"
         self.render_text(title, 20, 20, COLOR_HIGHLIGHT)
@@ -506,15 +506,15 @@ class HASDL2App:
             self._render_favorite_item(i, fav, entity_id, state, state_str, label, domain, y_offset)
             y_offset += 30
 
-        self.render_text_small("D-Pad: Navigate | A: Execute | Y: Favorites | X: Refresh | B: Exit", 20, self.height - 40, COLOR_TEXT)
+        # Message above keybindings/version
         # Show message for 1 second (or 5 if it's an error)
         is_error = self.message.startswith("Error")
         display_time = 5.0 if is_error else 1.0
         if self.message and (time.time() - self.message_time < display_time):
-            self.render_text_small(self.message, 20, self.height - 20, COLOR_TEXT_DIM if is_error else COLOR_TEXT)
+            self.render_text_small(self.message, 20, self.height - 40, COLOR_TEXT_DIM if is_error else COLOR_TEXT)
 
-        # Render version number in the bottom right
-        self.render_text_small(VERSION, self.width - 60, self.height - 20, COLOR_TEXT_DIM)
+        self.render_text_small("D-Pad: Navigate | A: Execute | Y: Favorites | X: Refresh | B: Exit", 20, self.height - 20, COLOR_TEXT)
+        self.render_text_small(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM)
 
     def render_favorites_editor(self):
         if self.favorites_editor_mode == "domains":
@@ -523,16 +523,15 @@ class HASDL2App:
             self._render_entity_selection_for_domain()
 
         # Common footer for favorites editor
-        if self.favorites_editor_mode == "domains":
-            self.render_text_small("D-Pad: Navigate | A: Select domain | B: Back to main | X: Refresh", 20, self.height - 40, COLOR_TEXT)
-        else: # entities mode
-            self.render_text_small("D-Pad: Navigate | A: Toggle favorite | B: Back to domains | X: Refresh", 20, self.height - 40, COLOR_TEXT)
-
         if self.message and (time.time() - self.message_time < 1.0):
-            self.render_text_small(self.message, 20, self.height - 20, COLOR_TEXT)
+            self.render_text_small(self.message, 20, self.height - 40, COLOR_TEXT)
 
-        # Render version number in the bottom right
-        self.render_text_small(VERSION, self.width - 60, self.height - 20, COLOR_TEXT_DIM)
+        if self.favorites_editor_mode == "domains":
+            self.render_text_small("D-Pad: Navigate | A: Select domain | B: Back to main | X: Refresh", 20, self.height - 20, COLOR_TEXT)
+        else: # entities mode
+            self.render_text_small("D-Pad: Navigate | A: Toggle favorite | B: Back to domains | X: Refresh", 20, self.height - 20, COLOR_TEXT)
+
+        self.render_text_small(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM)
 
     def _render_favorite_item(self, index, fav, entity_id, state, state_str, label, domain, y_pos):
         if index == self.selected:

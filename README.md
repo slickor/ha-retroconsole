@@ -1,4 +1,4 @@
-# HA Handheld - Home Assistant RetroConsole
+# Home Assistant - for retroconsoles
 
 This project is a dedicated **Home Assistant client for retro handhelds** running Linux (designed for PortMaster).
 
@@ -69,7 +69,7 @@ Inside the prototype, press `Y` (or `F` on PC) to open the favorites editor. Use
 The SDL2 test app runs with:
 
 ```powershell
-pip install pysdl2 pysdl2-dll # v0.6.0
+pip install pysdl2 pysdl2-dll # v.0.6.3
 python tools/ha_sdl2.py --config config.json
 ```
 
