@@ -27,7 +27,7 @@ from ha_client import (
     resolve_action,
 )
 
-VERSION = "0.6.3"
+VERSION = "0.6.4"
 
 # Farben (SDL2 RGB)
 COLOR_BG = sdl2.SDL_Color(0, 0, 0, 255)
@@ -159,7 +159,7 @@ class HASDL2App:
         png_path = os.path.join(icon_dir, f"{name}.png")
         if os.path.exists(png_path):
             return png_path
-        return os.path.join(icon_dir, f"{name}.bmp")
+        return os.path.join(icon_dir, f"{name}.jpg") # Fallback to JPG for screenshots
 
     def _fetch_states_background(self):
         """Fetches states in a background thread."""

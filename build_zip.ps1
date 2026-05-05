@@ -26,8 +26,8 @@ Copy-Item "tools/ha_client.py" -Destination "$tempDir/ha-retroconsole/"
 
 # 4. Copy required metadata and scripts
 $filesToCopy = @(
-    "requirements.txt", "install.sh", "gameinfo.xml", 
-    "screenshot.png", "port.json", "config.example.json", 
+    "requirements.txt", "install.sh", "port.json", 
+    "config.example.json", "gameinfo.xml", "screenshot.jpg", # Ensure screenshot.jpg is copied
     "LICENSE", "CHANGELOG.md"
 )
 
