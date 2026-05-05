@@ -27,7 +27,7 @@ from ha_client import (
     resolve_action,
 )
 
-VERSION = "0.6.0"
+VERSION = "0.6.1"
 
 # Farben (SDL2 RGB)
 COLOR_BG = sdl2.SDL_Color(0, 0, 0, 255)
@@ -49,6 +49,7 @@ class HASDL2App:
         self.mode = "main" # "main" or "favorites"
         self.favorites_editor_mode = "domains" # "domains" or "entities"
         self.selected_domain_index = 0 # For domain selection in favorites editor
+        self.domain_scroll = 0 # For domain grid scrolling
         self.picker_scroll = 0
         self.selected_entity_in_domain_index = 0 # For entity selection within a domain
         self.running = True
@@ -221,6 +222,7 @@ class HASDL2App:
         self.entities_by_domain = entities_by_domain
         self.domain_list = sorted(entities_by_domain.keys())
         self.selected_domain_index = 0
+        self.domain_scroll = 0
         self.picker_scroll = 0
         self.selected_entity_in_domain_index = 0
 
@@ -299,6 +301,9 @@ class HASDL2App:
                     elif self.mode == "favorites":
                         if self.favorites_editor_mode == "domains":
                             self.selected_domain_index = max(0, self.selected_domain_index - 3)
+                            current_row = self.selected_domain_index // 3
+                            if current_row < self.domain_scroll:
+                                self.domain_scroll = current_row
                         else:
                             self.selected_entity_in_domain_index = max(0, self.selected_entity_in_domain_index - 1)
                             if self.selected_entity_in_domain_index < self.picker_scroll:
@@ -309,6 +314,9 @@ class HASDL2App:
                     elif self.mode == "favorites":
                         if self.favorites_editor_mode == "domains":
                             self.selected_domain_index = min(len(self.domain_list) - 1, self.selected_domain_index + 3)
+                            current_row = self.selected_domain_index // 3
+                            if current_row >= self.domain_scroll + 2:
+                                self.domain_scroll = current_row - 1
                         else:
                             current_domain = self.domain_list[self.selected_domain_index]
                             entities_count = len(self.entities_by_domain.get(current_domain, []))
@@ -319,9 +327,15 @@ class HASDL2App:
                 elif event.key.keysym.sym == sdl2.SDLK_LEFT:
                     if self.mode == "favorites" and self.favorites_editor_mode == "domains":
                         self.selected_domain_index = max(0, self.selected_domain_index - 1)
+                        current_row = self.selected_domain_index // 3
+                        if current_row < self.domain_scroll:
+                            self.domain_scroll = current_row
                 elif event.key.keysym.sym == sdl2.SDLK_RIGHT:
                     if self.mode == "favorites" and self.favorites_editor_mode == "domains":
                         self.selected_domain_index = min(len(self.domain_list) - 1, self.selected_domain_index + 1)
+                        current_row = self.selected_domain_index // 3
+                        if current_row >= self.domain_scroll + 2:
+                            self.domain_scroll = current_row - 1
                 elif event.key.keysym.sym in {sdl2.SDLK_RETURN, sdl2.SDLK_KP_ENTER}:
                     if self.mode == "main":
                         self.execute_action()
@@ -361,6 +375,9 @@ class HASDL2App:
                     elif self.mode == "favorites":
                         if self.favorites_editor_mode == "domains":
                             self.selected_domain_index = max(0, self.selected_domain_index - 3)
+                            current_row = self.selected_domain_index // 3
+                            if current_row < self.domain_scroll:
+                                self.domain_scroll = current_row
                         else:
                             self.selected_entity_in_domain_index = max(0, self.selected_entity_in_domain_index - 1)
                             if self.selected_entity_in_domain_index < self.picker_scroll:
@@ -371,6 +388,9 @@ class HASDL2App:
                     elif self.mode == "favorites":
                         if self.favorites_editor_mode == "domains":
                             self.selected_domain_index = min(len(self.domain_list) - 1, self.selected_domain_index + 3)
+                            current_row = self.selected_domain_index // 3
+                            if current_row >= self.domain_scroll + 2:
+                                self.domain_scroll = current_row - 1
                         else:
                             current_domain = self.domain_list[self.selected_domain_index]
                             entities_count = len(self.entities_by_domain.get(current_domain, []))
@@ -381,9 +401,15 @@ class HASDL2App:
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT:
                     if self.mode == "favorites" and self.favorites_editor_mode == "domains":
                         self.selected_domain_index = max(0, self.selected_domain_index - 1)
+                        current_row = self.selected_domain_index // 3
+                        if current_row < self.domain_scroll:
+                            self.domain_scroll = current_row
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
                     if self.mode == "favorites" and self.favorites_editor_mode == "domains":
                         self.selected_domain_index = min(len(self.domain_list) - 1, self.selected_domain_index + 1)
+                        current_row = self.selected_domain_index // 3
+                        if current_row >= self.domain_scroll + 2:
+                            self.domain_scroll = current_row - 1
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_A:  # A button (South) -> Select/Execute
                     if self.mode == "main":
                         self.execute_action()
@@ -538,21 +564,26 @@ class HASDL2App:
         self.render_text_small(state_str, self.width - 100, y_pos + 4, state_color)
 
     def _render_domain_selection(self):
-        y_start = 70
+        y_start = 80
         x_start = 20
-        icon_size = 64
+        icon_size = 80
         cols = 3
         
         if not self.domain_list:
             self.render_text("No domains with supported actions found.", x_start, y_start, COLOR_TEXT)
             return
 
-        for i, domain in enumerate(self.domain_list):
-            row = i // cols
+        total_rows = (len(self.domain_list) + cols - 1) // cols
+        start_index = self.domain_scroll * cols
+        end_index = min(len(self.domain_list), start_index + 6) # Render 2 rows (6 items)
+
+        for i in range(start_index, end_index):
+            domain = self.domain_list[i]
+            row = (i // cols) - self.domain_scroll
             col = i % cols
             
             cell_width = (self.width - 2 * x_start) // cols
-            cell_height = icon_size + 30
+            cell_height = icon_size + 45
             
             x_center_of_cell = x_start + col * cell_width + cell_width // 2
             y_center_of_cell = y_start + row * cell_height + cell_height // 2
@@ -560,20 +591,23 @@ class HASDL2App:
             icon_x = x_center_of_cell - icon_size // 2
             icon_y = y_center_of_cell - icon_size // 2 - 10
 
-            text_y = icon_y + icon_size + 5
+            text_y = icon_y + icon_size + 8
             
             if i == self.selected_domain_index:
-                selection_rect_padding = 10
+                selection_rect_padding = 15
                 selection_rect = sdl2.SDL_Rect(
                     icon_x - selection_rect_padding, 
                     icon_y - selection_rect_padding, 
                     icon_size + 2 * selection_rect_padding, 
-                    icon_size + 2 * selection_rect_padding + 20
+                    icon_size + 2 * selection_rect_padding + 25
                 )
                 sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_SELECTION_BG.r, COLOR_SELECTION_BG.g, COLOR_SELECTION_BG.b, 255)
                 sdl2.SDL_RenderFillRect(self.renderer, selection_rect)
                 sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_HIGHLIGHT.r, COLOR_HIGHLIGHT.g, COLOR_HIGHLIGHT.b, 255)
+                # Draw a thicker border by rendering two rectangles
                 sdl2.SDL_RenderDrawRect(self.renderer, selection_rect)
+                inner_rect = sdl2.SDL_Rect(selection_rect.x + 1, selection_rect.y + 1, selection_rect.w - 2, selection_rect.h - 2)
+                sdl2.SDL_RenderDrawRect(self.renderer, inner_rect)
 
             icon_key = f"{domain}_on" if f"{domain}_on" in self.domain_icons else domain
             icon_tex = self.domain_icons.get(icon_key)
@@ -591,6 +625,23 @@ class HASDL2App:
             ttf.TTF_SizeText(self.font_small, text_label.encode('utf-8'), ctypes.byref(w_small), ctypes.byref(h_small))
             text_width_small = w_small.value
             self.render_text_small(text_label, icon_x + (icon_size - text_width_small) // 2, text_y, COLOR_TEXT)
+
+        # Draw Scrollbar
+        if total_rows > 2:
+            scrollbar_x = self.width - 15
+            scrollbar_y_top = 80
+            scrollbar_h = 250
+            
+            # Background
+            sdl2.SDL_SetRenderDrawColor(self.renderer, 40, 40, 40, 255)
+            sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(scrollbar_x, scrollbar_y_top, 5, scrollbar_h))
+            
+            # Handle
+            handle_h = max(30, int(scrollbar_h * (2 / total_rows)))
+            scroll_progress = self.domain_scroll / (total_rows - 2)
+            handle_y = scrollbar_y_top + int((scrollbar_h - handle_h) * scroll_progress)
+            sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_HIGHLIGHT.r, COLOR_HIGHLIGHT.g, COLOR_HIGHLIGHT.b, 255)
+            sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(scrollbar_x, handle_y, 5, handle_h))
 
     def _render_entity_selection_for_domain(self):
         if not self.domain_list:
