@@ -15,9 +15,8 @@ if (Test-Path $zipName) { Remove-Item $zipName }
 # Create directory structure
 New-Item -ItemType Directory -Path "$tempDir/ha-retroconsole" | Out-Null
 
-# 1. Copy launcher to root with the full display name and include gameinfo.xml for the frontend
+# 1. Copy launcher to root with the full display name
 Copy-Item "ha-retroconsole.sh" -Destination "$tempDir/Home Assistant - for retroconsoles.sh"
-Copy-Item "gameinfo.xml" -Destination "$tempDir/"
 
 # 2. Copy application folders
 Copy-Item -Recurse "assets", "tools", "ui" -Destination "$tempDir/ha-retroconsole/"
