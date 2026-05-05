@@ -27,7 +27,7 @@ from ha_client import (
     resolve_action,
 )
 
-VERSION = "0.6.4"
+VERSION = "0.6.5"
 
 # Farben (SDL2 RGB)
 COLOR_BG = sdl2.SDL_Color(0, 0, 0, 255)

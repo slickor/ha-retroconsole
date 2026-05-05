@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.5] - 2024-05-06
+
+### Changed
+- Renamed the launcher script in the distribution package to `Home Assistant - for retroconsoles.sh` to ensure correct display in handheld frontends.
+- Updated `gameinfo.xml` to use the new script path and point to `cover.png` for better visual presentation.
+- Updated `port.json` to reflect the new filename and project structure.
+- Modified `build_zip.ps1` to automate the renaming of the shell script during the build process.
+
+
 ## [0.6.4] - 2024-05-06
 
 ### Changed
