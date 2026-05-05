@@ -2,15 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.2] - 2024-05-06
+
+### Added
+- Replaced text favorite markers (`[ ]` / `[*]`) in the entity selection list with `binary_sensor_off.png` and `binary_sensor_on.png` icons for a more visual representation.
+
+### Changed
+- Increased domain selection icon size from 64px to 80px for better visibility.
+- Improved visual style of the selection highlight in the favorites editor.
+
 ## [0.6.1] - 2024-05-06
 
 ### Added
 - Translated Changelog to English.
-
-### Added
-### Changed
-- Increased domain selection icon size from 64px to 80px for better visibility.
-- Improved visual style of the selection highlight in the favorites editor.
 
 ## [0.6.0] - 2024-05-05
 

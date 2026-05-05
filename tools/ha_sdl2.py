@@ -27,7 +27,7 @@ from ha_client import (
     resolve_action,
 )
 
-VERSION = "0.6.1"
+VERSION = "0.6.2"
 
 # Farben (SDL2 RGB)
 COLOR_BG = sdl2.SDL_Color(0, 0, 0, 255)
@@ -667,8 +667,6 @@ class HASDL2App:
         for i in range(start, end):
             entity = current_entities[i]
 
-            marker = "*" if entity["entity_id"] in favorite_ids else " "
-            
             if i == self.selected_entity_in_domain_index:
                 self.render_selection_bar(y, height=26)
                 
@@ -676,6 +674,17 @@ class HASDL2App:
             domain = entity["domain"]
             state_str = entity["state"]
             
+            # Render favorite marker icon
+            favorite_icon_key = "binary_sensor_on" if entity["entity_id"] in favorite_ids else "binary_sensor_off"
+            favorite_icon_tex = self.domain_icons.get(favorite_icon_key)
+            if favorite_icon_tex:
+                fav_dst = sdl2.SDL_Rect(15, y, 20, 20) # Position for favorite marker
+                sdl2.SDL_RenderCopy(self.renderer, favorite_icon_tex, None, fav_dst)
+            else:
+                # Fallback if binary_sensor icons are not found (should not happen if assets are correct)
+                marker = "*" if entity["entity_id"] in favorite_ids else " "
+                self.render_text(f"[{marker}]", 15, y, color)
+
             # In picker, we prefer the 'on' icon as the representative version
             icon_key = f"{domain}_on" if f"{domain}_on" in self.domain_icons else domain
             icon_tex = self.domain_icons.get(icon_key)
@@ -693,11 +702,10 @@ class HASDL2App:
                 dst = sdl2.SDL_Rect(45, y, 20, 20)
                 sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
                 sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
-                self.render_text(f"[{marker}]", 15, y, color)
                 self.render_text(entity['label'], 75, y, color)
             else:
                 icon_text = self.get_domain_icon(entity["entity_id"])
-                self.render_text(f"[{marker}] {icon_text} {entity['label']}", 25, y, color)
+                self.render_text(f"{icon_text} {entity['label']}", 45, y, color) # Adjusted x-position
 
             self.render_text_small(entity['state'], self.width - 100, y + 4, COLOR_TEXT_DIM)
             y += 28

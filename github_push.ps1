@@ -11,9 +11,8 @@ if (git ls-files ha-retroconsole.zip) {
     git rm --cached ha-retroconsole.zip
 }
 
-# Prompt for commit message
-$message = Read-Host "Enter commit message"
-if (-not $message) { $message = "Updates v$version" }
+# Set commit message automatically
+$message = "Updated to v$version"
 
 # Git Workflow
 git add .
