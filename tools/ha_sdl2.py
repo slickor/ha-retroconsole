@@ -34,6 +34,8 @@ BTN_A = sdl2.SDL_CONTROLLER_BUTTON_A
 BTN_B = sdl2.SDL_CONTROLLER_BUTTON_B
 BTN_X = sdl2.SDL_CONTROLLER_BUTTON_X
 BTN_Y = sdl2.SDL_CONTROLLER_BUTTON_Y
+BTN_START = sdl2.SDL_CONTROLLER_BUTTON_START
+BTN_SELECT = sdl2.SDL_CONTROLLER_BUTTON_BACK
 
 # Farben (SDL2 RGB)
 COLOR_BG = sdl2.SDL_Color(0, 0, 0, 255)
@@ -56,7 +58,17 @@ class HASDL2App:
             BTN_A: "btn_a",
             BTN_B: "btn_b",
             BTN_X: "btn_x",
-            BTN_Y: "btn_y"
+            BTN_Y: "btn_y",
+            BTN_START: "btn_start",
+            BTN_SELECT: "btn_select"
+        }
+        self.btn_label_map = {
+            BTN_A: "A",
+            BTN_B: "B",
+            BTN_X: "X",
+            BTN_Y: "Y",
+            BTN_START: "Start",
+            BTN_SELECT: "Select"
         }
         self.mode = "main" # "main", "favorites", or "settings"
         self.favorites_editor_mode = "domains" # "domains" or "entities"
@@ -157,14 +169,14 @@ class HASDL2App:
                         sdl2.SDL_FreeSurface(surface)
 
         # Load button icons
-        for btn in ["btn_a", "btn_b", "btn_x", "btn_y"]:
-            icon_path = self._find_icon(icon_dir, btn)
+        for btn_name in self.btn_tex_map.values():
+            icon_path = self._find_icon(icon_dir, btn_name)
             if os.path.exists(icon_path):
                 surface = sdlimage.IMG_Load(icon_path.encode('utf-8'))
                 if surface:
                     texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
                     if texture:
-                        self.domain_icons[btn] = texture
+                        self.domain_icons[btn_name] = texture
                     sdl2.SDL_FreeSurface(surface)
 
         # Open game controllers
@@ -545,15 +557,32 @@ class HASDL2App:
         ttf.TTF_SizeText(font, text.encode('utf-8'), ctypes.byref(w), ctypes.byref(h))
         return w.value, h.value
 
-    def _render_button_icon(self, btn_id, x, y, size=20):
+    def _render_button_icon(self, btn_id, x, y, size=20, color=None):
         """Renders a graphical button icon from the loaded textures."""
         tex_name = self.btn_tex_map.get(btn_id)
         texture = self.domain_icons.get(tex_name)
         if texture:
+            if color:
+                sdl2.SDL_SetTextureColorMod(texture, color.r, color.g, color.b)
             dst = sdl2.SDL_Rect(x, y, size, size)
             sdl2.SDL_RenderCopy(self.renderer, texture, None, dst)
+            if color:
+                sdl2.SDL_SetTextureColorMod(texture, 255, 255, 255)
             return size
         return 0
+
+    def _render_button_with_fallback(self, btn_id, x, y, size=18, use_small_font=True):
+        """Renders icon if available, otherwise falls back to text like [A]."""
+        icon_w = self._render_button_icon(btn_id, x, y + 2, size, color=COLOR_HIGHLIGHT)
+        if icon_w > 0:
+            return icon_w
+        
+        label = f"[{self.btn_label_map.get(btn_id, '?')}]"
+        render_func = self.render_text_small if use_small_font else self.render_text
+        font = self.font_small if use_small_font else self.font
+        render_func(label, x, y, COLOR_HIGHLIGHT)
+        w, _ = self._get_text_size(label, font)
+        return w
 
     def render_selection_bar(self, y, height=30):
         rect = sdl2.SDL_Rect(10, y - 2, self.width - 20, height)
@@ -630,11 +659,11 @@ class HASDL2App:
         
         for text, btn_id in parts:
             if text:
-                self.render_text_small(text, x, y + 2, COLOR_TEXT)
+                self.render_text_small(text, x, y, COLOR_TEXT)
                 w, _ = self._get_text_size(text, self.font_small)
                 x += w
             if btn_id is not None:
-                x += self._render_button_icon(btn_id, x, y, size=18)
+                x += self._render_button_with_fallback(btn_id, x, y, size=18)
 
     def render_settings(self):
         y_offset = 80
@@ -648,7 +677,7 @@ class HASDL2App:
         
         text_w, _ = self._get_text_size(text, self.font)
         icon_x = 30 + text_w
-        icon_w = self._render_button_icon(self.controls["confirm"], icon_x, y_offset + 4, size=24)
+        icon_w = self._render_button_with_fallback(self.controls["confirm"], icon_x, y_offset, size=24, use_small_font=False)
         
         self.render_text(" = Confirm)", icon_x + icon_w, y_offset, color)
         
@@ -659,7 +688,15 @@ class HASDL2App:
         color = COLOR_HIGHLIGHT if self.settings_selected_index == 1 else COLOR_TEXT
         self.render_text("Back to Main Menu", 30, y_offset, color)
 
-        self.render_text_small("D-Pad: Select | Start: Apply/Back", 20, self.height - 20, COLOR_TEXT)
+        # Footer for settings with icon support
+        x = 20
+        y = self.height - 22
+        msg = "D-Pad: Select | "
+        self.render_text_small(msg, x, y, COLOR_TEXT)
+        x += self._get_text_size(msg, self.font_small)[0]
+        x += self._render_button_with_fallback(BTN_START, x, y - 2, 18)
+        self.render_text_small(": Apply/Back", x, y, COLOR_TEXT)
+
         self.render_text_small(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM)
 
     def render_favorites_editor(self):
@@ -676,20 +713,24 @@ class HASDL2App:
         y = self.height - 22
         if self.favorites_editor_mode == "domains":
             msg = "D-Pad: Navigate | "
-            self.render_text_small(msg, x, y + 2, COLOR_TEXT)
+            self.render_text_small(msg, x, y, COLOR_TEXT)
             x += self._get_text_size(msg, self.font_small)[0]
-            x += self._render_button_icon(self.controls["confirm"], x, y, 18)
+            x += self._render_button_with_fallback(self.controls["confirm"], x, y, 18)
             msg = ": Select domain | "
-            self.render_text_small(msg, x, y + 2, COLOR_TEXT)
+            self.render_text_small(msg, x, y, COLOR_TEXT)
             x += self._get_text_size(msg, self.font_small)[0]
-            x += self._render_button_icon(self.controls["cancel"], x, y, 18)
-            self.render_text_small(": Back", x, y + 2, COLOR_TEXT)
+            x += self._render_button_with_fallback(self.controls["cancel"], x, y, 18)
+            self.render_text_small(": Back", x, y, COLOR_TEXT)
         else: # entities mode
             msg = "D-Pad: Navigate | "
-            self.render_text_small(msg, x, y + 2, COLOR_TEXT)
+            self.render_text_small(msg, x, y, COLOR_TEXT)
             x += self._get_text_size(msg, self.font_small)[0]
-            x += self._render_button_icon(self.controls["confirm"], x, y, 18)
-            self.render_text_small(": Toggle Favorite", x, y + 2, COLOR_TEXT)
+            x += self._render_button_with_fallback(self.controls["confirm"], x, y, 18)
+            msg = ": Toggle Favorite | "
+            self.render_text_small(msg, x, y, COLOR_TEXT)
+            x += self._get_text_size(msg, self.font_small)[0]
+            x += self._render_button_with_fallback(self.controls["cancel"], x, y, 18)
+            self.render_text_small(": Back", x, y, COLOR_TEXT)
 
         self.render_text_small(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM)
 
@@ -712,7 +753,7 @@ class HASDL2App:
             else:
                 sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
 
-            dst = sdl2.SDL_Rect(25, y_pos, 24, 24)
+            dst = sdl2.SDL_Rect(25, y_pos + 2, 24, 24)
             sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
             sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
             self.render_text(label, 60, y_pos, color)
@@ -837,8 +878,12 @@ class HASDL2App:
             favorite_icon_key = "binary_sensor_on" if entity["entity_id"] in favorite_ids else "binary_sensor_off"
             favorite_icon_tex = self.domain_icons.get(favorite_icon_key)
             if favorite_icon_tex:
-                fav_dst = sdl2.SDL_Rect(15, y, 20, 20) # Position for favorite marker
+                fav_dst = sdl2.SDL_Rect(15, y + 2, 20, 20) # Position for favorite marker
+                if entity["entity_id"] in favorite_ids:
+                    sdl2.SDL_SetTextureColorMod(favorite_icon_tex, COLOR_HIGHLIGHT.r, COLOR_HIGHLIGHT.g, COLOR_HIGHLIGHT.b)
                 sdl2.SDL_RenderCopy(self.renderer, favorite_icon_tex, None, fav_dst)
+                if entity["entity_id"] in favorite_ids:
+                    sdl2.SDL_SetTextureColorMod(favorite_icon_tex, 255, 255, 255)
             else:
                 # Fallback if binary_sensor icons are not found (should not happen if assets are correct)
                 marker = "*" if entity["entity_id"] in favorite_ids else " "
@@ -858,7 +903,7 @@ class HASDL2App:
                 else:
                     sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
 
-                dst = sdl2.SDL_Rect(45, y, 20, 20)
+                dst = sdl2.SDL_Rect(45, y + 2, 20, 20)
                 sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
                 sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
                 self.render_text(entity['label'], 75, y, color)
