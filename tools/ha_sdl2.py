@@ -12,6 +12,7 @@ import sdl2.sdlimage as sdlimage
 import sdl2.sdlttf as ttf
 
 from ha_client import (
+    VERSION,
     SUPPORTED_ACTIONS,
     call_service,
     changed_favorites,
@@ -26,8 +27,6 @@ from ha_client import (
     save_config,
     resolve_action,
 )
-
-VERSION = "0.6.7"
 
 # Controller Button Mapping Aliases (SDL Constants)
 # A=0, B=1, X=2, Y=3, Back=4, Guide=5, Start=6

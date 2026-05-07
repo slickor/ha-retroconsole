@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ha_client import (
+    VERSION,
     call_service,
     changed_favorites,
     favorite_action,
@@ -20,8 +21,6 @@ from ha_client import (
     refresh_after_action,
     resolve_action,
 )
-
-VERSION = "0.6.7"
 
 
 def fit_message(changes: list[str]) -> str:

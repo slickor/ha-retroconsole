@@ -2,7 +2,7 @@
 Write-Host "Starting GitHub synchronization..." -ForegroundColor Cyan
 
 # Extract version at the beginning to use in default commit message
-$versionMatch = Get-Content "tools/ha_sdl2.py" | Select-String 'VERSION = "(.*)"'
+$versionMatch = Get-Content "tools/ha_client.py" | Select-String 'VERSION = "(.*)"'
 $version = $versionMatch.Matches.Groups[1].Value
 
 # Ensure the ZIP is not tracked (in case .gitignore was ignored)

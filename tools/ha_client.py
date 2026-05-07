@@ -9,6 +9,8 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+VERSION = "0.6.8"
+
 
 SUPPORTED_ACTIONS = {
     "light": {"toggle", "turn_on", "turn_off"},

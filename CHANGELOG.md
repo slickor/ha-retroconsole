@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.8] - 2026-05-07
+### Changed
+- Updated version to 0.6.8.
+
 ## [0.6.7] - 2026-05-07
 
 ### Changed
