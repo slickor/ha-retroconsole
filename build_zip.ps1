@@ -15,8 +15,11 @@ if (Test-Path $zipName) { Remove-Item $zipName }
 # Create directory structure
 New-Item -ItemType Directory -Path "$tempDir/ha-retroconsole" | Out-Null
 
-# 1. Copy launcher to root with the full display name
-Copy-Item "ha-retroconsole.sh" -Destination "$tempDir/Home Assistant - for retroconsoles.sh"
+# 1. Copy launcher to root with the full display name and force LF line endings
+$shContent = Get-Content "ha-retroconsole.sh" -Raw
+$shContent = $shContent -replace "`r`n", "`n"
+# Save with UTF8 without BOM (important for Linux shebangs)
+[IO.File]::WriteAllText("$PSScriptRoot/$tempDir/Home Assistant - for retroconsoles.sh", $shContent, (New-Object System.Text.UTF8Encoding($false)))
 
 # 2. Copy application folders
 Copy-Item -Recurse "assets", "tools", "ui" -Destination "$tempDir/ha-retroconsole/"
@@ -33,6 +36,13 @@ $filesToCopy = @(
 
 foreach ($file in $filesToCopy) {
     if (Test-Path $file) { Copy-Item $file -Destination "$tempDir/ha-retroconsole/" }
+}
+
+# Ensure install.sh also has LF line endings
+if (Test-Path "$tempDir/ha-retroconsole/install.sh") {
+    $instContent = Get-Content "$tempDir/ha-retroconsole/install.sh" -Raw
+    $instContent = $instContent -replace "`r`n", "`n"
+    [IO.File]::WriteAllText("$PSScriptRoot/$tempDir/ha-retroconsole/install.sh", $instContent, (New-Object System.Text.UTF8Encoding($false)))
 }
 
 # 5. Create the ZIP archive
