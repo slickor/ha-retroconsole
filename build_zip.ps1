@@ -1,6 +1,6 @@
 # Build script for HA RetroConsole PortMaster package
 # Extract version from source
-$versionMatch = Get-Content "tools/ha_sdl2.py" | Select-String 'VERSION = "(.*)"'
+$versionMatch = Get-Content "tools/ha_client.py" | Select-String 'VERSION = "(.*)"'
 $version = $versionMatch.Matches.Groups[1].Value
 
 $zipName = "ha-retroconsole-v$version.zip"
