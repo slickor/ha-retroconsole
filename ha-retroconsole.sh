@@ -28,7 +28,10 @@ $ESUDO chmod 666 /dev/uinput
 # Check if libs exist, if not, run installer
 if [ ! -d "libs" ]; then
     echo "First run detected, installing..."
-    bash ./install.sh
+    if ! bash ./install.sh; then
+        echo "Installation failed. Please check your internet connection and try again."
+        exit 1
+    fi
 fi
 
 export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
