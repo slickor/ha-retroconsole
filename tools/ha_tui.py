@@ -21,7 +21,7 @@ from ha_client import (
     resolve_action,
 )
 
-VERSION = "0.5.0"
+VERSION = "0.6.7"
 
 
 def fit_message(changes: list[str]) -> str:

@@ -42,9 +42,7 @@ from ui.widgets import (
     render_text,
 )
 
-VERSION = "0.5.0"
-
-
+VERSION = "0.
 class HARetroApp:
     def __init__(self, config: dict[str, Any], timeout: float = 10.0, config_path: Path | None = None):
         self.config = config

@@ -27,7 +27,14 @@ from ha_client import (
     resolve_action,
 )
 
-VERSION = "0.6.5"
+VERSION = "0.6.7"
+
+# Controller Button Mapping Aliases (SDL Constants)
+# A=0, B=1, X=2, Y=3, Back=4, Guide=5, Start=6
+BTN_A = sdl2.SDL_CONTROLLER_BUTTON_A
+BTN_B = sdl2.SDL_CONTROLLER_BUTTON_B
+BTN_X = sdl2.SDL_CONTROLLER_BUTTON_X
+BTN_Y = sdl2.SDL_CONTROLLER_BUTTON_Y
 
 # Farben (SDL2 RGB)
 COLOR_BG = sdl2.SDL_Color(0, 0, 0, 255)
@@ -46,9 +53,17 @@ class HASDL2App:
         self.favorites = self.config.get("favorites", [])
         self.entities = []
         self.selected = 0 # For main menu favorites
-        self.mode = "main" # "main" or "favorites"
+        self.btn_tex_map = {
+            BTN_A: "btn_a",
+            BTN_B: "btn_b",
+            BTN_X: "btn_x",
+            BTN_Y: "btn_y"
+        }
+        self.mode = "main" # "main", "favorites", or "settings"
         self.favorites_editor_mode = "domains" # "domains" or "entities"
         self.selected_domain_index = 0 # For domain selection in favorites editor
+        self.settings_selected_index = 0
+        self.setup_controls()
         self.domain_scroll = 0 # For domain grid scrolling
         self.picker_scroll = 0
         self.selected_entity_in_domain_index = 0 # For entity selection within a domain
@@ -67,6 +82,21 @@ class HASDL2App:
         self.task_queue = queue.Queue()
         self.current_task_thread = None
         self.game_controllers = []
+
+    def setup_controls(self):
+        """Detects OS and sets up button mapping."""
+        layout = self.config.get("control_layout", "auto")
+        
+        if layout == "auto":
+            # Auto-detection
+            if os.path.exists("/mnt/SDCARD/spruce"):
+                layout = "spruce"
+            else:
+                layout = "muos"
+
+        self.layout_type = layout
+        # muOS/Default: Confirm=A (0), Cancel=B (1) | Spruce: Confirm=B (1), Cancel=A (0)
+        self.controls = {"confirm": BTN_A, "cancel": BTN_B} if layout == "muos" else {"confirm": BTN_B, "cancel": BTN_A}
 
     def init_sdl(self):
         sdl2.SDL_Init(sdl2.SDL_INIT_VIDEO | sdl2.SDL_INIT_GAMECONTROLLER)
@@ -126,6 +156,17 @@ class HASDL2App:
                         if texture:
                             self.domain_icons[icon_name] = texture
                         sdl2.SDL_FreeSurface(surface)
+
+        # Load button icons
+        for btn in ["btn_a", "btn_b", "btn_x", "btn_y"]:
+            icon_path = self._find_icon(icon_dir, btn)
+            if os.path.exists(icon_path):
+                surface = sdlimage.IMG_Load(icon_path.encode('utf-8'))
+                if surface:
+                    texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
+                    if texture:
+                        self.domain_icons[btn] = texture
+                    sdl2.SDL_FreeSurface(surface)
 
         # Open game controllers
         for i in range(sdl2.SDL_NumJoysticks()):
@@ -285,6 +326,7 @@ class HASDL2App:
             if event.type == sdl2.SDL_QUIT:
                 self.running = False
             elif event.type == sdl2.SDL_KEYDOWN:
+                # Keyboard logic remains mostly fixed as fallback
                 if event.key.keysym.sym == sdl2.SDLK_ESCAPE:
                     if self.mode == "favorites":
                         if self.favorites_editor_mode == "entities":
@@ -293,6 +335,8 @@ class HASDL2App:
                         else:
                             self.mode = "main"
                             self.set_message("Favorites editor closed")
+                    elif self.mode == "settings":
+                        self.mode = "main"
                     else:
                         self.running = False
                 elif event.key.keysym.sym == sdl2.SDLK_UP:
@@ -304,6 +348,8 @@ class HASDL2App:
                             current_row = self.selected_domain_index // 3
                             if current_row < self.domain_scroll:
                                 self.domain_scroll = current_row
+                        elif self.mode == "settings":
+                             self.settings_selected_index = max(0, self.settings_selected_index - 1)
                         else:
                             self.selected_entity_in_domain_index = max(0, self.selected_entity_in_domain_index - 1)
                             if self.selected_entity_in_domain_index < self.picker_scroll:
@@ -317,6 +363,8 @@ class HASDL2App:
                             current_row = self.selected_domain_index // 3
                             if current_row >= self.domain_scroll + 2:
                                 self.domain_scroll = current_row - 1
+                        elif self.mode == "settings":
+                             self.settings_selected_index = min(1, self.settings_selected_index + 1)
                         else:
                             current_domain = self.domain_list[self.selected_domain_index]
                             entities_count = len(self.entities_by_domain.get(current_domain, []))
@@ -339,6 +387,8 @@ class HASDL2App:
                 elif event.key.keysym.sym in {sdl2.SDLK_RETURN, sdl2.SDLK_KP_ENTER}:
                     if self.mode == "main":
                         self.execute_action()
+                    elif self.mode == "settings":
+                        self._handle_settings_action()
                     elif self.mode == "favorites":
                         if self.favorites_editor_mode == "domains":
                             self.favorites_editor_mode = "entities"
@@ -358,8 +408,11 @@ class HASDL2App:
                 elif event.key.keysym.sym == sdl2.SDLK_r:
                     self.load_data()
                     self.set_message("Refreshed")
+                elif event.key.keysym.sym == sdl2.SDLK_s:
+                    self.mode = "settings"
             elif event.type == sdl2.SDL_CONTROLLERBUTTONDOWN:
-                if event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_B:  # B button (East) -> Back/Quit
+                btn = event.cbutton.button
+                if btn == self.controls["cancel"]:
                     if self.mode == "favorites":
                         if self.favorites_editor_mode == "entities":
                             self.favorites_editor_mode = "domains"
@@ -367,6 +420,8 @@ class HASDL2App:
                         else:
                             self.mode = "main"
                             self.set_message("Favorites editor closed")
+                    elif self.mode == "settings":
+                        self.mode = "main"
                     else:
                         self.running = False
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP:
@@ -378,6 +433,8 @@ class HASDL2App:
                             current_row = self.selected_domain_index // 3
                             if current_row < self.domain_scroll:
                                 self.domain_scroll = current_row
+                        elif self.mode == "settings":
+                             self.settings_selected_index = max(0, self.settings_selected_index - 1)
                         else:
                             self.selected_entity_in_domain_index = max(0, self.selected_entity_in_domain_index - 1)
                             if self.selected_entity_in_domain_index < self.picker_scroll:
@@ -391,6 +448,8 @@ class HASDL2App:
                             current_row = self.selected_domain_index // 3
                             if current_row >= self.domain_scroll + 2:
                                 self.domain_scroll = current_row - 1
+                        elif self.mode == "settings":
+                             self.settings_selected_index = min(1, self.settings_selected_index + 1)
                         else:
                             current_domain = self.domain_list[self.selected_domain_index]
                             entities_count = len(self.entities_by_domain.get(current_domain, []))
@@ -410,9 +469,11 @@ class HASDL2App:
                         current_row = self.selected_domain_index // 3
                         if current_row >= self.domain_scroll + 2:
                             self.domain_scroll = current_row - 1
-                elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_A:  # A button (South) -> Select/Execute
+                elif btn == self.controls["confirm"]:
                     if self.mode == "main":
                         self.execute_action()
+                    elif self.mode == "settings":
+                        self._handle_settings_action()
                     elif self.mode == "favorites":
                         if self.favorites_editor_mode == "domains":
                             self.favorites_editor_mode = "entities"
@@ -424,14 +485,28 @@ class HASDL2App:
                             if entities:
                                 entity = entities[self.selected_entity_in_domain_index]
                                 self.toggle_favorite(entity["entity_id"])
-                elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_Y:  # Y button (North) -> Favorites
+                elif btn == BTN_Y:  # Y button (North) -> Favorites
                     if self.mode == "main":
                         self.mode = "favorites"
                         self.load_entities()
                         self.set_message("Edit favorites")
-                elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_X:  # X button (West) -> Refresh
+                elif btn == BTN_X:  # X button (West) -> Refresh
                     self.load_data()
                     self.set_message("Refreshed")
+                elif btn == sdl2.SDL_CONTROLLER_BUTTON_START:
+                    self.mode = "settings"
+
+    def _handle_settings_action(self):
+        if self.settings_selected_index == 0:
+            # Toggle layout
+            new_layout = "spruce" if self.layout_type == "muos" else "muos"
+            self.config["control_layout"] = new_layout
+            self.setup_controls()
+            self.save_config()
+            self.set_message(f"Layout set to {new_layout.upper()}")
+        else:
+            self.mode = "main"
+            self.set_message("Settings saved")
 
     def render_text(self, text, x, y, color):
         if not self.font:
@@ -465,6 +540,22 @@ class HASDL2App:
         sdl2.SDL_FreeSurface(surface)
         sdl2.SDL_DestroyTexture(texture)
 
+    def _get_text_size(self, text, font):
+        """Helper to get text dimensions using ctypes."""
+        w, h = ctypes.c_int(), ctypes.c_int()
+        ttf.TTF_SizeText(font, text.encode('utf-8'), ctypes.byref(w), ctypes.byref(h))
+        return w.value, h.value
+
+    def _render_button_icon(self, btn_id, x, y, size=20):
+        """Renders a graphical button icon from the loaded textures."""
+        tex_name = self.btn_tex_map.get(btn_id)
+        texture = self.domain_icons.get(tex_name)
+        if texture:
+            dst = sdl2.SDL_Rect(x, y, size, size)
+            sdl2.SDL_RenderCopy(self.renderer, texture, None, dst)
+            return size
+        return 0
+
     def render_selection_bar(self, y, height=30):
         rect = sdl2.SDL_Rect(10, y - 2, self.width - 20, height)
         sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_SELECTION_BG.r, COLOR_SELECTION_BG.g, COLOR_SELECTION_BG.b, 255)
@@ -478,6 +569,8 @@ class HASDL2App:
         title = "Home Assistant - for retroconsoles" 
         if self.mode == "favorites":
             title = "Favorites Editor"
+        elif self.mode == "settings":
+            title = "Controls Settings"
         self.render_text(title, 20, 20, COLOR_HIGHLIGHT)
         
         # Divider below header
@@ -486,6 +579,8 @@ class HASDL2App:
 
         if self.mode == "main":
             self.render_main()
+        elif self.mode == "settings":
+            self.render_settings()
         else:
             self.render_favorites_editor()
 
@@ -513,7 +608,59 @@ class HASDL2App:
         if self.message and (time.time() - self.message_time < display_time):
             self.render_text_small(self.message, 20, self.height - 40, COLOR_TEXT_DIM if is_error else COLOR_TEXT)
 
-        self.render_text_small("D-Pad: Navigate | A: Execute | Y: Favorites | X: Refresh | B: Exit", 20, self.height - 20, COLOR_TEXT)
+        # Footer with icons
+        self._render_footer_line()
+        self.render_text_small(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM)
+
+    def _render_footer_line(self):
+        """Helper to render a consistent footer with graphical icons."""
+        x = 20
+        y = self.height - 22
+        
+        parts = [
+            ("D-Pad: Navigate | ", None),
+            ("", self.controls["confirm"]),
+            (": Execute | ", None),
+            ("", BTN_Y),
+            (": Favorites | ", None),
+            ("", BTN_X),
+            (": Refresh | ", None),
+            ("", self.controls["cancel"]),
+            (": Exit", None)
+        ]
+        
+        for text, btn_id in parts:
+            if text:
+                self.render_text_small(text, x, y + 2, COLOR_TEXT)
+                w, _ = self._get_text_size(text, self.font_small)
+                x += w
+            if btn_id is not None:
+                x += self._render_button_icon(btn_id, x, y, size=18)
+
+    def render_settings(self):
+        y_offset = 80
+        if self.settings_selected_index == 0:
+            self.render_selection_bar(y_offset)
+        
+        # Render Layout Option Piece by Piece
+        color = COLOR_HIGHLIGHT if self.settings_selected_index == 0 else COLOR_TEXT
+        text = f"Button Layout: {self.layout_type.upper()} ("
+        self.render_text(text, 30, y_offset, color)
+        
+        text_w, _ = self._get_text_size(text, self.font)
+        icon_x = 30 + text_w
+        icon_w = self._render_button_icon(self.controls["confirm"], icon_x, y_offset + 4, size=24)
+        
+        self.render_text(" = Confirm)", icon_x + icon_w, y_offset, color)
+        
+        # Back Option
+        y_offset += 40
+        if self.settings_selected_index == 1:
+            self.render_selection_bar(y_offset)
+        color = COLOR_HIGHLIGHT if self.settings_selected_index == 1 else COLOR_TEXT
+        self.render_text("Back to Main Menu", 30, y_offset, color)
+
+        self.render_text_small("D-Pad: Select | Start: Apply/Back", 20, self.height - 20, COLOR_TEXT)
         self.render_text_small(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM)
 
     def render_favorites_editor(self):
@@ -526,10 +673,24 @@ class HASDL2App:
         if self.message and (time.time() - self.message_time < 1.0):
             self.render_text_small(self.message, 20, self.height - 40, COLOR_TEXT)
 
+        x = 20
+        y = self.height - 22
         if self.favorites_editor_mode == "domains":
-            self.render_text_small("D-Pad: Navigate | A: Select domain | B: Back to main | X: Refresh", 20, self.height - 20, COLOR_TEXT)
+            msg = "D-Pad: Navigate | "
+            self.render_text_small(msg, x, y + 2, COLOR_TEXT)
+            x += self._get_text_size(msg, self.font_small)[0]
+            x += self._render_button_icon(self.controls["confirm"], x, y, 18)
+            msg = ": Select domain | "
+            self.render_text_small(msg, x, y + 2, COLOR_TEXT)
+            x += self._get_text_size(msg, self.font_small)[0]
+            x += self._render_button_icon(self.controls["cancel"], x, y, 18)
+            self.render_text_small(": Back", x, y + 2, COLOR_TEXT)
         else: # entities mode
-            self.render_text_small("D-Pad: Navigate | A: Toggle favorite | B: Back to domains | X: Refresh", 20, self.height - 20, COLOR_TEXT)
+            msg = "D-Pad: Navigate | "
+            self.render_text_small(msg, x, y + 2, COLOR_TEXT)
+            x += self._get_text_size(msg, self.font_small)[0]
+            x += self._render_button_icon(self.controls["confirm"], x, y, 18)
+            self.render_text_small(": Toggle Favorite", x, y + 2, COLOR_TEXT)
 
         self.render_text_small(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM)
 

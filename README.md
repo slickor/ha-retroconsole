@@ -69,7 +69,7 @@ Inside the prototype, press `Y` (or `F` on PC) to open the favorites editor. Use
 The SDL2 test app runs with:
 
 ```powershell
-pip install pysdl2 pysdl2-dll # v.0.6.5
+pip install pysdl2 pysdl2-dll # v.0.6.7
 python tools/ha_sdl2.py --config config.json
 ```
 

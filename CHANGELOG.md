@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.7] - 2026-05-07
+
+### Changed
+- Updated version to 0.6.7 across all components for testing purposes.
+
 ## [0.6.5] - 2024-05-06
 
 ### Changed

@@ -1,10 +1,10 @@
 # Build script for HA RetroConsole PortMaster package
-$zipName = "ha-retroconsole.zip"
-$tempDir = "port_build"
-
 # Extract version from source
 $versionMatch = Get-Content "tools/ha_sdl2.py" | Select-String 'VERSION = "(.*)"'
 $version = $versionMatch.Matches.Groups[1].Value
+
+$zipName = "ha-retroconsole-v$version.zip"
+$tempDir = "port_build"
 
 Write-Host "Preparing PortMaster package for Home Assistant - for retroconsoles v$version..." -ForegroundColor Cyan
 
