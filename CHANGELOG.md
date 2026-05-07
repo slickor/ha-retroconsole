@@ -2,10 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.6.7] - 2026-05-07
+## [0.6.8] - 2026-05-07
+
+### Added
+- New `github_pull.ps1` script to simplify synchronization with the remote repository.
+- Automated handling of local changes during pull (interactively discard or abort).
+
+## [0.6.6] - 2024-05-06
 
 ### Changed
-- Updated version to 0.6.7 across all components for testing purposes.
+- Refactored error handling: Replaced hard `SystemExit` calls with custom `HomeAssistantClientError` exceptions for better application stability.
+- Updated `ha_sdl2.py` and `ha_action.py` to gracefully handle and report configuration and connection errors.
+
+### Fixed
+- Prevented application crashes on startup when `config.json` is missing or invalid.
 
 ## [0.6.5] - 2024-05-06
 

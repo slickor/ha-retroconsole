@@ -27,7 +27,7 @@ from ha_client import (
     resolve_action,
 )
 
-VERSION = "0.6.7"
+VERSION = "0.6.8"
 
 # Controller Button Mapping Aliases (SDL Constants)
 # A=0, B=1, X=2, Y=3, Back=4, Guide=5, Start=6

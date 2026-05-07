@@ -69,7 +69,7 @@ Inside the prototype, press `Y` (or `F` on PC) to open the favorites editor. Use
 The SDL2 test app runs with:
 
 ```powershell
-pip install pysdl2 pysdl2-dll # v.0.6.7
+pip install pysdl2 pysdl2-dll # v.0.6.5
 python tools/ha_sdl2.py --config config.json
 ```
 
@@ -97,6 +97,18 @@ py tools/ha_check.py --config config.json
 The token is created in Home Assistant from your user profile under:
 
 `Profile -> Security -> Long-lived access tokens`
+
+### Synchronization
+
+To keep your local workspace in sync with the GitHub repository (especially when working on different machines), use the following script:
+
+```powershell
+./github_pull.ps1
+```
+
+This script ensures your code is up to date and:
+*   Offers to **reset** local changes if they conflict with the remote version.
+*   Automatically updates your Python **dependencies** in the `.venv` if `requirements.txt` has changed.
 
 ## Roadmap
 
