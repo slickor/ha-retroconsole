@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2026-05-09
+### Added
+- Update to 0.8.0: Complete new user interface.
+- Completely new UI layout with theme-based boxes (DOMAINS, ENTITIES, Console).
+- Implementation of vertical scrolling and a scrollbar for the entities list.
+- Dynamic icon coloring based on live status (Yellow for "on", Gray for "off").
+- Support for various font sizes (Small, Normal, Large) in the RetroUI framework.
+- Relocated status and IP information to the bottom console area.
+- Renamed header to "for retroconsoles" with improved scaling.
+
 ## [0.7.0] - 2026-05-07
 ### Changed
 - Centralized version management updated to 0.7.0.

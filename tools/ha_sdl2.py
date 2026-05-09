@@ -3,13 +3,13 @@ import os
 import time
 import threading
 import queue
-import ctypes
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 
 import sdl2
 import sdl2.ext
 import sdl2.sdlimage as sdlimage
 import sdl2.sdlttf as ttf
+from retro_ui import RetroUI
 
 from ha_client import (
     VERSION,
@@ -34,17 +34,16 @@ BTN_A = sdl2.SDL_CONTROLLER_BUTTON_A
 BTN_B = sdl2.SDL_CONTROLLER_BUTTON_B
 BTN_X = sdl2.SDL_CONTROLLER_BUTTON_X
 BTN_Y = sdl2.SDL_CONTROLLER_BUTTON_Y
-BTN_START = sdl2.SDL_CONTROLLER_BUTTON_START
-BTN_SELECT = sdl2.SDL_CONTROLLER_BUTTON_BACK
 
-# Farben (SDL2 RGB)
-COLOR_BG = sdl2.SDL_Color(0, 0, 0, 255)
-COLOR_TEXT = sdl2.SDL_Color(255, 255, 255, 255)
-COLOR_TEXT_DIM = sdl2.SDL_Color(150, 150, 150, 255)
-COLOR_HIGHLIGHT = sdl2.SDL_Color(255, 255, 0, 255)
-COLOR_SUCCESS = sdl2.SDL_Color(0, 255, 100, 255)
-COLOR_SELECTION_BG = sdl2.SDL_Color(50, 50, 50, 255)
-COLOR_BORDER = sdl2.SDL_Color(128, 128, 128, 255)
+# Colors (SDL2 RGB)
+COLOR_BG = sdl2.SDL_Color(0, 11, 21, 255)       # Dark Blue (#000B15)
+COLOR_CYAN = sdl2.SDL_Color(0, 163, 255, 255)   # Cyan (#00A3FF)
+COLOR_HA_BLUE = sdl2.SDL_Color(3, 169, 244, 255) # HA Blue (#03A9F4)
+COLOR_YELLOW = sdl2.SDL_Color(238, 176, 0, 255) # Yellow (#EEB000)
+COLOR_GREY = sdl2.SDL_Color(85, 85, 85, 255)    # Grey (#555555)
+COLOR_TEXT = COLOR_CYAN
+COLOR_TEXT_DIM = COLOR_GREY
+COLOR_HIGHLIGHT = COLOR_CYAN
 
 class HASDL2App:
     def __init__(self, config_path):
@@ -54,26 +53,21 @@ class HASDL2App:
         self.favorites = self.config.get("favorites", [])
         self.entities = []
         self.selected = 0 # For main menu favorites
+        self.nav_index = 0 # Index for the left navigation column
+        self.active_list = "domains" # Active column: "domains" or "entities"
+        self.entity_index = 0 # Index for the middle entity list
         self.btn_tex_map = {
             BTN_A: "btn_a",
             BTN_B: "btn_b",
             BTN_X: "btn_x",
-            BTN_Y: "btn_y",
-            BTN_START: "btn_start",
-            BTN_SELECT: "btn_select"
-        }
-        self.btn_label_map = {
-            BTN_A: "A",
-            BTN_B: "B",
-            BTN_X: "X",
-            BTN_Y: "Y",
-            BTN_START: "Start",
-            BTN_SELECT: "Select"
+            BTN_Y: "btn_y"
         }
         self.mode = "main" # "main", "favorites", or "settings"
         self.favorites_editor_mode = "domains" # "domains" or "entities"
         self.selected_domain_index = 0 # For domain selection in favorites editor
         self.settings_selected_index = 0
+        self.main_scroll_row = 0
+        self.entity_scroll_row = 0 # Scroll position for main entity list
         self.setup_controls()
         self.domain_scroll = 0 # For domain grid scrolling
         self.picker_scroll = 0
@@ -85,8 +79,7 @@ class HASDL2App:
         self.height = 480
         self.window = None
         self.renderer = None
-        self.font = None
-        self.font_small = None
+        self.ui = None
         self.domain_icons = {}  # Cache for loaded textures
         self.entities_by_domain = {} # Grouped entities for favorites editor
         self.domain_list = [] # List of domains for favorites editor
@@ -113,13 +106,23 @@ class HASDL2App:
         sdl2.SDL_Init(sdl2.SDL_INIT_VIDEO | sdl2.SDL_INIT_GAMECONTROLLER)
         sdlimage.IMG_Init(sdlimage.IMG_INIT_PNG)
         ttf.TTF_Init()
+        
+        # On Windows we use windowed mode for more stable testing
+        flags = sdl2.SDL_WINDOW_SHOWN
+        if os.name != "nt":
+            flags |= sdl2.SDL_WINDOW_FULLSCREEN_DESKTOP
+
         self.window = sdl2.SDL_CreateWindow(
             b"Home Assistant - for retroconsoles", 
             sdl2.SDL_WINDOWPOS_CENTERED, 
             sdl2.SDL_WINDOWPOS_CENTERED, 
-            self.width, self.height, sdl2.SDL_WINDOW_FULLSCREEN_DESKTOP
+            self.width, self.height, flags
         )
         self.renderer = sdl2.SDL_CreateRenderer(self.window, -1, sdl2.SDL_RENDERER_ACCELERATED)
+        if not self.renderer:
+            print(f"Error: Could not create SDL renderer: {sdl2.SDL_GetError()}")
+            return
+
         sdl2.SDL_SetHint(sdl2.SDL_HINT_RENDER_SCALE_QUALITY, b"1")
         
         # Set logical size to 640x480. SDL2 will handle scaling and letterboxing 
@@ -138,17 +141,15 @@ class HASDL2App:
         ]
         selected_font = None
         for candidate in font_candidates:
-            font = ttf.TTF_OpenFont(candidate.encode("utf-8"), 24)
-            if font:
+            if os.path.exists(candidate):
                 selected_font = candidate
-                self.font = font
                 break
-        if not self.font:
-            raise SystemExit("Could not load any font. Ensure assets/fonts/DejaVuSans.ttf exists or system fonts are available.")
+        
+        if not selected_font:
+            raise SystemExit("Error: Could not load any font. Ensure assets/fonts/DejaVuSans.ttf exists.")
 
-        self.font_small = ttf.TTF_OpenFont(selected_font.encode("utf-8"), 16)
-        if not self.font_small:
-            raise SystemExit(f"Could not load small font from: {selected_font}")
+        # Initialize the RetroUI framework
+        self.ui = RetroUI(self.renderer, selected_font)
 
         # Load domain icons (light.png, switch.png, etc.)
         icon_dir = os.path.join(script_dir, "..", "assets", "icons")
@@ -169,14 +170,14 @@ class HASDL2App:
                         sdl2.SDL_FreeSurface(surface)
 
         # Load button icons
-        for btn_name in self.btn_tex_map.values():
-            icon_path = self._find_icon(icon_dir, btn_name)
+        for btn in ["btn_a", "btn_b", "btn_x", "btn_y", "ha_logo"]:
+            icon_path = self._find_icon(icon_dir, btn)
             if os.path.exists(icon_path):
                 surface = sdlimage.IMG_Load(icon_path.encode('utf-8'))
                 if surface:
                     texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
                     if texture:
-                        self.domain_icons[btn_name] = texture
+                        self.domain_icons[btn] = texture
                     sdl2.SDL_FreeSurface(surface)
 
         # Open game controllers
@@ -198,6 +199,29 @@ class HASDL2App:
         self.current_task_thread = threading.Thread(target=self._run_task_wrapper, args=(target_func, args, kwargs))
         self.current_task_thread.daemon = True  # Allow main program to exit even if thread is running
         self.current_task_thread.start()
+
+    def _execute_entity_action(self):
+        """Executes the default action for the selected entity in the list."""
+        if not self.domain_list or self.nav_index >= len(self.domain_list):
+            return
+        current_domain = self.domain_list[self.nav_index]
+        entities = self.entities_by_domain.get(current_domain, [])
+        if not entities or self.entity_index >= len(entities):
+            return
+            
+        entity = entities[self.entity_index]
+        entity_id = entity["entity_id"]
+        domain = entity["domain"]
+        state = self.states.get(entity_id, {})
+        previous_state = str(state.get("state", ""))
+        domain, service = resolve_action(entity_id, "auto") or (domain, "turn_on")
+
+        self.set_message(f"Executing {service} on {entity['label']}...")
+        self._start_background_task(
+            "execute_action",
+            self._execute_service_and_refresh_background,
+            domain, service, entity_id, previous_state, None
+        )
 
     def _run_task_wrapper(self, target_func, args, kwargs):
         """Wrapper to execute target_func and put result/error into the queue."""
@@ -350,9 +374,24 @@ class HASDL2App:
                         self.mode = "main"
                     else:
                         self.running = False
+                elif event.key.keysym.sym == sdl2.SDLK_LEFT:
+                    if self.mode == "main":
+                        self.active_list = "domains"
+                elif event.key.keysym.sym == sdl2.SDLK_RIGHT:
+                    if self.mode == "main":
+                        if self.active_list == "domains":
+                            self.active_list = "entities"
+                            self.entity_index = 0
                 elif event.key.keysym.sym == sdl2.SDLK_UP:
                     if self.mode == "main":
-                        self.selected = max(0, self.selected - 1)
+                        if self.active_list == "domains":
+                            self.nav_index = max(0, self.nav_index - 1)
+                            self.entity_index = 0
+                            self.entity_scroll_row = 0
+                        else:
+                            self.entity_index = max(0, self.entity_index - 1)
+                            if self.entity_index < self.entity_scroll_row:
+                                self.entity_scroll_row = self.entity_index
                     elif self.mode == "favorites":
                         if self.favorites_editor_mode == "domains":
                             self.selected_domain_index = max(0, self.selected_domain_index - 3)
@@ -367,7 +406,18 @@ class HASDL2App:
                                 self.picker_scroll = self.selected_entity_in_domain_index
                 elif event.key.keysym.sym == sdl2.SDLK_DOWN:
                     if self.mode == "main":
-                        self.selected = min(len(self.favorites) - 1, self.selected + 1)
+                        if self.active_list == "domains":
+                            limit = len(self.domain_list) if self.domain_list else 1
+                            self.nav_index = min(limit - 1, self.nav_index + 1)
+                            self.entity_index = 0
+                            self.entity_scroll_row = 0
+                        else:
+                            current_domain = self.domain_list[self.nav_index]
+                            entities_count = len(self.entities_by_domain.get(current_domain, []))
+                            self.entity_index = min(entities_count - 1, self.entity_index + 1)
+                            visible_entities = 9
+                            if self.entity_index >= self.entity_scroll_row + visible_entities:
+                                self.entity_scroll_row = self.entity_index - visible_entities + 1
                     elif self.mode == "favorites":
                         if self.favorites_editor_mode == "domains":
                             self.selected_domain_index = min(len(self.domain_list) - 1, self.selected_domain_index + 3)
@@ -397,7 +447,10 @@ class HASDL2App:
                             self.domain_scroll = current_row - 1
                 elif event.key.keysym.sym in {sdl2.SDLK_RETURN, sdl2.SDLK_KP_ENTER}:
                     if self.mode == "main":
-                        self.execute_action()
+                        if self.active_list == "entities":
+                            self._execute_entity_action()
+                        else:
+                            self.execute_action()
                     elif self.mode == "settings":
                         self._handle_settings_action()
                     elif self.mode == "favorites":
@@ -435,9 +488,24 @@ class HASDL2App:
                         self.mode = "main"
                     else:
                         self.running = False
+                elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+                    if self.mode == "main":
+                        self.active_list = "domains"
+                elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+                    if self.mode == "main":
+                        if self.active_list == "domains":
+                            self.active_list = "entities"
+                            self.entity_index = 0
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP:
                     if self.mode == "main":
-                        self.selected = max(0, self.selected - 1)
+                        if self.active_list == "domains":
+                            self.nav_index = max(0, self.nav_index - 1)
+                            self.entity_index = 0
+                            self.entity_scroll_row = 0
+                        else:
+                            self.entity_index = max(0, self.entity_index - 1)
+                            if self.entity_index < self.entity_scroll_row:
+                                self.entity_scroll_row = self.entity_index
                     elif self.mode == "favorites":
                         if self.favorites_editor_mode == "domains":
                             self.selected_domain_index = max(0, self.selected_domain_index - 3)
@@ -452,7 +520,18 @@ class HASDL2App:
                                 self.picker_scroll = self.selected_entity_in_domain_index
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN:
                     if self.mode == "main":
-                        self.selected = min(len(self.favorites) - 1, self.selected + 1)
+                        if self.active_list == "domains":
+                            limit = len(self.domain_list) if self.domain_list else 1
+                            self.nav_index = min(limit - 1, self.nav_index + 1)
+                            self.entity_index = 0
+                            self.entity_scroll_row = 0
+                        else:
+                            current_domain = self.domain_list[self.nav_index]
+                            entities_count = len(self.entities_by_domain.get(current_domain, []))
+                            self.entity_index = min(entities_count - 1, self.entity_index + 1)
+                            visible_entities = 9
+                            if self.entity_index >= self.entity_scroll_row + visible_entities:
+                                self.entity_scroll_row = self.entity_index - visible_entities + 1
                     elif self.mode == "favorites":
                         if self.favorites_editor_mode == "domains":
                             self.selected_domain_index = min(len(self.domain_list) - 1, self.selected_domain_index + 3)
@@ -482,7 +561,10 @@ class HASDL2App:
                             self.domain_scroll = current_row - 1
                 elif btn == self.controls["confirm"]:
                     if self.mode == "main":
-                        self.execute_action()
+                        if self.active_list == "entities":
+                            self._execute_entity_action()
+                        else:
+                            self.execute_action()
                     elif self.mode == "settings":
                         self._handle_settings_action()
                     elif self.mode == "favorites":
@@ -519,126 +601,209 @@ class HASDL2App:
             self.mode = "main"
             self.set_message("Settings saved")
 
-    def render_text(self, text, x, y, color):
-        if not self.font:
-            return
-        surface = ttf.TTF_RenderText_Solid(self.font, text.encode('utf-8'), color)
-        if not surface:
-            return
-        texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
-        if not texture:
-            sdl2.SDL_FreeSurface(surface)
-            return
-        w, h = surface.contents.w, surface.contents.h
-        dst = sdl2.SDL_Rect(x, y, w, h)
-        sdl2.SDL_RenderCopy(self.renderer, texture, None, dst)
-        sdl2.SDL_FreeSurface(surface)
-        sdl2.SDL_DestroyTexture(texture)
-
-    def render_text_small(self, text, x, y, color):
-        if not self.font_small:
-            return
-        surface = ttf.TTF_RenderText_Solid(self.font_small, text.encode('utf-8'), color)
-        if not surface:
-            return
-        texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
-        if not texture:
-            sdl2.SDL_FreeSurface(surface)
-            return
-        w, h = surface.contents.w, surface.contents.h
-        dst = sdl2.SDL_Rect(x, y, w, h)
-        sdl2.SDL_RenderCopy(self.renderer, texture, None, dst)
-        sdl2.SDL_FreeSurface(surface)
-        sdl2.SDL_DestroyTexture(texture)
-
-    def _get_text_size(self, text, font):
-        """Helper to get text dimensions using ctypes."""
-        w, h = ctypes.c_int(), ctypes.c_int()
-        ttf.TTF_SizeText(font, text.encode('utf-8'), ctypes.byref(w), ctypes.byref(h))
-        return w.value, h.value
-
-    def _render_button_icon(self, btn_id, x, y, size=20, color=None):
+    def _render_button_icon(self, btn_id, x, y, size=20, color_mod=None):
         """Renders a graphical button icon from the loaded textures."""
         tex_name = self.btn_tex_map.get(btn_id)
         texture = self.domain_icons.get(tex_name)
         if texture:
-            if color:
-                sdl2.SDL_SetTextureColorMod(texture, color.r, color.g, color.b)
+            if color_mod:
+                sdl2.SDL_SetTextureColorMod(texture, color_mod.r, color_mod.g, color_mod.b)
             dst = sdl2.SDL_Rect(x, y, size, size)
             sdl2.SDL_RenderCopy(self.renderer, texture, None, dst)
-            if color:
+            if color_mod:
                 sdl2.SDL_SetTextureColorMod(texture, 255, 255, 255)
             return size
         return 0
 
-    def _render_button_with_fallback(self, btn_id, x, y, size=18, use_small_font=True):
-        """Renders icon if available, otherwise falls back to text like [A]."""
-        icon_w = self._render_button_icon(btn_id, x, y + 2, size, color=COLOR_HIGHLIGHT)
-        if icon_w > 0:
-            return icon_w
-        
-        label = f"[{self.btn_label_map.get(btn_id, '?')}]"
-        render_func = self.render_text_small if use_small_font else self.render_text
-        font = self.font_small if use_small_font else self.font
-        render_func(label, x, y, COLOR_HIGHLIGHT)
-        w, _ = self._get_text_size(label, font)
-        return w
-
-    def render_selection_bar(self, y, height=30):
-        rect = sdl2.SDL_Rect(10, y - 2, self.width - 20, height)
-        sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_SELECTION_BG.r, COLOR_SELECTION_BG.g, COLOR_SELECTION_BG.b, 255)
-        sdl2.SDL_RenderFillRect(self.renderer, rect)
-
     def render(self):
-        sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_BG.r, COLOR_BG.g, COLOR_BG.b, COLOR_BG.a)
-        sdl2.SDL_RenderClear(self.renderer)
-
-        # Header
-        title = "Home Assistant - for retroconsoles" 
-        if self.mode == "favorites":
-            title = "Favorites Editor"
-        elif self.mode == "settings":
-            title = "Controls Settings"
-        self.render_text(title, 20, 20, COLOR_HIGHLIGHT)
-        
-        # Divider below header
-        sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_BORDER.r, COLOR_BORDER.g, COLOR_BORDER.b, 255)
-        sdl2.SDL_RenderDrawLine(self.renderer, 0, 55, self.width, 55)
-
+        self.ui.clear_screen()
         if self.mode == "main":
-            self.render_main()
+            self.render_layout()
         elif self.mode == "settings":
             self.render_settings()
         else:
             self.render_favorites_editor()
-
         sdl2.SDL_RenderPresent(self.renderer)
 
+    def render_layout(self):
+        """Divides the screen into 5 zones (Header, Nav, Main, Info, Log)."""
+        # 1. Top-Bar (Header) - Now a box and slightly larger
+        self.ui.draw_retro_box(10, 5, 620, 55, "SYSTEM")
+
+        # Logo and title
+        logo_tex = self.domain_icons.get("ha_logo")
+        logo_w = 0
+        if logo_tex:
+            logo_w = 28
+            dst = sdl2.SDL_Rect(25, 18, logo_w, logo_w)
+            sdl2.SDL_RenderCopy(self.renderer, logo_tex, None, dst)
+            logo_w += 10 # spacing
+
+        self.ui.draw_text("for retroconsoles", 25 + logo_w, 15, COLOR_HA_BLUE, large=True)
+
+        # 2. Left column (Navigation) - Shifted down
+        self.ui.draw_retro_box(10, 70, 190, 290, "DOMAINS")
+        self.draw_menu(25, 100)
+
+        # 3. Main area (Middle) - Shifted down
+        self.ui.draw_retro_box(210, 70, 260, 290, "ENTITIES")
+        self._render_entities_list(225, 100)
+
+        # 4. Right column (Info boxes) - Shifted down
+        self.ui.draw_retro_box(480, 70, 150, 140, "PREVIEW")
+        # Placeholder for graphic/icon
+        self.ui.draw_retro_box(480, 220, 150, 140, "STATS")
+        self.ui.draw_text("CPU: 12%", 490, 250, "gray", small=True)
+        self.ui.draw_text("RAM: 45MB", 490, 275, "gray", small=True)
+
+        # 5. Bottom row (Console/Status) - Renamed and includes clock
+        self.ui.draw_retro_box(10, 370, 620, 105, "Console")
+        
+        # Show message with timeout and error color logic
+        is_error = self.message.startswith("Error")
+        display_time = 5.0 if is_error else 1.0
+        if self.message and (time.time() - self.message_time < display_time):
+            msg_color = COLOR_TEXT_DIM if is_error else "white"
+            self.ui.draw_text(self.message, 25, 395, msg_color, small=True)
+
+        # Date moved inside the Console box
+        self.ui.draw_text("STATUS: ONLINE // IP: 192.168.1.42", 25, 450, "gray", small=True)
+        date_str = time.strftime("%Y-%m-%d %H:%M:%S")
+        self.ui.draw_text(date_str, 450, 450, "gray", small=True)
+
+    def draw_menu(self, x, y_start):
+        """Draws the navigation menu with pointer and highlight."""
+        if not self.domain_list:
+            self.ui.draw_text("Loading...", x, y_start, "cyan")
+            return
+
+        for i, domain in enumerate(self.domain_list):
+            y_pos = y_start + (i * 40)
+            label = domain.capitalize()
+            
+            # Search for icon in self.domain_icons
+            icon_tex = self.domain_icons.get(domain) or self.domain_icons.get(f"{domain}_on")
+            icon_w = 0
+            if icon_tex:
+                icon_w = 24
+                # Render icon slightly vertically offset
+                dst = sdl2.SDL_Rect(x, y_pos + 2, icon_w, icon_w)
+                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                icon_w += 10 # Spacing to text
+            
+            if i == self.nav_index:
+                # 1. Highlight background
+                self.ui.draw_selection_highlight(x - 10, y_pos - 5, 170, 35)
+                
+                # 1.1 Border around selection (1px rounded, same color as pointer)
+                self.ui.draw_rounded_rect(x - 10, y_pos - 5, 170, 35, "cyan")
+                
+                # 2. Selection triangle (pointer) - Only if domains list is active
+                if self.active_list == "domains":
+                    self.ui.draw_pointer(x - 18, y_pos + 4, width=12, height=18)
+                
+                # 3. Active text
+                self.ui.draw_text(label, x + icon_w, y_pos + 5, "white")
+            else:
+                # Normal text
+                self.ui.draw_text(label, x + icon_w, y_pos + 5, "cyan")
+
+    def _render_entities_list(self, x, y_start):
+        """Renders the list of entities for the currently selected domain."""
+        if not self.domain_list or self.nav_index >= len(self.domain_list):
+            self.ui.draw_text("Waiting for data...", x, y_start, "gray", small=True)
+            return
+            
+        current_domain = self.domain_list[self.nav_index]
+        entities = self.entities_by_domain.get(current_domain, [])
+        visible_entities = 9
+        start = self.entity_scroll_row
+        end = min(len(entities), start + visible_entities)
+        
+        for i in range(start, end):
+            entity = entities[i]
+            y = y_start + ((i - start) * 28)
+            
+            # Selection visuals
+            is_selected = (self.active_list == "entities" and i == self.entity_index)
+            if is_selected:
+                self.ui.draw_selection_highlight(x - 10, y - 3, 240, 24)
+                self.ui.draw_rounded_rect(x - 10, y - 3, 240, 24, "cyan")
+                self.ui.draw_pointer(x - 18, y + 3, width=12, height=18)
+            
+            # Icon
+            domain = entity["domain"]
+            icon_tex = self.domain_icons.get(domain) or self.domain_icons.get(f"{domain}_on")
+            icon_offset = 0
+            
+            # Live-Status abrufen (Snapshot in entity["state"] ist nach Aktionen veraltet)
+            is_on = self.states.get(entity["entity_id"], {}).get("state") == "on"
+            
+            is_fav = self.is_favorite(entity["entity_id"])
+
+            if icon_tex:
+                icon_offset = 20
+                
+                # Icons je nach Status einfärben
+                icon_color = COLOR_YELLOW if is_on else COLOR_GREY
+                sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
+
+                dst = sdl2.SDL_Rect(x, y + 2, icon_offset, icon_offset)
+                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                
+                sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255) # Reset auf Standardweiß
+                icon_offset += 8
+                
+            color = "yellow" if (is_fav or is_selected) else "white"
+            
+            self.ui.draw_text(entity['label'][:18], x + icon_offset, y + 2, color, small=True)
+
+        # Scrollbar für die Entitäten-Liste
+        if len(entities) > visible_entities:
+            self.ui.draw_scrollbar(
+                x + 235, y_start, 250, 
+                self.entity_scroll_row, len(entities), visible_entities
+            )
+
     def render_main(self):
-        y_offset = 60
+        margin = 20
+        cols = 2
+        card_w = (self.width - (2 * margin) - 20) // cols
+        card_h = 70
+        
         if not self.favorites:
-            self.render_text("No favorites configured. Press Y to edit.", 20, y_offset, COLOR_TEXT)
-            y_offset += 30
+            self.ui.draw_text("No favorites configured. Press Y to edit.", 20, 80, COLOR_TEXT)
+            return
+
+        # Update scroll offset based on selection
+        current_row = self.selected // cols
+        if current_row < self.main_scroll_row:
+            self.main_scroll_row = current_row
+        elif current_row >= self.main_scroll_row + 4:
+            self.main_scroll_row = current_row - 3
+
         for i, fav in enumerate(self.favorites):
+            row = (i // cols) - self.main_scroll_row
+            col = i % cols
+            if row < 0 or row >= 5: continue # Only render visible rows
+
+            x = margin + col * (card_w + 20)
+            y = 70 + row * (card_h + 15)
+            
             entity_id = favorite_entity_id(fav)
             state = self.states.get(entity_id, {})
-            state_str = state.get('state', 'unknown')
-            label = favorite_label(fav, state)
-            domain = entity_domain(entity_id)
-            
-            self._render_favorite_item(i, fav, entity_id, state, state_str, label, domain, y_offset)
-            y_offset += 30
+            self._render_favorite_card(i, fav, entity_id, state, x, y, card_w, card_h)
 
         # Message above keybindings/version
         # Show message for 1 second (or 5 if it's an error)
         is_error = self.message.startswith("Error")
         display_time = 5.0 if is_error else 1.0
         if self.message and (time.time() - self.message_time < display_time):
-            self.render_text_small(self.message, 20, self.height - 40, COLOR_TEXT_DIM if is_error else COLOR_TEXT)
+            self.ui.draw_text(self.message, 20, self.height - 40, COLOR_TEXT_DIM if is_error else COLOR_TEXT, small=True)
 
         # Footer with icons
         self._render_footer_line()
-        self.render_text_small(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM)
+        self.ui.draw_text(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM, small=True)
 
     def _render_footer_line(self):
         """Helper to render a consistent footer with graphical icons."""
@@ -659,45 +824,36 @@ class HASDL2App:
         
         for text, btn_id in parts:
             if text:
-                self.render_text_small(text, x, y, COLOR_TEXT)
-                w, _ = self._get_text_size(text, self.font_small)
+                w, _ = self.ui.draw_text(text, x, y + 2, "cyan", small=True)
                 x += w
             if btn_id is not None:
-                x += self._render_button_with_fallback(btn_id, x, y, size=18)
+                x += self._render_button_icon(btn_id, x, y, size=18)
 
     def render_settings(self):
         y_offset = 80
         if self.settings_selected_index == 0:
-            self.render_selection_bar(y_offset)
+            self.render_selection_bar(10, y_offset - 2, self.width - 20, 40)
         
         # Render Layout Option Piece by Piece
         color = COLOR_HIGHLIGHT if self.settings_selected_index == 0 else COLOR_TEXT
         text = f"Button Layout: {self.layout_type.upper()} ("
-        self.render_text(text, 30, y_offset, color)
+        self.ui.draw_text(text, 30, y_offset, color)
         
-        text_w, _ = self._get_text_size(text, self.font)
+        text_w, _ = self.ui.get_text_size(text)
         icon_x = 30 + text_w
-        icon_w = self._render_button_with_fallback(self.controls["confirm"], icon_x, y_offset, size=24, use_small_font=False)
+        icon_w = self._render_button_icon(self.controls["confirm"], icon_x, y_offset + 4, size=24)
         
-        self.render_text(" = Confirm)", icon_x + icon_w, y_offset, color)
+        self.ui.draw_text(" = Confirm)", icon_x + icon_w, y_offset, color)
         
         # Back Option
         y_offset += 40
         if self.settings_selected_index == 1:
-            self.render_selection_bar(y_offset)
+            self.render_selection_bar(10, y_offset - 2, self.width - 20, 40)
         color = COLOR_HIGHLIGHT if self.settings_selected_index == 1 else COLOR_TEXT
-        self.render_text("Back to Main Menu", 30, y_offset, color)
+        self.ui.draw_text("Back to Main Menu", 30, y_offset, color)
 
-        # Footer for settings with icon support
-        x = 20
-        y = self.height - 22
-        msg = "D-Pad: Select | "
-        self.render_text_small(msg, x, y, COLOR_TEXT)
-        x += self._get_text_size(msg, self.font_small)[0]
-        x += self._render_button_with_fallback(BTN_START, x, y - 2, 18)
-        self.render_text_small(": Apply/Back", x, y, COLOR_TEXT)
-
-        self.render_text_small(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM)
+        self.ui.draw_text("D-Pad: Select | Start: Apply/Back", 20, self.height - 20, COLOR_TEXT, small=True)
+        self.ui.draw_text(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM, small=True)
 
     def render_favorites_editor(self):
         if self.favorites_editor_mode == "domains":
@@ -707,61 +863,56 @@ class HASDL2App:
 
         # Common footer for favorites editor
         if self.message and (time.time() - self.message_time < 1.0):
-            self.render_text_small(self.message, 20, self.height - 40, COLOR_TEXT)
+            self.ui.draw_text(self.message, 20, self.height - 40, COLOR_TEXT, small=True)
 
         x = 20
         y = self.height - 22
         if self.favorites_editor_mode == "domains":
             msg = "D-Pad: Navigate | "
-            self.render_text_small(msg, x, y, COLOR_TEXT)
-            x += self._get_text_size(msg, self.font_small)[0]
-            x += self._render_button_with_fallback(self.controls["confirm"], x, y, 18)
+            w, _ = self.ui.draw_text(msg, x, y + 2, COLOR_TEXT, small=True)
+            x += w
+            x += self._render_button_icon(self.controls["confirm"], x, y, 18)
             msg = ": Select domain | "
-            self.render_text_small(msg, x, y, COLOR_TEXT)
-            x += self._get_text_size(msg, self.font_small)[0]
-            x += self._render_button_with_fallback(self.controls["cancel"], x, y, 18)
-            self.render_text_small(": Back", x, y, COLOR_TEXT)
+            w, _ = self.ui.draw_text(msg, x, y + 2, COLOR_TEXT, small=True)
+            x += w
+            x += self._render_button_icon(self.controls["cancel"], x, y, 18)
+            self.ui.draw_text(": Back", x, y + 2, COLOR_TEXT, small=True)
         else: # entities mode
             msg = "D-Pad: Navigate | "
-            self.render_text_small(msg, x, y, COLOR_TEXT)
-            x += self._get_text_size(msg, self.font_small)[0]
-            x += self._render_button_with_fallback(self.controls["confirm"], x, y, 18)
-            msg = ": Toggle Favorite | "
-            self.render_text_small(msg, x, y, COLOR_TEXT)
-            x += self._get_text_size(msg, self.font_small)[0]
-            x += self._render_button_with_fallback(self.controls["cancel"], x, y, 18)
-            self.render_text_small(": Back", x, y, COLOR_TEXT)
+            w, _ = self.ui.draw_text(msg, x, y + 2, COLOR_TEXT, small=True)
+            x += w
+            x += self._render_button_icon(self.controls["confirm"], x, y, 18)
+            self.ui.draw_text(": Toggle Favorite", x, y + 2, COLOR_TEXT, small=True)
 
-        self.render_text_small(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM)
+        self.ui.draw_text(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM, small=True)
 
-    def _render_favorite_item(self, index, fav, entity_id, state, state_str, label, domain, y_pos):
-        if index == self.selected:
-            self.render_selection_bar(y_pos)
+    def _render_favorite_card(self, index, fav, entity_id, state, x, y, w, h):
+        selected = (index == self.selected)
+        state_str = state.get('state', 'unknown')
+        label = favorite_label(fav, state)
+        domain = entity_domain(entity_id)
+        color_key = "yellow" if selected else "cyan"
+
+        # Use the cyber box with the entity domain as title
+        # If 'selected', draw a yellow box
+        self.ui.draw_retro_box(x, y, w, h, title=domain.upper(), color=color_key)
         
-        color = COLOR_HIGHLIGHT if index == self.selected else COLOR_TEXT
-        state_color = COLOR_SUCCESS if state_str == "on" else COLOR_TEXT_DIM
-        
+        state_color = COLOR_YELLOW if state_str == "on" else COLOR_GREY
+
+        # Icon
         icon_key = f"{domain}_on" if f"{domain}_on" in self.domain_icons else domain
         icon_tex = self.domain_icons.get(icon_key)
-        
         if icon_tex:
-            if state_str == "on":
-                if domain == "light":
-                    sdl2.SDL_SetTextureColorMod(icon_tex, COLOR_HIGHLIGHT.r, COLOR_HIGHLIGHT.g, COLOR_HIGHLIGHT.b)
-                else:
-                    sdl2.SDL_SetTextureColorMod(icon_tex, COLOR_SUCCESS.r, COLOR_SUCCESS.g, COLOR_SUCCESS.b)
-            else:
-                sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
-
-            dst = sdl2.SDL_Rect(25, y_pos + 2, 24, 24)
+            # Apply color to icon
+            sdl2.SDL_SetTextureColorMod(icon_tex, state_color.r, state_color.g, state_color.b)
+            dst = sdl2.SDL_Rect(x + 10, y + (h - 32) // 2, 32, 32)
             sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
             sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
-            self.render_text(label, 60, y_pos, color)
+            self.ui.draw_text(label, x + 50, y + 15, color_key, small=True)
         else:
-            icon_text = self.get_domain_icon(entity_id)
-            self.render_text(f"{icon_text} {label}", 25, y_pos, color)
+            self.ui.draw_text(label, x + 10, y + 15, color_key, small=True)
 
-        self.render_text_small(state_str, self.width - 100, y_pos + 4, state_color)
+        self.ui.draw_text(state_str.upper(), x + 50, y + 38, "gray" if state_str != "on" else "yellow", small=True)
 
     def _render_domain_selection(self):
         y_start = 80
@@ -770,7 +921,7 @@ class HASDL2App:
         cols = 3
         
         if not self.domain_list:
-            self.render_text("No domains with supported actions found.", x_start, y_start, COLOR_TEXT)
+            self.ui.draw_text("No domains with supported actions found.", x_start, y_start, COLOR_TEXT)
             return
 
         total_rows = (len(self.domain_list) + cols - 1) // cols
@@ -801,13 +952,12 @@ class HASDL2App:
                     icon_size + 2 * selection_rect_padding, 
                     icon_size + 2 * selection_rect_padding + 25
                 )
-                sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_SELECTION_BG.r, COLOR_SELECTION_BG.g, COLOR_SELECTION_BG.b, 255)
+                sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 30, 60, 255)
                 sdl2.SDL_RenderFillRect(self.renderer, selection_rect)
-                sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_HIGHLIGHT.r, COLOR_HIGHLIGHT.g, COLOR_HIGHLIGHT.b, 255)
-                # Draw a thicker border by rendering two rectangles
-                sdl2.SDL_RenderDrawRect(self.renderer, selection_rect)
-                inner_rect = sdl2.SDL_Rect(selection_rect.x + 1, selection_rect.y + 1, selection_rect.w - 2, selection_rect.h - 2)
-                sdl2.SDL_RenderDrawRect(self.renderer, inner_rect)
+                
+                # Rounded selection frame
+                self.ui.draw_rounded_rect(selection_rect.x, selection_rect.y, selection_rect.w, selection_rect.h, COLOR_HIGHLIGHT)
+                self.ui.draw_rounded_rect(selection_rect.x + 1, selection_rect.y + 1, selection_rect.w - 2, selection_rect.h - 2, COLOR_HIGHLIGHT)
 
             icon_key = f"{domain}_on" if f"{domain}_on" in self.domain_icons else domain
             icon_tex = self.domain_icons.get(icon_key)
@@ -815,16 +965,12 @@ class HASDL2App:
                 dst = sdl2.SDL_Rect(icon_x, icon_y, icon_size, icon_size)
                 sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
             else:
-                w, h = ctypes.c_int(), ctypes.c_int()
-                ttf.TTF_SizeText(self.font, domain.encode('utf-8'), ctypes.byref(w), ctypes.byref(h))
-                text_width, text_height = w.value, h.value
-                self.render_text(domain, icon_x + (icon_size - text_width) // 2, icon_y + (icon_size - text_height) // 2, COLOR_TEXT)
+                w, h = self.ui.get_text_size(domain)
+                self.ui.draw_text(domain, icon_x + (icon_size - w) // 2, icon_y + (icon_size - h) // 2, COLOR_TEXT)
             
             text_label = domain.capitalize()
-            w_small, h_small = ctypes.c_int(), ctypes.c_int()
-            ttf.TTF_SizeText(self.font_small, text_label.encode('utf-8'), ctypes.byref(w_small), ctypes.byref(h_small))
-            text_width_small = w_small.value
-            self.render_text_small(text_label, icon_x + (icon_size - text_width_small) // 2, text_y, COLOR_TEXT)
+            w_small, _ = self.ui.get_text_size(text_label, small=True)
+            self.ui.draw_text(text_label, icon_x + (icon_size - w_small) // 2, text_y, COLOR_TEXT, small=True)
 
         # Draw Scrollbar
         if total_rows > 2:
@@ -845,13 +991,13 @@ class HASDL2App:
 
     def _render_entity_selection_for_domain(self):
         if not self.domain_list:
-            self.render_text("No domains found.", 20, 70, COLOR_TEXT)
+            self.ui.draw_text("No domains found.", 20, 70, COLOR_TEXT)
             return
 
         current_domain = self.domain_list[self.selected_domain_index]
         current_entities = self.entities_by_domain.get(current_domain, [])
         
-        self.render_text(f"Domain: {current_domain.capitalize()}", 20, 70, COLOR_HIGHLIGHT)
+        self.ui.draw_text(f"Domain: {current_domain.capitalize()}", 20, 70, COLOR_HIGHLIGHT)
         
         y = 100
         visible_rows = max((self.height - y - 60) // 28, 1)
@@ -861,33 +1007,30 @@ class HASDL2App:
         favorite_ids = {favorite_entity_id(fav) for fav in self.favorites}
 
         if not current_entities:
-            self.render_text("No entities in this domain.", 20, y, COLOR_TEXT)
+            self.ui.draw_text("No entities in this domain.", 20, y, COLOR_TEXT)
             return
 
         for i in range(start, end):
             entity = current_entities[i]
 
             if i == self.selected_entity_in_domain_index:
-                self.render_selection_bar(y, height=26)
+                self.render_selection_bar(10, y - 2, self.width - 20, 26)
                 
             color = COLOR_HIGHLIGHT if i == self.selected_entity_in_domain_index else COLOR_TEXT
             domain = entity["domain"]
-            state_str = entity["state"]
+            # Live-Status für den Favoriten-Editor abrufen
+            state_str = self.states.get(entity["entity_id"], {}).get("state", "unknown")
             
             # Render favorite marker icon
             favorite_icon_key = "binary_sensor_on" if entity["entity_id"] in favorite_ids else "binary_sensor_off"
             favorite_icon_tex = self.domain_icons.get(favorite_icon_key)
             if favorite_icon_tex:
-                fav_dst = sdl2.SDL_Rect(15, y + 2, 20, 20) # Position for favorite marker
-                if entity["entity_id"] in favorite_ids:
-                    sdl2.SDL_SetTextureColorMod(favorite_icon_tex, COLOR_HIGHLIGHT.r, COLOR_HIGHLIGHT.g, COLOR_HIGHLIGHT.b)
+                fav_dst = sdl2.SDL_Rect(15, y, 20, 20) # Position for favorite marker
                 sdl2.SDL_RenderCopy(self.renderer, favorite_icon_tex, None, fav_dst)
-                if entity["entity_id"] in favorite_ids:
-                    sdl2.SDL_SetTextureColorMod(favorite_icon_tex, 255, 255, 255)
             else:
                 # Fallback if binary_sensor icons are not found (should not happen if assets are correct)
                 marker = "*" if entity["entity_id"] in favorite_ids else " "
-                self.render_text(f"[{marker}]", 15, y, color)
+                self.ui.draw_text(f"[{marker}]", 15, y, color)
 
             # In picker, we prefer the 'on' icon as the representative version
             icon_key = f"{domain}_on" if f"{domain}_on" in self.domain_icons else domain
@@ -897,21 +1040,19 @@ class HASDL2App:
                 # Apply color mod based on actual entity state in picker too
                 if state_str == "on":
                     if domain == "light":
-                        sdl2.SDL_SetTextureColorMod(icon_tex, COLOR_HIGHLIGHT.r, COLOR_HIGHLIGHT.g, COLOR_HIGHLIGHT.b)
-                    else:
-                        sdl2.SDL_SetTextureColorMod(icon_tex, COLOR_SUCCESS.r, COLOR_SUCCESS.g, COLOR_SUCCESS.b)
+                        sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 0)
                 else:
                     sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
 
-                dst = sdl2.SDL_Rect(45, y + 2, 20, 20)
+                dst = sdl2.SDL_Rect(45, y, 20, 20)
                 sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
                 sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
-                self.render_text(entity['label'], 75, y, color)
+                self.ui.draw_text(entity['label'], 75, y, color)
             else:
                 icon_text = self.get_domain_icon(entity["entity_id"])
-                self.render_text(f"{icon_text} {entity['label']}", 45, y, color) # Adjusted x-position
+                self.ui.draw_text(f"{icon_text} {entity['label']}", 45, y, color) # Adjusted x-position
 
-            self.render_text_small(entity['state'], self.width - 100, y + 4, COLOR_TEXT_DIM)
+            self.ui.draw_text(entity['state'], self.width - 100, y + 4, COLOR_TEXT_DIM, small=True)
             y += 28
 
     def run(self):
@@ -950,10 +1091,8 @@ class HASDL2App:
         self.cleanup()
 
     def cleanup(self):
-        if self.font:
-            ttf.TTF_CloseFont(self.font)
-        if self.font_small:
-            ttf.TTF_CloseFont(self.font_small)
+        if self.ui:
+            self.ui.cleanup()
         if self.renderer:
             sdl2.SDL_DestroyRenderer(self.renderer)
         for tex in self.domain_icons.values():
@@ -972,15 +1111,17 @@ class HASDL2App:
             if task_result["type"] == "load_data":
                 self.states = task_result["result"]
                 self.set_message("Connected")
-                if self.mode == "favorites":
-                    self.load_entities()
+                self.load_entities()
             elif task_result["type"] == "execute_action":
                 new_states = task_result["result"]["new_states"]
                 favorite = task_result["result"]["favorite"]
                 before_states = self.states  # Capture states before update
                 self.states = new_states
-                changes = changed_favorites([favorite], before_states, self.states)
-                self.set_message(f"Executed: {changes[0]}" if changes else "Executed")
+                if favorite:
+                    changes = changed_favorites([favorite], before_states, self.states)
+                    self.set_message(f"Executed: {changes[0]}" if changes else "Executed")
+                else:
+                    self.set_message("Executed")
         else:  # status == "error"
             self.set_message(f"Error: {task_result['error']}")
 

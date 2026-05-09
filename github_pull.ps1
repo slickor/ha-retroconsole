@@ -1,12 +1,12 @@
-# Automatisches Skript zum Herunterladen von Änderungen von GitHub
-Write-Host "Synchronisiere mit GitHub (Hole Änderungen)..." -ForegroundColor Cyan
+# Automatic script to download changes from GitHub
+Write-Host "Synchronizing with GitHub (fetching changes)..." -ForegroundColor Cyan
 
-# Änderungen vom Server abrufen
+# Fetch changes from server
 git pull origin main
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "Erfolgreich aktualisiert!" -ForegroundColor Green
+    Write-Host "Successfully updated!" -ForegroundColor Green
 } else {
-    Write-Host "Fehler beim Aktualisieren. Möglicherweise gibt es Merge-Konflikte." -ForegroundColor Red
+    Write-Host "Error while updating. There might be merge conflicts." -ForegroundColor Red
 }
 pause
