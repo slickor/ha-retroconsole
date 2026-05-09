@@ -8,9 +8,13 @@ The goal is to provide a fast, controller-driven interface for devices like the 
 
 ## Current Status
 
-Phase 3: Native handheld prototype (SDL2) functional on desktop. Phase 4: Deployable App created.
+**Version 0.8.0** is now live. The project has moved past the initial prototyping stages and features a completely redesigned, theme-based user interface. 
 
-The project has completed the initial REST check, console tools, and a `pygame` prototype. It now includes a native SDL2 app (`tools/ha_sdl2.py`) that is ready for deployment.
+Key milestones reached:
+- **Phase 4 (Deployable App):** Successfully completed with automated build scripts for PortMaster.
+- **Phase 5 (Device Testing):** In progress, with successful verification on devices like the TrimUI Smart Pro.
+
+For detailed setup instructions, see the Installation & Configuration Guide.
 
 ## Connectivity Note
 
@@ -102,12 +106,12 @@ The token is created in Home Assistant from your user profile under:
 
 ## Roadmap
 
-- Phase 0: Test Home Assistant connectivity via REST.
-- Phase 1: Load and group entities.
-- Phase 2: First controller-friendly desktop UI.
-- Phase 3: SDL2 app for handheld resolutions.
-- Phase 4: Build a deployable App.
-- Phase 5: Device testing and optimization.
+- Phase 0: Test Home Assistant connectivity via REST (completed).
+- Phase 1: Load and group entities (completed).
+- Phase 2: First controller-friendly desktop UI (completed).
+- Phase 3: SDL2 app for handheld resolutions (completed).
+- Phase 4: Build a deployable App (completed).
+- Phase 5: Test on R36S and TrimUI Smart Pro (in progress).
 
 Detailed progress can be tracked in `docs/ROADMAP.md` and `CHANGELOG.md`.
 

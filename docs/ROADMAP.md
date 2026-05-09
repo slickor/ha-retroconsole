@@ -63,4 +63,4 @@ Goal: Stable operation on real devices.
 - Test on R36S.
 - [x] Test on TrimUI Smart Pro (Initial boot and UI functional).
 - Check logs.
-- Write installation and configuration documentation.
+- [x] Write installation and configuration documentation.
