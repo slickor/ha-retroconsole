@@ -107,7 +107,9 @@ The token is created in Home Assistant from your user profile under:
 - Phase 2: First controller-friendly desktop UI.
 - Phase 3: SDL2 app for handheld resolutions.
 - Phase 4: Build a deployable App.
-- Phase 5: Test on R36S and TrimUI Smart Pro.
+- Phase 5: Device testing and optimization.
+
+Detailed progress can be tracked in `docs/ROADMAP.md` and `CHANGELOG.md`.
 
 See also docs/ROADMAP.md and CHANGELOG.md.
 
