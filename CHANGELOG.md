@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.2] - 2026-05-10
+### Added
+- **UTF-8 Support:** Korrekte Darstellung von Umlauten (ä, ö, ü) und ß durch Umstellung auf UTF-8 Funktionen in SDL_ttf.
+- **Visual Feedback:** Weißes Aufblitzen des Auswahlrahmens bei Aktionen und beim Togglen von Favoriten.
+- **Dynamische IP:** Die IP-Adresse wird nun automatisch beim Start und bei jedem Refresh ermittelt.
+### Changed
+- **Layout-Polishing:** Header-Elemente (Logo/Text) perfekt zentriert und Console-Log auf 4 kompakte Zeilen optimiert.
+- **Schrift-Update:** Umstellung auf `m5x7.ttf` mit optimierter 24px Skalierung für beste Lesbarkeit auf Handhelds.
+### Fixed
+- **Memory Management:** Cache-Begrenzung für Text-Texturen implementiert, um Memory-Leaks durch dynamische Texte (Uhrzeit) zu verhindern.
+
+## [0.8.1] - 2026-05-10
+### Added
+- **Enhanced Navigation:** Added paging for the entities list using L1/R1 (Page Up/Down on PC).
+- **Persistent Log:** The console now features a scrollable log history (L2/R2 to scroll).
+- **Inline Favorites:** Toggle favorites directly in the entity list using the Y button (F key on PC).
+- **Visual Polish:** Improved selection pointer with a 1px border and adjusted sizing for selection highlights.
+### Fixed
+- Removed redundant code blocks in input handling and data loading.
+- Fixed layout overlapping issues with the scrollbar.
+
 ## [0.8.0] - 2026-05-09
 ### Added
 - Update to 0.8.0: Complete new user interface.

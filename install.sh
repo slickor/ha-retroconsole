@@ -1,14 +1,28 @@
 #!/bin/bash
 # Installation script for HA RetroConsole
 
-GAMEDIR=$(dirname "$0")
+# Get the absolute path of the script directory
+GAMEDIR=$(cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)
 cd "$GAMEDIR"
 
 echo "Ensuring pip is installed for python3..."
-python3 -m ensurepip --upgrade
-if [ $? -ne 0 ]; then
-    echo "Failed to ensure pip is installed. Please check your python3 installation."
-    exit 1
+# Check if pip is already available before trying to bootstrap it
+if ! python3 -m pip --version > /dev/null 2>&1; then
+    echo "pip not found, trying to bootstrap..."
+    if python3 -m ensurepip --upgrade > /dev/null 2>&1; then
+        echo "Successfully bootstrapped pip."
+    else
+        echo "---------------------------------------------------------------------------"
+        echo "ERROR: 'pip' is missing and your OS (ArkOS?) does not support 'ensurepip'."
+        echo ""
+        echo "To fix this without SSH:"
+        echo "1. Connect your SD card to a PC."
+        echo "2. Open a terminal in the 'ha-retroconsole' folder."
+        echo "3. Run: pip install --target=\"./libs\" requests pysdl2"
+        echo "4. Put the SD card back into your R36S."
+        echo "---------------------------------------------------------------------------"
+        exit 1
+    fi
 fi
 
 echo "Installing Python dependencies into local libs folder..."

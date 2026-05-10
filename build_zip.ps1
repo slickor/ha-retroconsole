@@ -22,7 +22,13 @@ $shContent = $shContent -replace "`r`n", "`n"
 [IO.File]::WriteAllText("$PSScriptRoot/$tempDir/Home Assistant - for retroconsoles.sh", $shContent, (New-Object System.Text.UTF8Encoding($false)))
 
 # 2. Copy application folders
-Copy-Item -Recurse "assets", "tools", "ui" -Destination "$tempDir/ha-retroconsole/"
+$foldersToCopy = @("assets", "tools", "ui")
+if (Test-Path "libs") {
+    $foldersToCopy += "libs"
+} else {
+    Write-Host "Hinweis: 'libs' Ordner nicht gefunden. Das Paket wird ohne vorinstallierte Abhängigkeiten erstellt." -ForegroundColor Yellow
+}
+Copy-Item -Recurse $foldersToCopy -Destination "$tempDir/ha-retroconsole/"
 
 # 3. Copy ha_client.py to app root for better import handling
 Copy-Item "tools/ha_client.py" -Destination "$tempDir/ha-retroconsole/"

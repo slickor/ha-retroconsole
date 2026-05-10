@@ -1,2 +1,2 @@
+requests
 pysdl2
-pygame

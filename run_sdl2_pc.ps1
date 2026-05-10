@@ -6,7 +6,7 @@ Write-Host "--- Home Assistant - for retroconsoles: Preparing SDL2 Test Environm
 
 # 1. Check if we are in the correct directory
 if (-not (Test-Path "tools\ha_sdl2.py")) {
-    Write-Error "Script must be started from the ha-retroconsole root directory!"
+    Write-Error "Script must be started from the ha-retroconsole rootdirectory!"
     exit
 }
 

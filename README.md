@@ -8,7 +8,7 @@ The goal is to provide a fast, controller-driven interface for devices like the 
 
 ## Current Status
 
-**Version 0.8.0** is now live. The project has moved past the initial prototyping stages and features a completely redesigned, theme-based user interface. 
+**Version 0.8.2** is now live. The project has moved past the initial prototyping stages and features a completely redesigned, theme-based user interface. 
 
 Key milestones reached:
 - **Phase 4 (Deployable App):** Successfully completed with automated build scripts for PortMaster.
@@ -120,6 +120,7 @@ See also docs/ROADMAP.md and CHANGELOG.md.
 ## Special Thanks
 
 A big thank you to [Remix Icon](https://remixicon.com/) for providing the excellent open-source icons under the Apache License 2.0.
+- This project bundles several open-source libraries, including [Requests](https://requests.readthedocs.io/) (Apache 2.0) and [PySDL2](https://pysdl2.readthedocs.io/).
 
 
 

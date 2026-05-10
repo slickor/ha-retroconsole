@@ -4,38 +4,42 @@ import sdl2.sdlttf as ttf
 import ctypes
 
 class RetroUI:
-    def __init__(self, renderer, font_path, font_size=18):
+    def __init__(self, renderer, font_path, font_size=24):
         self.renderer = renderer
         # Load font sizes for flexibility
         self.font = ttf.TTF_OpenFont(font_path.encode('utf-8'), font_size)
         self.font_small = ttf.TTF_OpenFont(font_path.encode('utf-8'), int(font_size * 0.75))
         self.font_large = ttf.TTF_OpenFont(font_path.encode('utf-8'), int(font_size * 1.5))
+        self.font_xl = ttf.TTF_OpenFont(font_path.encode('utf-8'), int(font_size * 2.5))
         
-        if not self.font or not self.font_small or not self.font_large:
+        if not self.font or not self.font_small or not self.font_large or not self.font_xl:
             raise RuntimeError(f"Could not load fonts: {ttf.TTF_GetError()}")
         
         self.colors = {
-            "bg":     sdl2.SDL_Color(0, 11, 21, 255),
+            "bg":     sdl2.SDL_Color(10, 10, 15, 255),
             "cyan":   sdl2.SDL_Color(0, 163, 255, 255),
             "yellow": sdl2.SDL_Color(238, 176, 0, 255),
             "gray":   sdl2.SDL_Color(85, 85, 85, 255),
-            "white":  sdl2.SDL_Color(255, 255, 255, 255)
+            "white":  sdl2.SDL_Color(255, 255, 255, 255),
+            "box_bg": sdl2.SDL_Color(0, 19, 41, 180) # Semi-transparent blue
         }
         self._text_cache = {}
 
-    def get_text_size(self, text, small=False, large=False):
+    def get_text_size(self, text, small=False, large=False, xl=False):
         """Returns the width and height of the text."""
-        if large:
+        if xl:
+            font = self.font_xl
+        elif large:
             font = self.font_large
         elif small:
             font = self.font_small
         else:
             font = self.font
         tw, th = ctypes.c_int(), ctypes.c_int()
-        ttf.TTF_SizeText(font, text.encode('utf-8'), ctypes.byref(tw), ctypes.byref(th))
+        ttf.TTF_SizeUTF8(font, text.encode('utf-8'), ctypes.byref(tw), ctypes.byref(th))
         return tw.value, th.value
 
-    def draw_text(self, text, x, y, color="cyan", small=False, large=False):
+    def draw_text(self, text, x, y, color="cyan", small=False, large=False, xl=False):
         """Renders text (supports strings or SDL_Color objects)."""
         # Resolve color
         if isinstance(color, str):
@@ -45,7 +49,9 @@ class RetroUI:
             sdl_color = color
             color_id = f"{color.r}{color.g}{color.b}"
         
-        if large:
+        if xl:
+            size_id = "xl"
+        elif large:
             size_id = "l"
         elif small:
             size_id = "s"
@@ -54,13 +60,21 @@ class RetroUI:
         cache_key = f"{text}_{color_id}_{size_id}"
         
         if cache_key not in self._text_cache:
-            if large:
+            # Prevent memory leaks from dynamic strings (like the clock)
+            if len(self._text_cache) > 500:
+                for tex, w, h in self._text_cache.values():
+                    sdl2.SDL_DestroyTexture(tex)
+                self._text_cache.clear()
+
+            if xl:
+                font = self.font_xl
+            elif large:
                 font = self.font_large
             elif small:
                 font = self.font_small
             else:
                 font = self.font
-            surface = ttf.TTF_RenderText_Blended(font, text.encode('utf-8'), sdl_color)
+            surface = ttf.TTF_RenderUTF8_Blended(font, text.encode('utf-8'), sdl_color)
             if not surface: return 0, 0
             texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
             w, h = surface.contents.w, surface.contents.h
@@ -83,12 +97,20 @@ class RetroUI:
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
 
     def draw_pointer(self, x, y, width=12, height=18, color="cyan"):
-        """Draws a sturdy selection triangle (pointer) with flexible proportions."""
+        """Draws a sturdy selection triangle (pointer) with a 1px gray border."""
+        # 1. Draw gray border (1px larger in all directions)
+        border_color = self.colors["gray"]
+        sdl2.SDL_SetRenderDrawColor(self.renderer, border_color.r, border_color.g, border_color.b, 255)
+        for i in range(width + 2):
+            # Proportional height scaling for the border
+            offset = int(i * ((height + 2) / 2.0) / (width + 2))
+            sdl2.SDL_RenderDrawLine(self.renderer, x - 1 + i, y - 1 + offset, x - 1 + i, y - 1 + (height + 2) - 1 - offset)
+
+        # 2. Draw the main pointer inside
         sdl_color = self.colors.get(color, self.colors["cyan"])
         sdl2.SDL_SetRenderDrawColor(self.renderer, sdl_color.r, sdl_color.g, sdl_color.b, 255)
         
         for i in range(width):
-            # The offset is calculated so that the lines shorten symmetrically towards the tip
             offset = int(i * (height / 2.0) / width)
             sdl2.SDL_RenderDrawLine(self.renderer, x + i, y + offset, x + i, y + height - 1 - offset)
 
@@ -111,17 +133,25 @@ class RetroUI:
 
     def draw_retro_box(self, x, y, w, h, title="", color="cyan"):
         """Draws a frame box with a title break."""
+        # Semi-transparent background fill
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
+        box_bg = self.colors["box_bg"]
+        sdl2.SDL_SetRenderDrawColor(self.renderer, box_bg.r, box_bg.g, box_bg.b, box_bg.a)
+        # Fill the box interior (slightly indented to respect the rounded corners)
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(x + 1, y + 1, w - 2, h - 2))
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
+
         self.draw_rounded_rect(x, y, w, h, color)
         
         if title:
-            tw, th = self.get_text_size(title, small=True)
+            tw, th = self.get_text_size(title) # Use normal font size for box titles
             # Break line
-            clear_rect = sdl2.SDL_Rect(x + 15, y, tw + 10, 1)
+            clear_rect = sdl2.SDL_Rect(x + 15, y, tw + 10, 2) # Clear 2px for a cleaner break
             bg = self.colors["bg"]
             sdl2.SDL_SetRenderDrawColor(self.renderer, bg.r, bg.g, bg.b, 255)
             sdl2.SDL_RenderFillRect(self.renderer, clear_rect)
             # Draw title
-            self.draw_text(title, x + 20, y - (th // 2), color=color, small=True)
+            self.draw_text(title, x + 20, y - (th // 2), color=color)
 
     def clear_screen(self):
         """Clears the screen with the cyberpunk background color."""
@@ -164,3 +194,5 @@ class RetroUI:
             ttf.TTF_CloseFont(self.font_small)
         if self.font_large:
             ttf.TTF_CloseFont(self.font_large)
+        if self.font_xl:
+            ttf.TTF_CloseFont(self.font_xl)

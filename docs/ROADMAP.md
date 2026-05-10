@@ -19,6 +19,7 @@ Goal: Turn Home Assistant entities into a simple structure for a handheld UI.
 - [x] Group entities by domain.
 - [x] Mark favorites from `config.json`.
 - [x] Use display names from `attributes.friendly_name`.
+- [x] Virtual 'Favorites' domain for quick access.
 - [x] Prioritize relevant domains: `light`, `switch`, `scene`, `script`, `sensor`, `binary_sensor`, `climate`.
 
 ## Phase 2: Desktop prototype (completed)
@@ -41,7 +42,14 @@ Goal: Move desktop prototyping logic into a native SDL2-based handheld app.
 - [x] Keyboard control as a PC fallback.
 - [x] Basic message/notification system (1s display).
 - [x] Implement native Gamepad/D-Pad mapping (`SDL_GAMECONTROLLER`).
+- [x] Paging for entity list (L1/R1).
+- [x] Log scrolling (L2/R2).
+- [x] Inline favorite toggling (F key / Y button).
 - [x] Improved UI with icons and better visual grouping.
+- [x] Support for UTF-8 (Umlauts and special characters).
+- [x] Visual feedback (flash) for actions and favorites.
+- [x] Dynamic local IP detection and display.
+- [x] Memory-efficient text texture caching.
 - [x] Organize app configuration and runtime files in the app folder.
 
 ## Phase 4: deployable App (completed)

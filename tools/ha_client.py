@@ -9,7 +9,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-VERSION = "0.8.0"
+VERSION = "0.8.2"
 
 
 SUPPORTED_ACTIONS = {
@@ -127,6 +127,33 @@ def fetch_states_list(base_url: str, token: str, timeout: float) -> list[dict[st
 
 def fetch_states_map(base_url: str, token: str, timeout: float) -> dict[str, dict[str, Any]]:
     return {str(item.get("entity_id", "")): item for item in fetch_states_list(base_url, token, timeout)}
+
+
+def get_domain_groups(states: list[dict[str, Any]], favorites: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """Groups entities by domain and adds a virtual 'Favorites' domain at the top."""
+    groups: dict[str, list[dict[str, Any]]] = {}
+    
+    # Map for quick lookup
+    states_map = {s.get("entity_id"): s for s in states if s.get("entity_id")}
+    
+    # 1. Create Favorites group first so it appears at the top of the list
+    fav_list = []
+    for fav in favorites:
+        eid = fav.get("entity_id")
+        if eid in states_map:
+            fav_list.append(states_map[eid])
+    
+    if fav_list:
+        groups["favorites"] = fav_list
+
+    # 2. Group remaining entities by domain
+    for state in sorted(states, key=lambda x: str(x.get("entity_id", ""))):
+        domain = entity_domain(str(state.get("entity_id", "")))
+        if domain:
+            if domain not in groups:
+                groups[domain] = []
+            groups[domain].append(state)
+    return groups
 
 
 def entity_domain(entity_id: str) -> str:
