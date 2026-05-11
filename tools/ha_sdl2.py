@@ -70,6 +70,7 @@ class HASDL2App:
         self.setup_controls()
         self.ip_address = self._get_ip_address()
         self.running = True
+        self.selection_start_time = time.time()
         self.fav_flash_time = 0
         self.log_entries = [] # List of (timestamp, text, color)
         self.log_scroll = 0
@@ -86,6 +87,27 @@ class HASDL2App:
         self.task_queue = queue.Queue()
         self.current_task_thread = None
         self.game_controllers = []
+
+    def _get_system_stats(self):
+        """Fetches real CPU MHz and Free RAM on Linux devices."""
+        cpu_mhz = "N/A"
+        free_mem = "N/A"
+        
+        # Get CPU Frequency (Linux)
+        freq_path = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
+        if os.path.exists(freq_path):
+            with open(freq_path, "r") as f:
+                cpu_mhz = f"{int(f.read().strip()) // 1000} MHz"
+        
+        # Get Free Memory (Linux)
+        if os.path.exists("/proc/meminfo"):
+            with open("/proc/meminfo", "r") as f:
+                for line in f:
+                    if "MemFree" in line:
+                        # Convert kB to MB
+                        free_mem = f"{int(line.split()[1]) // 1024} MB"
+                        break
+        return cpu_mhz, free_mem
 
     def _get_ip_address(self):
         """Dynamically retrieves the local IP address."""
@@ -292,10 +314,10 @@ class HASDL2App:
             
         self.log_entries.append((timestamp, text, color))
         # Keep log size manageable
-        if len(self.log_entries) > 50:
+        if len(self.log_entries) > 100: # Increased log history
             self.log_entries.pop(0)
         # Auto-scroll to bottom
-        self.log_scroll = max(0, len(self.log_entries) - 4)
+        self.log_scroll = max(0, len(self.log_entries) - 5)
 
     def save_config(self):
         save_config(self.config_path, self.config)
@@ -373,19 +395,23 @@ class HASDL2App:
             elif event.type == sdl2.SDL_KEYDOWN:
                 # Keyboard logic remains mostly fixed as fallback
                 if event.key.keysym.sym == sdl2.SDLK_ESCAPE:
+                    self.selection_start_time = time.time()
                     if self.mode == "settings":
                         self.mode = "main"
                     else:
                         self.running = False
                 elif event.key.keysym.sym == sdl2.SDLK_LEFT:
+                    self.selection_start_time = time.time()
                     if self.mode == "main":
                         self.active_list = "domains"
                 elif event.key.keysym.sym == sdl2.SDLK_RIGHT:
+                    self.selection_start_time = time.time()
                     if self.mode == "main":
                         if self.active_list == "domains":
                             self.active_list = "entities"
                             self.entity_index = 0
                 elif event.key.keysym.sym == sdl2.SDLK_UP:
+                    self.selection_start_time = time.time()
                     if self.mode == "main":
                         if self.active_list == "domains":
                             self.nav_index = max(0, self.nav_index - 1)
@@ -398,6 +424,7 @@ class HASDL2App:
                     elif self.mode == "settings":
                         self.settings_selected_index = max(0, self.settings_selected_index - 1)
                 elif event.key.keysym.sym == sdl2.SDLK_DOWN:
+                    self.selection_start_time = time.time()
                     if self.mode == "main":
                         if self.active_list == "domains":
                             limit = len(self.domain_list) if self.domain_list else 1
@@ -414,11 +441,13 @@ class HASDL2App:
                     elif self.mode == "settings":
                         self.settings_selected_index = min(1, self.settings_selected_index + 1)
                 elif event.key.keysym.sym == sdl2.SDLK_PAGEUP:
+                    self.selection_start_time = time.time()
                     if self.mode == "main" and self.active_list == "entities":
                         self.entity_index = max(0, self.entity_index - 8)
                         if self.entity_index < self.entity_scroll_row:
                             self.entity_scroll_row = self.entity_index
                 elif event.key.keysym.sym == sdl2.SDLK_PAGEDOWN:
+                    self.selection_start_time = time.time()
                     if self.mode == "main" and self.active_list == "entities":
                         current_domain = self.domain_list[self.nav_index]
                         count = len(self.entities_by_domain.get(current_domain, []))
@@ -447,20 +476,24 @@ class HASDL2App:
                     self.mode = "settings"
             elif event.type == sdl2.SDL_CONTROLLERBUTTONDOWN:
                 btn = event.cbutton.button
+                self.selection_start_time = time.time()
                 if btn == self.controls["cancel"]:
                     if self.mode == "settings":
                         self.mode = "main"
                     else:
                         self.running = False
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+                    self.selection_start_time = time.time()
                     if self.mode == "main":
                         self.active_list = "domains"
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+                    self.selection_start_time = time.time()
                     if self.mode == "main":
                         if self.active_list == "domains":
                             self.active_list = "entities"
                             self.entity_index = 0
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP:
+                    self.selection_start_time = time.time()
                     if self.mode == "main":
                         if self.active_list == "domains":
                             self.nav_index = max(0, self.nav_index - 1)
@@ -473,6 +506,7 @@ class HASDL2App:
                     elif self.mode == "settings":
                         self.settings_selected_index = max(0, self.settings_selected_index - 1)
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+                    self.selection_start_time = time.time()
                     if self.mode == "main":
                         if self.active_list == "domains":
                             limit = len(self.domain_list) if self.domain_list else 1
@@ -537,7 +571,7 @@ class HASDL2App:
                         
                 elif axis == sdl2.SDL_CONTROLLER_AXIS_TRIGGERRIGHT:
                     if value > threshold and not self.trigger_r_pressed:
-                        self.log_scroll = min(max(0, len(self.log_entries) - 4), self.log_scroll + 1)
+                        self.log_scroll = min(max(0, len(self.log_entries) - 5), self.log_scroll + 1)
                         self.trigger_r_pressed = True
                     elif value < threshold:
                         self.trigger_r_pressed = False
@@ -578,41 +612,74 @@ class HASDL2App:
 
     def render_layout(self):
         """Divides the screen into 5 zones (Header, Nav, Main, Info, Log)."""
-        # 1. Top-Bar (Header) - Reduced height to prevent overlap
-        self.ui.draw_retro_box(10, 5, 620, 65, "SYSTEM")
+        # 1. Header Area - Redesigned (Floating style with Scanlines)
+        
+        # Scanline effect behind the logo/title area for extra retro vibe
+        self.ui.draw_scanlines(0, 5, 640, 60, spacing=3)
+
+        # Double-Bar Separator (Industrial Style)
+        sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 163, 255, 255)
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 70, 640, 1)) # Primary Bar
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 73, 640, 1)) # Secondary Accented Bar
 
         # Logo and title
         logo_tex = self.domain_icons.get("ha_logo")
         logo_w = 0
+        text_label = "for retroconsoles"
+        text_w, _ = self.ui.get_text_size(text_label, xl=True)
+        
+        total_content_width = 0
         if logo_tex:
-            logo_w = 28
-            dst = sdl2.SDL_Rect(25, 24, logo_w, logo_w)
-            sdl2.SDL_RenderCopy(self.renderer, logo_tex, None, dst)
-            logo_w += 10 # spacing
+            logo_w = 48 # Enlarge for retro pixel charm
+            total_content_width += logo_w + 15 # Logo width + spacing
 
-        self.ui.draw_text("for retroconsoles", 25 + logo_w, 10, COLOR_HA_BLUE, xl=True)
+        total_content_width += text_w
+        
+        start_x = (640 - total_content_width) // 2 # Center within the full 640px screen width
+        
+        if logo_tex:
+            sdl2.SDL_RenderCopy(self.renderer, logo_tex, None, sdl2.SDL_Rect(start_x, 12, 48, 48))
+            start_x += 48 + 15 # Move X for text
+
+        self.ui.draw_text(text_label, start_x, 12, COLOR_HA_BLUE, xl=True)
 
         # 2. Left column (Navigation) - Start at Y=80
         self.ui.draw_retro_box(10, 80, 190, 290, "DOMAINS")
-        self.draw_menu(25, 115)
+        self.draw_menu(25, 100)
 
         # 3. Main area (Middle) - Start at Y=80
         self.ui.draw_retro_box(210, 80, 260, 290, "ENTITIES")
-        self._render_entities_list(225, 115)
+        self._render_entities_list(225, 100)
 
         # 4. Right column (Info boxes) - Start at Y=80
         self.ui.draw_retro_box(480, 80, 150, 140, "PREVIEW")
         # Placeholder for graphic/icon
-        self.ui.draw_retro_box(480, 230, 150, 140, "STATS")
-        self.ui.draw_text("CPU: 12%", 490, 260, "gray", small=True)
-        self.ui.draw_text("RAM: 45MB", 490, 285, "gray", small=True)
+        self.ui.draw_retro_box(480, 230, 150, 140, "STATUS")
+        
+        cpu_mhz, free_ram = self._get_system_stats()
+        server_status = "Connected" if self.states else "Disconnected"
+        current_time = time.strftime("%H:%M:%S")
+
+        # Render Status Details
+        y_status = 251
+        for label, val in [
+            ("Time: ", current_time),
+            ("IP: ", self.ip_address),
+            ("Server: ", server_status),
+            ("CPU: ", cpu_mhz),
+            ("RAM: ", free_ram),
+            ("Ver: ", VERSION)
+        ]:
+            tw, _ = self.ui.draw_text(label, 490, y_status, "cyan", small=True)
+            self.ui.draw_text(str(val), 490 + tw, y_status, "white", small=True)
+            y_status += 18
 
         # 5. Bottom row (Console/Status) - Start at Y=380
         self.ui.draw_retro_box(10, 380, 620, 95, "Console")
         
         # Render log entries
-        log_y = 390
-        visible_logs = 4
+        log_y = 390 # Start position for the first log line
+        visible_logs = 5 # Number of log lines to display
         start = self.log_scroll
         end = min(len(self.log_entries), start + visible_logs)
         
@@ -622,11 +689,6 @@ class HASDL2App:
             tw, _ = self.ui.draw_text(f"[{ts}] ", 25, log_y, COLOR_TEXT_DIM, small=True)
             self.ui.draw_text(txt, 25 + tw, log_y, col, small=True)
             log_y += 15
-
-        # Status and Version
-        self.ui.draw_text(f"STATUS: ONLINE // IP: {self.ip_address} // v{VERSION}", 25, 455, "gray")
-        date_str = time.strftime("%Y-%m-%d %H:%M:%S")
-        self.ui.draw_text(date_str, 450, 455, "gray")
 
     def draw_menu(self, x, y_start):
         """Draws the navigation menu with pointer and highlight."""
@@ -724,8 +786,24 @@ class HASDL2App:
             else:
                 color = "white"
             
-            label = display_name(entity_id, entity) # Use normal font size for entity labels
-            self.ui.draw_text(label[:18], x + icon_offset, y + 2, color)
+            label = display_name(entity_id, entity)
+            max_chars = 18
+            display_label = label
+            
+            # Auto-scroll logic if selected and name is too long
+            if is_selected and self.active_list == "entities" and len(label) > max_chars:
+                elapsed = time.time() - self.selection_start_time
+                if elapsed > 1.0:
+                    scroll_speed = 6 # Characters per second
+                    scroll_pos = int((elapsed - 1.0) * scroll_speed) % (len(label) + 4)
+                    padded_label = label + "    "
+                    display_label = (padded_label + padded_label)[scroll_pos : scroll_pos + max_chars]
+                else:
+                    display_label = label[:max_chars]
+            else:
+                display_label = label[:max_chars]
+
+            self.ui.draw_text(display_label, x + icon_offset, y + 2, color)
 
         # Scrollbar für die Entitäten-Liste
         if len(entities) > visible_entities:

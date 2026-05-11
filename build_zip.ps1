@@ -22,7 +22,7 @@ $shContent = $shContent -replace "`r`n", "`n"
 [IO.File]::WriteAllText("$PSScriptRoot/$tempDir/Home Assistant - for retroconsoles.sh", $shContent, (New-Object System.Text.UTF8Encoding($false)))
 
 # 2. Copy application folders
-$foldersToCopy = @("assets", "tools", "ui")
+$foldersToCopy = @("assets", "tools", "ui", "docs")
 if (Test-Path "libs") {
     $foldersToCopy += "libs"
 } else {
@@ -37,7 +37,7 @@ Copy-Item "tools/ha_client.py" -Destination "$tempDir/ha-retroconsole/"
 $filesToCopy = @(
     "requirements.txt", "install.sh", "port.json", "cover.png",
     "config.example.json", "gameinfo.xml", "screenshot.jpg",
-    "LICENSE", "CHANGELOG.md"
+    "LICENSE", "CHANGELOG.md", "README.md"
 )
 
 foreach ($file in $filesToCopy) {

@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.3] - 2026-05-11
+### Added
+- **Header Redesign:** Logo und Text im Header sind nun horizontal zentriert.
+- **Full-Width Visuals:** Scanlines und Doppelbalken-Separator erstrecken sich über die gesamte Bildschirmbreite.
+- **STATUS Box Details:** Umbenennung der Box zu "STATUS", Anzeige von Time, IP, Server-Status, CPU, RAM und Version. Labels in Cyan, Werte in Weiß.
+- **Pointer Enhancement:** Auswahlpfeil hat nun einen 2px breiten, weißen Rahmen.
+- **Log Improvements:** Console-Log zeigt nun 5 Zeilen mit optimiertem Zeilenabstand und Startposition.
+- **Layout Adjustments:** Vertikale Positionierung der Domain- und Entitäten-Listen wurde angepasst.
+- **Scroll Speed:** Die Scroll-Geschwindigkeit für lange Entitätsnamen wurde um 50% erhöht.
+### Changed
+- **Header Layout:** Entfernung der "SYSTEM" Box-Umrandung für ein schwebendes Design.
+- **Font Scaling:** Anpassung der Schriftgrößen für bessere Lesbarkeit (insbesondere m5x7.ttf).
+### Fixed
+- **Log Display:** Korrektur der Log-Zeilenanzeige, um 5 Zeilen korrekt darzustellen.
+
 ## [0.8.2] - 2026-05-10
 ### Added
 - **UTF-8 Support:** Korrekte Darstellung von Umlauten (ä, ö, ü) und ß durch Umstellung auf UTF-8 Funktionen in SDL_ttf.

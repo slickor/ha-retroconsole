@@ -8,7 +8,7 @@ The goal is to provide a fast, controller-driven interface for devices like the 
 
 ## Current Status
 
-**Version 0.8.2** is now live. The project has moved past the initial prototyping stages and features a completely redesigned, theme-based user interface. 
+**Version 0.8.3** is now live. The project has moved past the initial prototyping stages and features a completely redesigned, theme-based user interface. 
 
 Key milestones reached:
 - **Phase 4 (Deployable App):** Successfully completed with automated build scripts for PortMaster.

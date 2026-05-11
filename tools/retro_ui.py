@@ -96,15 +96,25 @@ class RetroUI:
         sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(x, y + 1, w, h - 2))
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
 
+    def draw_scanlines(self, x, y, w, h, spacing=3):
+        """Draws a retro scanline pattern over a specific area."""
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
+        # Sehr dezentes Cyan mit hoher Transparenz für den CRT-Look
+        sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 163, 255, 40)
+        
+        for line_y in range(y, y + h, spacing):
+            sdl2.SDL_RenderDrawLine(self.renderer, x, line_y, x + w, line_y)
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
+
     def draw_pointer(self, x, y, width=12, height=18, color="cyan"):
-        """Draws a sturdy selection triangle (pointer) with a 1px gray border."""
-        # 1. Draw gray border (1px larger in all directions)
-        border_color = self.colors["gray"]
+        """Draws a sturdy selection triangle (pointer) with a 2px white border."""
+        # 1. Draw white border (2px larger in all directions)
+        border_color = self.colors["white"]
         sdl2.SDL_SetRenderDrawColor(self.renderer, border_color.r, border_color.g, border_color.b, 255)
-        for i in range(width + 2):
+        for i in range(width + 4):
             # Proportional height scaling for the border
-            offset = int(i * ((height + 2) / 2.0) / (width + 2))
-            sdl2.SDL_RenderDrawLine(self.renderer, x - 1 + i, y - 1 + offset, x - 1 + i, y - 1 + (height + 2) - 1 - offset)
+            offset = int(i * ((height + 4) / 2.0) / (width + 4))
+            sdl2.SDL_RenderDrawLine(self.renderer, x - 2 + i, y - 2 + offset, x - 2 + i, y - 2 + (height + 4) - 1 - offset)
 
         # 2. Draw the main pointer inside
         sdl_color = self.colors.get(color, self.colors["cyan"])
