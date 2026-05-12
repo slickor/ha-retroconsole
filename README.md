@@ -2,13 +2,13 @@
 
 This project is an independent community application and is not affiliated with or endorsed by Home Assistant or the Open Home Foundation.
 
-This project is a dedicated **Home Assistant client for retro handhelds** running Linux (designed for PortMaster).
+**A lightweight, controller-driven Home Assistant client for Linux-based retro handhelds. Optimized for PortMaster devices (R36S, TrimUI Smart Pro) with a native SDL2 retro UI.**
 
-The goal is to provide a fast, controller-driven interface for devices like the R36S, TrimUI Smart Pro, and other handhelds, allowing you to control your smart home without needing a web browser or a heavy mobile app. It focuses on immediate control of favorites, sensors, switches, lights, scenes, and scripts via the Home Assistant REST API.
+Turn your retro handheld into a smart home command center. HA RetroConsole provides a fast, tactile, and native interface to control your Home Assistant environment without needing a browser or mobile app. It focuses on immediate control of favorites, sensors, switches, lights, scenes, and scripts via the Home Assistant REST API.
 
 ## Current Status
 
-**Version 0.8.3** is now live. The project has moved past the initial prototyping stages and features a completely redesigned, theme-based user interface. 
+**Version 0.8.4** is now live. The project has moved past the initial prototyping stages and features a completely redesigned, theme-based user interface. 
 
 Key milestones reached:
 - **Phase 4 (Deployable App):** Successfully completed with automated build scripts for PortMaster.

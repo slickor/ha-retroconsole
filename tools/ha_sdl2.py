@@ -53,7 +53,6 @@ class HASDL2App:
         self.config = load_config(config_path)
         self.states = {}
         self.favorites = self.config.get("favorites", [])
-        self.selected = 0 # For main menu favorites
         self.nav_index = 0 # Index for the left navigation column
         self.active_list = "domains" # Active column: "domains" or "entities"
         self.entity_index = 0 # Index for the middle entity list
@@ -65,7 +64,6 @@ class HASDL2App:
         }
         self.mode = "main" # "main", "favorites", or "settings"
         self.settings_selected_index = 0
-        self.main_scroll_row = 0
         self.entity_scroll_row = 0 # Scroll position for main entity list
         self.setup_controls()
         self.ip_address = self._get_ip_address()
@@ -81,8 +79,8 @@ class HASDL2App:
         self.window = None
         self.renderer = None
         self.ui = None
-        self.domain_icons = {}  # Cache for loaded textures
-        self.entities_by_domain = {} # Grouped entities for favorites editor
+        self.domain_icons = {} # Cache for loaded textures
+        self.entities_by_domain = {} # Cached grouped entities
         self.domain_list = [] # List of domains for favorites editor
         self.task_queue = queue.Queue()
         self.current_task_thread = None
@@ -330,6 +328,12 @@ class HASDL2App:
         # Use the grouping logic from ha_client which includes the "Favorites" domain
         self.entities_by_domain = get_domain_groups(supported_states, self.favorites)
         self.domain_list = list(self.entities_by_domain.keys())
+        
+        # Safety: Ensure nav_index remains valid after data reload
+        if self.domain_list:
+            self.nav_index = min(self.nav_index, len(self.domain_list) - 1)
+        else:
+            self.nav_index = 0
 
     def get_domain_icon(self, entity_id):
         domain = entity_domain(entity_id)
@@ -448,7 +452,7 @@ class HASDL2App:
                             self.entity_scroll_row = self.entity_index
                 elif event.key.keysym.sym == sdl2.SDLK_PAGEDOWN:
                     self.selection_start_time = time.time()
-                    if self.mode == "main" and self.active_list == "entities":
+                    if self.mode == "main" and self.active_list == "entities" and self.nav_index < len(self.domain_list):
                         current_domain = self.domain_list[self.nav_index]
                         count = len(self.entities_by_domain.get(current_domain, []))
                         self.entity_index = min(max(0, count - 1), self.entity_index + 8)
@@ -464,7 +468,7 @@ class HASDL2App:
                         self._handle_settings_action()
                 elif event.key.keysym.sym == sdl2.SDLK_f:
                     # Toggle favorite on F key
-                    if self.mode == "main" and self.active_list == "entities" and self.domain_list:
+                    if self.mode == "main" and self.active_list == "entities" and self.domain_list and self.nav_index < len(self.domain_list):
                         current_domain = self.domain_list[self.nav_index]
                         entities = self.entities_by_domain.get(current_domain, [])
                         if entities and self.entity_index < len(entities):
@@ -530,7 +534,7 @@ class HASDL2App:
                             self.entity_scroll_row = self.entity_index
                 elif btn == sdl2.SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
                     # R1: Page Down in entities list
-                    if self.mode == "main" and self.active_list == "entities":
+                    if self.mode == "main" and self.active_list == "entities" and self.nav_index < len(self.domain_list):
                         current_domain = self.domain_list[self.nav_index]
                         count = len(self.entities_by_domain.get(current_domain, []))
                         self.entity_index = min(max(0, count - 1), self.entity_index + 8)
@@ -546,7 +550,7 @@ class HASDL2App:
                         self._handle_settings_action()
                 elif btn == BTN_Y:  # Y button (North) -> Favorites
                     # Toggle favorite on Y button
-                    if self.mode == "main" and self.active_list == "entities" and self.domain_list:
+                    if self.mode == "main" and self.active_list == "entities" and self.domain_list and self.nav_index < len(self.domain_list):
                         current_domain = self.domain_list[self.nav_index]
                         entities = self.entities_by_domain.get(current_domain, [])
                         if entities and self.entity_index < len(entities):
@@ -644,7 +648,7 @@ class HASDL2App:
         self.ui.draw_text(text_label, start_x, 12, COLOR_HA_BLUE, xl=True)
 
         # 2. Left column (Navigation) - Start at Y=80
-        self.ui.draw_retro_box(10, 80, 190, 290, "DOMAINS")
+        self.ui.draw_retro_box(10, 80, 190, 290, "CATEGORIES")
         self.draw_menu(25, 100)
 
         # 3. Main area (Middle) - Start at Y=80
@@ -811,62 +815,6 @@ class HASDL2App:
                 x + 235, y_start, 245, 
                 self.entity_scroll_row, len(entities), visible_entities
             )
-
-    def render_main(self):
-        margin = 20
-        cols = 2
-        card_w = (self.width - (2 * margin) - 20) // cols
-        card_h = 70
-        
-        if not self.favorites:
-            self.ui.draw_text("No favorites configured. Press Y to edit.", 20, 80, COLOR_TEXT)
-            return
-
-        # Update scroll offset based on selection
-        current_row = self.selected // cols
-        if current_row < self.main_scroll_row:
-            self.main_scroll_row = current_row
-        elif current_row >= self.main_scroll_row + 4:
-            self.main_scroll_row = current_row - 3
-
-        for i, fav in enumerate(self.favorites):
-            row = (i // cols) - self.main_scroll_row
-            col = i % cols
-            if row < 0 or row >= 5: continue # Only render visible rows
-
-            x = margin + col * (card_w + 20)
-            y = 70 + row * (card_h + 15)
-            
-            entity_id = favorite_entity_id(fav)
-            state = self.states.get(entity_id, {})
-            self._render_favorite_card(i, fav, entity_id, state, x, y, card_w, card_h)
-        # Footer with icons
-        self._render_footer_line()
-        self.ui.draw_text(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM, small=True)
-
-    def _render_footer_line(self):
-        """Helper to render a consistent footer with graphical icons."""
-        x = 20
-        y = self.height - 22
-        
-        parts = [
-            ("D-Pad: Navigate | ", None),
-            ("", self.controls["confirm"]),
-            (": Execute | ", None),
-            ("", BTN_Y),
-            (": Favorites | ", None),
-            ("", BTN_X),
-            (": Refresh | ", None),
-            ("", self.controls["cancel"]),
-            (": Exit", None)
-        ]
-        
-        for text, btn_id in parts:
-            if text:
-                w, _ = self.ui.draw_text(text, x, y + 2, "cyan", small=True)
-                x += w
-            if btn_id is not None:
-                x += self._render_button_icon(btn_id, x, y, size=18)
 
     def render_settings(self):
         y_offset = 80

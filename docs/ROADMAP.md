@@ -51,7 +51,9 @@ Goal: Move desktop prototyping logic into a native SDL2-based handheld app.
 - [x] Improved pointer with 2px white border.
 - [x] Optimized Console log display (5 lines, adjusted spacing).
 - [x] Adjusted vertical positioning of domain and entity lists.
-- [x] Increased scroll speed for long entity names.
+- [x] Added Marquee auto-scroll for long entity names.
+- [x] Full-width header visuals (scanlines & bars).
+- [x] Horizontally centered header content.
 - [x] Support for UTF-8 (Umlauts and special characters).
 - [x] Visual feedback (flash) for actions and favorites.
 - [x] Dynamic local IP detection and display.

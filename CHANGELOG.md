@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.4] - 2026-05-11
+### Added
+- **Marquee Scroll:** Lange Entitätsnamen scrollen nun automatisch (Geschwindigkeit auf 6 Zeichen/Sek erhöht).
+- **Full-Width Header:** Scanlines und Doppelbalken-Separator erstrecken sich nun über die gesamte Bildschirmbreite (640px).
+- **Centered Header:** Logo und Titeltext sind nun horizontal perfekt zentriert.
+- **Improved Selection:** Der Auswahlpfeil verfügt nun über einen markanten 2px weißen Rahmen.
+- **Status Box Polish:** Labels in Cyan, Werte in Weiß und optimiertes vertikales Spacing.
+- **Console Log:** Kapazität auf 5 sichtbare Zeilen erweitert.
+### Fixed
+- **Kritischer Fix:** Syntaxfehler am Ende der `ha_sdl2.py` behoben.
+- **Stabilität:** `IndexError` auf dem TrimUI Smart Pro behoben, der bei der Navigation während Daten-Updates auftreten konnte.
+- **Layout:** Fehlerhafte Zeilenabstände im Log korrigiert (doppelte Inkrementierung entfernt).
+- **UI Alignment:** Listen in DOMAINS und ENTITIES um eine halbe Zeile nach oben gerückt für bessere Platzausnutzung.
+
 ## [0.8.3] - 2026-05-11
 ### Added
 - **Header Redesign:** Logo und Text im Header sind nun horizontal zentriert.
