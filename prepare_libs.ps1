@@ -22,11 +22,14 @@ Get-ChildItem -Path "libs" -Filter "__pycache__" -Recurse -Directory -ErrorActio
 # 2. Entferne .dist-info und .egg-info Ordner (Metadaten für pip, nicht für Python-Import nötig)
 Get-ChildItem -Path "libs" -Include "*.dist-info", "*.egg-info" -Recurse -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
 
-# 3. Entferne typische unnötige Verzeichnisse (Tests, Beispiele, Binaries)
-$junkFolders = @("tests", "test", "docs", "examples", "bin")
+# 3. Entferne typische unnötige Verzeichnisse und plattformspezifische Binaries (Windows/PC)
+$junkFolders = @("tests", "test", "docs", "examples", "bin", "_pycache_")
 foreach ($folder in $junkFolders) {
     Get-ChildItem -Path "libs" -Filter $folder -Recurse -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
 }
+
+# 4. Entferne Windows-spezifische Binärdateien (.pyd, .exe, .dll)
+Get-ChildItem -Path "libs" -Include "*.pyd", "*.exe", "*.dll" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force
 
 Write-Host "Bereinigung abgeschlossen. Nur notwendige Runtime-Dateien wurden behalten." -ForegroundColor Cyan
 

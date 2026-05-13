@@ -619,53 +619,71 @@ class HASDL2App:
         # 1. Header Area - Redesigned (Floating style with Scanlines)
         
         # Scanline effect behind the logo/title area for extra retro vibe
-        self.ui.draw_scanlines(0, 5, 640, 60, spacing=3)
+        self.ui.draw_scanlines(0, 5, 640, 85, spacing=3)
 
         # Double-Bar Separator (Industrial Style)
         sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 163, 255, 255)
-        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 70, 640, 1)) # Primary Bar
-        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 73, 640, 1)) # Secondary Accented Bar
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 95, 640, 1)) # Primary Bar
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 98, 640, 1)) # Secondary Accented Bar
 
         # Logo and title
         logo_tex = self.domain_icons.get("ha_logo")
-        logo_w = 0
-        text_label = "for retroconsoles"
-        text_w, _ = self.ui.get_text_size(text_label, xl=True)
+        line1 = "HOME ASSISTANT"
+        line2 = "for retro consoles"
         
-        total_content_width = 0
+        # Berechne die Breite beider Zeilen für die Zentrierung
+        tw1, _ = self.ui.get_text_size(line1, xl=True)
+        tw2, _ = self.ui.get_text_size(line2, large=True)
+        text_block_width = max(tw1, tw2)
+        
+        logo_w = 65 if logo_tex else 0
+        spacing = 30 if logo_tex else 0
+        total_width = logo_w + spacing + text_block_width
+        start_x = (640 - total_width) // 2
+
         if logo_tex:
-            logo_w = 48 # Enlarge for retro pixel charm
-            total_content_width += logo_w + 15 # Logo width + spacing
+            sdl2.SDL_RenderCopy(self.renderer, logo_tex, None, sdl2.SDL_Rect(start_x, 15, 65, 65))
+            start_x += logo_w + spacing
 
-        total_content_width += text_w
+        self.ui.draw_text(line1, start_x, 8, "white", xl=True)
+        self.ui.draw_text(line2, start_x, 52, "cyan", large=True)
+
+        # 2. Left column (Navigation) - Start at Y=105
+        self.ui.draw_retro_box(10, 105, 190, 265, "CATEGORIES")
+        self.draw_menu(25, 118)
+
+        # 3. Main area (Middle) - Start at Y=105
+        self.ui.draw_retro_box(210, 105, 260, 265, "ENTITIES")
+        self._render_entities_list(225, 118)
+
+        # 4. Right column (Info boxes) - Start at Y=105
+        self.ui.draw_retro_box(480, 105, 150, 130, "INFO")
         
-        start_x = (640 - total_content_width) // 2 # Center within the full 640px screen width
-        
-        if logo_tex:
-            sdl2.SDL_RenderCopy(self.renderer, logo_tex, None, sdl2.SDL_Rect(start_x, 12, 48, 48))
-            start_x += 48 + 15 # Move X for text
+        # Console shortcuts
+        y_info = 125
+        # Confirm
+        self._render_button_icon(self.controls["confirm"], 490, y_info, size=16)
+        self.ui.draw_text("Confirm", 512, y_info - 2, "white", small=True)
+        # Back
+        self._render_button_icon(self.controls["cancel"], 490, y_info + 20, size=16)
+        self.ui.draw_text("Back", 512, y_info + 18, "white", small=True)
+        # Favorite
+        self._render_button_icon(BTN_Y, 490, y_info + 40, size=16)
+        self.ui.draw_text("Favorite", 512, y_info + 38, "white", small=True)
+        # Refresh
+        self._render_button_icon(BTN_X, 490, y_info + 60, size=16)
+        self.ui.draw_text("Refresh", 512, y_info + 58, "white", small=True)
+        # Menu
+        self.ui.draw_text("START: Menu", 490, y_info + 82, "white", small=True)
 
-        self.ui.draw_text(text_label, start_x, 12, COLOR_HA_BLUE, xl=True)
-
-        # 2. Left column (Navigation) - Start at Y=80
-        self.ui.draw_retro_box(10, 80, 190, 290, "CATEGORIES")
-        self.draw_menu(25, 100)
-
-        # 3. Main area (Middle) - Start at Y=80
-        self.ui.draw_retro_box(210, 80, 260, 290, "ENTITIES")
-        self._render_entities_list(225, 100)
-
-        # 4. Right column (Info boxes) - Start at Y=80
-        self.ui.draw_retro_box(480, 80, 150, 140, "PREVIEW")
-        # Placeholder for graphic/icon
-        self.ui.draw_retro_box(480, 230, 150, 140, "STATUS")
+        self.ui.draw_retro_box(480, 240, 150, 130, "STATUS")
         
         cpu_mhz, free_ram = self._get_system_stats()
         server_status = "Connected" if self.states else "Disconnected"
         current_time = time.strftime("%H:%M:%S")
 
         # Render Status Details
-        y_status = 251
+        y_status = 253
         for label, val in [
             ("Time: ", current_time),
             ("IP: ", self.ip_address),
@@ -701,7 +719,7 @@ class HASDL2App:
             return
 
         for i, domain in enumerate(self.domain_list):
-            y_pos = y_start + (i * 42)
+            y_pos = y_start + (i * 30)
             label = domain.capitalize()
             
             # Search for icon in self.domain_icons
@@ -716,20 +734,20 @@ class HASDL2App:
             
             if i == self.nav_index:
                 # 1. Highlight background
-                self.ui.draw_selection_highlight(x - 10, y_pos - 3, 170, 40)
+                self.ui.draw_selection_highlight(x - 10, y_pos - 3, 170, 30)
                 
                 # 1.1 Border around selection (1px rounded, same color as pointer)
-                self.ui.draw_rounded_rect(x - 10, y_pos - 3, 170, 40, "cyan")
+                self.ui.draw_rounded_rect(x - 10, y_pos - 3, 170, 30, "cyan")
                 
                 # 2. Selection triangle (pointer) - Only if domains list is active
                 if self.active_list == "domains":
                     self.ui.draw_pointer(x - 21, y_pos + 10, width=15, height=18)
                 
                 # 3. Active text
-                self.ui.draw_text(label, x + icon_w, y_pos, "white", large=True)
+                self.ui.draw_text(label, x + icon_w, y_pos, "white")
             else:
                 # Normal text
-                self.ui.draw_text(label, x + icon_w, y_pos, "cyan", large=True)
+                self.ui.draw_text(label, x + icon_w, y_pos, "cyan")
 
     def _render_entities_list(self, x, y_start):
         """Renders the list of entities for the currently selected domain."""
@@ -739,13 +757,13 @@ class HASDL2App:
             
         current_domain = self.domain_list[self.nav_index]
         entities = self.entities_by_domain.get(current_domain, [])
-        visible_entities = 8
+        visible_entities = 9
         start = self.entity_scroll_row
         end = min(len(entities), start + visible_entities)
         
         for i in range(start, end):
             entity = entities[i]
-            y = y_start + ((i - start) * 32)
+            y = y_start + ((i - start) * 28)
             
             # Selection visuals
             is_selected = (self.active_list == "entities" and i == self.entity_index)
@@ -753,9 +771,9 @@ class HASDL2App:
                 # Visual feedback flash (0.15 seconds in white)
                 is_flashing = (time.time() - self.fav_flash_time < 0.15)
                 flash_color = "white" if is_flashing else "cyan"
-                self.ui.draw_selection_highlight(x - 10, y - 3, 230, 32)
-                self.ui.draw_rounded_rect(x - 10, y - 3, 230, 32, flash_color)
-                self.ui.draw_pointer(x - 21, y + 4, width=15, height=18, color=flash_color)
+                self.ui.draw_selection_highlight(x - 10, y - 3, 230, 28)
+                self.ui.draw_rounded_rect(x - 10, y - 3, 230, 28, flash_color)
+                self.ui.draw_pointer(x - 21, y + 5, width=15, height=18, color=flash_color)
             
             # Icon
             entity_id = entity.get("entity_id", "")

@@ -43,7 +43,7 @@ class RetroUI:
         """Renders text (supports strings or SDL_Color objects)."""
         # Resolve color
         if isinstance(color, str):
-            sdl_color = self.colors.get(color, self.colors["cyan"])
+            sdl_color = self.colors.get(color.lower(), self.colors["cyan"])
             color_id = color
         else: # Assume it's an SDL_Color object
             sdl_color = color

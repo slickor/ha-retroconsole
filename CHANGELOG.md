@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.5] - 2026-05-13
+### Added
+- **Zweistufiger Header:** Neuer zweizeiliger Titel mit "HOME ASSISTANT" (Weiß, XL) und "for retro consoles" (Cyan, Large).
+- **Optimiertes Logo:** Das HA-Logo wurde auf 65x65px skaliert und für eine bündige Optik mit dem neuen Titel positioniert.
+- **Info-Box & Shortcuts:** Die "PREVIEW"-Box wurde in "INFO" umbenannt und zeigt nun die Button-Belegung für Handhelds (Confirm, Back, Favorite, Refresh) an.
+- **Erweiterte Metadaten:** Unterstützung für Thumbnails in der `gameinfo.xml` hinzugefügt.
+### Changed
+- **Entities Box:** Zeilenabstand auf 28px erhöht für deutlich bessere Lesbarkeit; Startposition um 8px nach unten verschoben.
+- **Categories Box:** Schriftgröße auf Standard (wie in den Boxen) verkleinert und Zeilenabstand auf 30px gestrafft.
+- **Status Box:** Vertikale Position um 8px nach oben korrigiert für ein kompakteres Gesamtlayout.
+- **Asset-Optimierung:** Umstellung von `screenshot.jpg` auf das qualitativ hochwertigere `screenshot.png`.
+- **Header-Zentrierung:** Überarbeitete Logik zur perfekten horizontalen Zentrierung des kombinierten Logo-Text-Blocks.
+### Fixed
+- **PortMaster Cover:** Das Build-Script benennt das Cover-Bild nun automatisch passend zum Start-Script um, damit es in EmulationStation korrekt angezeigt wird.
+- **Code-Bereinigung:** Redundanter Render-Aufruf für das Logo in der `ha_sdl2.py` entfernt.
+- **Build-Script:** Fehlerhafte Referenz auf JPG-Screenshots entfernt.
+
 ## [0.8.4] - 2026-05-11
 ### Added
 - **Marquee Scroll:** Lange Entitätsnamen scrollen nun automatisch (Geschwindigkeit auf 6 Zeichen/Sek erhöht).

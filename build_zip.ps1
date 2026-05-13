@@ -21,6 +21,11 @@ $shContent = $shContent -replace "`r`n", "`n"
 # Save with UTF8 without BOM (important for Linux shebangs)
 [IO.File]::WriteAllText("$PSScriptRoot/$tempDir/Home Assistant - for retroconsoles.sh", $shContent, (New-Object System.Text.UTF8Encoding($false)))
 
+# 1b. Kopiere das Cover-Bild in das Root-Verzeichnis und benenne es wie das Script
+if (Test-Path "cover.png") {
+    Copy-Item "cover.png" -Destination "$tempDir/Home Assistant - for retroconsoles.png"
+}
+
 # 2. Copy application folders
 $foldersToCopy = @("assets", "tools", "ui", "docs")
 if (Test-Path "libs") {
@@ -36,7 +41,7 @@ Copy-Item "tools/ha_client.py" -Destination "$tempDir/ha-retroconsole/"
 # 4. Copy required metadata and scripts
 $filesToCopy = @(
     "requirements.txt", "install.sh", "port.json", "cover.png",
-    "config.example.json", "gameinfo.xml", "screenshot.jpg",
+    "config.example.json", "gameinfo.xml", "screenshot.png",
     "LICENSE", "CHANGELOG.md", "README.md"
 )
 
