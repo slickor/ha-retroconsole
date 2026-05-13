@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **Info Panel Shortcuts:** The former "PREVIEW" box now displays dynamic control shortcuts (Confirm, Back, Favorite, Refresh) for handhelds.
 - **Release Management:** Future builds are now automatically stored in the new `/release` folder.
-- **Project Structure:** Introduced a local `/scripts` directory for automation tools to declutter the root directory.
+- **Project Structure:** Automated Git index cleaning to keep local automation scripts and build artifacts private.
 ### Changed
 - **UI Polishing:** Final adjustment of header elements (logo at 65px, optimized vertical alignment).
 - **Readability:** Line spacing in the entities list increased to 28px and navigation elements (Categories) harmonized to standard font size.
@@ -35,43 +35,43 @@ All notable changes to this project will be documented in this file.
 
 ## [0.8.4] - 2026-05-11
 ### Added
-- **Marquee Scroll:** Lange Entitätsnamen scrollen nun automatisch (Geschwindigkeit auf 6 Zeichen/Sek erhöht).
-- **Full-Width Header:** Scanlines und Doppelbalken-Separator erstrecken sich nun über die gesamte Bildschirmbreite (640px).
-- **Centered Header:** Logo und Titeltext sind nun horizontal perfekt zentriert.
-- **Improved Selection:** Der Auswahlpfeil verfügt nun über einen markanten 2px weißen Rahmen.
-- **Status Box Polish:** Labels in Cyan, Werte in Weiß und optimiertes vertikales Spacing.
-- **Console Log:** Kapazität auf 5 sichtbare Zeilen erweitert.
+- **Marquee Scroll:** Long entity names now scroll automatically (speed increased to 6 chars/sec).
+- **Full-Width Header:** Scanlines and double-bar separator now span the full screen width (640px).
+- **Centered Header:** Logo and title text are now perfectly horizontally centered.
+- **Improved Selection:** Selection pointer now features a distinct 2px white border.
+- **Status Box Polish:** Labels in Cyan, values in White, and optimized vertical spacing.
+- **Console Log:** Capacity expanded to 5 visible lines.
 ### Fixed
-- **Kritischer Fix:** Syntaxfehler am Ende der `ha_sdl2.py` behoben.
-- **Stabilität:** `IndexError` auf dem TrimUI Smart Pro behoben, der bei der Navigation während Daten-Updates auftreten konnte.
-- **Layout:** Fehlerhafte Zeilenabstände im Log korrigiert (doppelte Inkrementierung entfernt).
-- **UI Alignment:** Listen in DOMAINS und ENTITIES um eine halbe Zeile nach oben gerückt für bessere Platzausnutzung.
+- **Critical Fix:** Resolved syntax error at the end of `ha_sdl2.py`.
+- **Stability:** Fixed `IndexError` on TrimUI Smart Pro during data updates.
+- **Layout:** Corrected log line spacing (removed double increment).
+- **UI Alignment:** Lists in DOMAINS and ENTITIES moved up by half a line for better space usage.
 
 ## [0.8.3] - 2026-05-11
 ### Added
-- **Header Redesign:** Logo und Text im Header sind nun horizontal zentriert.
-- **Full-Width Visuals:** Scanlines und Doppelbalken-Separator erstrecken sich über die gesamte Bildschirmbreite.
-- **STATUS Box Details:** Umbenennung der Box zu "STATUS", Anzeige von Time, IP, Server-Status, CPU, RAM und Version. Labels in Cyan, Werte in Weiß.
-- **Pointer Enhancement:** Auswahlpfeil hat nun einen 2px breiten, weißen Rahmen.
-- **Log Improvements:** Console-Log zeigt nun 5 Zeilen mit optimiertem Zeilenabstand und Startposition.
-- **Layout Adjustments:** Vertikale Positionierung der Domain- und Entitäten-Listen wurde angepasst.
-- **Scroll Speed:** Die Scroll-Geschwindigkeit für lange Entitätsnamen wurde um 50% erhöht.
+- **Header Redesign:** Logo and text in header are now horizontally centered.
+- **Full-Width Visuals:** Scanlines and double-bar separator span the full screen width.
+- **STATUS Box Details:** Renamed box to "STATUS", showing Time, IP, Server Status, CPU, RAM, and Version. Labels in Cyan, values in White.
+- **Pointer Enhancement:** Selection pointer now has a 2px white border.
+- **Log Improvements:** Console log now shows 5 lines with optimized spacing and start position.
+- **Layout Adjustments:** Adjusted vertical positioning of domain and entity lists.
+- **Scroll Speed:** Increased scroll speed for long entity names by 50%.
 ### Changed
-- **Header Layout:** Entfernung der "SYSTEM" Box-Umrandung für ein schwebendes Design.
-- **Font Scaling:** Anpassung der Schriftgrößen für bessere Lesbarkeit (insbesondere m5x7.ttf).
+- **Header Layout:** Removed "SYSTEM" box border for a floating design.
+- **Font Scaling:** Adjusted font sizes for better readability (especially m5x7.ttf).
 ### Fixed
-- **Log Display:** Korrektur der Log-Zeilenanzeige, um 5 Zeilen korrekt darzustellen.
+- **Log Display:** Corrected log line display to show 5 lines correctly.
 
 ## [0.8.2] - 2026-05-10
 ### Added
-- **UTF-8 Support:** Korrekte Darstellung von Umlauten (ä, ö, ü) und ß durch Umstellung auf UTF-8 Funktionen in SDL_ttf.
-- **Visual Feedback:** Weißes Aufblitzen des Auswahlrahmens bei Aktionen und beim Togglen von Favoriten.
-- **Dynamische IP:** Die IP-Adresse wird nun automatisch beim Start und bei jedem Refresh ermittelt.
+- **UTF-8 Support:** Correct display of umlauts (ä, ö, ü) and ß using UTF-8 functions in SDL_ttf.
+- **Visual Feedback:** White flash of the selection frame during actions and favorite toggling.
+- **Dynamic IP:** IP address is now automatically determined at startup and refresh.
 ### Changed
-- **Layout-Polishing:** Header-Elemente (Logo/Text) perfekt zentriert und Console-Log auf 4 kompakte Zeilen optimiert.
-- **Schrift-Update:** Umstellung auf `m5x7.ttf` mit optimierter 24px Skalierung für beste Lesbarkeit auf Handhelds.
+- **Layout Polishing:** Header elements perfectly centered and console log optimized to 4 compact lines.
+- **Font Update:** Switched to `m5x7.ttf` with optimized 24px scaling for best handheld readability.
 ### Fixed
-- **Memory Management:** Cache-Begrenzung für Text-Texturen implementiert, um Memory-Leaks durch dynamische Texte (Uhrzeit) zu verhindern.
+- **Memory Management:** Implemented text texture cache limit to prevent memory leaks from dynamic text (clock).
 
 ## [0.8.1] - 2026-05-10
 ### Added
