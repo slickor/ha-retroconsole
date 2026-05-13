@@ -13,3 +13,4 @@ build/
 *.ps1
 scripts/
 release/
+Test/
