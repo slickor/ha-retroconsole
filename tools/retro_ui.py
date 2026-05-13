@@ -20,6 +20,7 @@ class RetroUI:
             "cyan":   sdl2.SDL_Color(0, 163, 255, 255),
             "yellow": sdl2.SDL_Color(238, 176, 0, 255),
             "gray":   sdl2.SDL_Color(85, 85, 85, 255),
+            "red":    sdl2.SDL_Color(255, 0, 0, 255),
             "white":  sdl2.SDL_Color(255, 255, 255, 255),
             "box_bg": sdl2.SDL_Color(0, 19, 41, 180) # Semi-transparent blue
         }
@@ -86,10 +87,11 @@ class RetroUI:
         sdl2.SDL_RenderCopy(self.renderer, tex, None, dst)
         return w, h
 
-    def draw_selection_highlight(self, x, y, w, h):
+    def draw_selection_highlight(self, x, y, w, h, color="cyan"):
         """Draws a semi-transparent rectangle for highlighting."""
+        sdl_color = self.colors.get(color.lower(), self.colors["cyan"]) if isinstance(color, str) else color
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
-        sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 163, 255, 50) # Cyan with ~20% Alpha
+        sdl2.SDL_SetRenderDrawColor(self.renderer, sdl_color.r, sdl_color.g, sdl_color.b, 50) # Selected color with ~20% Alpha
         
         # Rounded fill (pixel style: corners excluded)
         sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(x + 1, y, w - 2, h))

@@ -2,17 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.7] - 2026-05-14
+### Added
+- **Favorite Reordering:** Introduced the ability to sort favorites directly on the device. Pressing "Y" (or "F" on PC) while in the Favorites category toggles a reorder mode.
+- **Red Highlight Mode:** Added a distinct red selection style to provide clear visual feedback when an item is being moved.
+- **Dynamic Info Box:** The Info panel now contextually updates its labels to show "Reorder" or "Confirm" when navigating the Favorites list.
+### Changed
+- **UI Symmetry:** Corrected the vertical alignment of selection pointers in both the Categories and Entities boxes for a perfectly centered appearance.
+- **Asset Optimization:** Removed the redundant `DejaVuSans.ttf` font, significantly reducing the overall package size.
+- **Sorting Logic:** Implemented real-time configuration updates and automatic scrolling support during the reordering process.
+### Fixed
+- **Pointer Alignment:** Resolved an offset issue where the selection triangle was not centered relative to the selection highlight.
+- **Config Persistence:** Ensured the new favorite order is automatically saved to `config.json` when exiting the reorder mode.
+
 ## [0.8.6] - 2026-05-13
 ### Added
 - **Info Panel Shortcuts:** The former "PREVIEW" box now displays dynamic control shortcuts (Confirm, Back, Favorite, Refresh) for handhelds.
 - **Release Management:** Future builds are now automatically stored in the new `/release` folder.
 - **Project Structure:** Automated Git index cleaning to keep local automation scripts and build artifacts private.
+- **Localization:** Switched all code comments, UI labels, and documentation to English for better accessibility.
 ### Changed
 - **UI Polishing:** Final adjustment of header elements (logo at 65px, optimized vertical alignment).
 - **Readability:** Line spacing in the entities list increased to 28px and navigation elements (Categories) harmonized to standard font size.
 - **Layout Balance:** Vertical adjustment of boxes (Status box up, Entities down) for a symmetrical overall appearance.
 ### Fixed
-- **Platform Compatibility:** Build script now automatically removes Windows-specific binaries (.pyd, .exe, .dll) from the libs folder to prevent ARM-Linux conflicts.
+- **Platform Compatibility:** Build script now automatically removes Windows-specific binary artifacts (.pyd, .exe, .dll) from the libs folder to ensure compatibility with ARM-based Linux handhelds.
 - **Repository Hygiene:** Extended `.gitignore` to keep local PowerShell scripts, build artifacts, and test folders off GitHub.
 - **Code Stability:** Removed redundant render calls in the header area.
 
