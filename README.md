@@ -8,7 +8,7 @@ Turn your retro handheld into a smart home command center. HA RetroConsole provi
 
 ## Current Status
 
-**Version 0.8.5** is now live. The project has moved past the initial prototyping stages and features a completely redesigned, theme-based user interface. 
+**Version 0.8.6** is now live. The project has moved past the initial prototyping stages and features a completely redesigned, theme-based user interface. 
 
 Key milestones reached:
 - **Phase 4 (Deployable App):** Successfully completed with automated build scripts for PortMaster.

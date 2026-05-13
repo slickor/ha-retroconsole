@@ -2,22 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.6] - 2026-05-13
+### Added
+- **Info Panel Shortcuts:** The former "PREVIEW" box now displays dynamic control shortcuts (Confirm, Back, Favorite, Refresh) for handhelds.
+- **Release Management:** Future builds are now automatically stored in the new `/release` folder.
+- **Project Structure:** Introduced a local `/scripts` directory for automation tools to declutter the root directory.
+### Changed
+- **UI Polishing:** Final adjustment of header elements (logo at 65px, optimized vertical alignment).
+- **Readability:** Line spacing in the entities list increased to 28px and navigation elements (Categories) harmonized to standard font size.
+- **Layout Balance:** Vertical adjustment of boxes (Status box up, Entities down) for a symmetrical overall appearance.
+### Fixed
+- **Platform Compatibility:** Build script now automatically removes Windows-specific binaries (.pyd, .exe, .dll) from the libs folder to prevent ARM-Linux conflicts.
+- **Repository Hygiene:** Extended `.gitignore` to keep local PowerShell scripts, build artifacts, and test folders off GitHub.
+- **Code Stability:** Removed redundant render calls in the header area.
+
 ## [0.8.5] - 2026-05-13
 ### Added
-- **Zweistufiger Header:** Neuer zweizeiliger Titel mit "HOME ASSISTANT" (Weiß, XL) und "for retro consoles" (Cyan, Large).
-- **Optimiertes Logo:** Das HA-Logo wurde auf 65x65px skaliert und für eine bündige Optik mit dem neuen Titel positioniert.
-- **Info-Box & Shortcuts:** Die "PREVIEW"-Box wurde in "INFO" umbenannt und zeigt nun die Button-Belegung für Handhelds (Confirm, Back, Favorite, Refresh) an.
-- **Erweiterte Metadaten:** Unterstützung für Thumbnails in der `gameinfo.xml` hinzugefügt.
+- **Two-Line Header:** New two-line title featuring "HOME ASSISTANT" (White, XL) and "for retro consoles" (Cyan, Large).
+- **Optimized Logo:** HA logo scaled to 65x65px and positioned for a flush look with the new title.
+- **Info Box & Shortcuts:** Renamed "PREVIEW" box to "INFO", now displaying button mapping for handhelds (Confirm, Back, Favorite, Refresh).
+- **Enhanced Metadata:** Added support for thumbnails in `gameinfo.xml`.
 ### Changed
-- **Entities Box:** Zeilenabstand auf 28px erhöht für deutlich bessere Lesbarkeit; Startposition um 8px nach unten verschoben.
-- **Categories Box:** Schriftgröße auf Standard (wie in den Boxen) verkleinert und Zeilenabstand auf 30px gestrafft.
-- **Status Box:** Vertikale Position um 8px nach oben korrigiert für ein kompakteres Gesamtlayout.
-- **Asset-Optimierung:** Umstellung von `screenshot.jpg` auf das qualitativ hochwertigere `screenshot.png`.
-- **Header-Zentrierung:** Überarbeitete Logik zur perfekten horizontalen Zentrierung des kombinierten Logo-Text-Blocks.
+- **Entities Box:** Increased line spacing to 28px for significantly better readability; moved start position down by 8px.
+- **Categories Box:** Reduced font size to standard and tightened line spacing to 30px.
+- **Status Box:** Corrected vertical position by 8px up for a more compact overall layout.
+- **Asset Optimization:** Switched from `screenshot.jpg` to higher quality `screenshot.png`.
+- **Header Centering:** Revised logic for perfect horizontal centering of the combined logo and text block.
 ### Fixed
-- **PortMaster Cover:** Das Build-Script benennt das Cover-Bild nun automatisch passend zum Start-Script um, damit es in EmulationStation korrekt angezeigt wird.
-- **Code-Bereinigung:** Redundanter Render-Aufruf für das Logo in der `ha_sdl2.py` entfernt.
-- **Build-Script:** Fehlerhafte Referenz auf JPG-Screenshots entfernt.
+- **PortMaster Cover:** Build script now automatically renames the cover image to match the start script for correct display in EmulationStation.
+- **Code Cleanup:** Removed redundant logo render call in `ha_sdl2.py`.
+- **Build Script:** Removed faulty reference to JPG screenshots.
 
 ## [0.8.4] - 2026-05-11
 ### Added

@@ -99,7 +99,7 @@ class RetroUI:
     def draw_scanlines(self, x, y, w, h, spacing=3):
         """Draws a retro scanline pattern over a specific area."""
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
-        # Sehr dezentes Cyan mit hoher Transparenz für den CRT-Look
+        # Very subtle cyan with high transparency for CRT look
         sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 163, 255, 40)
         
         for line_y in range(y, y + h, spacing):
@@ -129,13 +129,13 @@ class RetroUI:
         sdl_color = self.colors.get(color, self.colors["cyan"]) if isinstance(color, str) else color
         sdl2.SDL_SetRenderDrawColor(self.renderer, sdl_color.r, sdl_color.g, sdl_color.b, 255)
         
-        # Linien (um 2 Pixel eingerückt für die Rundung, exakt innerhalb der Bounds)
-        sdl2.SDL_RenderDrawLine(self.renderer, x + 2, y, x + w - 3, y)             # Oben
-        sdl2.SDL_RenderDrawLine(self.renderer, x + 2, y + h - 1, x + w - 3, y + h - 1) # Unten
-        sdl2.SDL_RenderDrawLine(self.renderer, x, y + 2, x, y + h - 3)             # Links
-        sdl2.SDL_RenderDrawLine(self.renderer, x + w - 1, y + 2, x + w - 1, y + h - 3) # Rechts
+        # Lines (indented by 2 pixels for rounding, exactly within bounds)
+        sdl2.SDL_RenderDrawLine(self.renderer, x + 2, y, x + w - 3, y)             # Top
+        sdl2.SDL_RenderDrawLine(self.renderer, x + 2, y + h - 1, x + w - 3, y + h - 1) # Bottom
+        sdl2.SDL_RenderDrawLine(self.renderer, x, y + 2, x, y + h - 3)             # Left
+        sdl2.SDL_RenderDrawLine(self.renderer, x + w - 1, y + 2, x + w - 1, y + h - 3) # Right
         
-        # Eck-Pixel für die diagonale Rundung
+        # Corner pixels for diagonal rounding
         sdl2.SDL_RenderDrawPoint(self.renderer, x + 1, y + 1)         # TL
         sdl2.SDL_RenderDrawPoint(self.renderer, x + w - 2, y + 1)     # TR
         sdl2.SDL_RenderDrawPoint(self.renderer, x + 1, y + h - 2)     # BL

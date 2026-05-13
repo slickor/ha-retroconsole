@@ -10,3 +10,6 @@ dist/
 build/
 *.egg-info/
 *.zip
+*.ps1
+scripts/
+release/

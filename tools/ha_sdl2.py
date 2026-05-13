@@ -38,7 +38,7 @@ BTN_X = sdl2.SDL_CONTROLLER_BUTTON_X
 BTN_Y = sdl2.SDL_CONTROLLER_BUTTON_Y
 
 # Colors (SDL2 RGB)
-COLOR_BG = sdl2.SDL_Color(10, 10, 15, 255)      # Beispiel: Etwas helleres Midnight Blue
+COLOR_BG = sdl2.SDL_Color(10, 10, 15, 255)      # Example: Slightly lighter Midnight Blue
 COLOR_CYAN = sdl2.SDL_Color(0, 163, 255, 255)   # Cyan (#00A3FF)
 COLOR_HA_BLUE = sdl2.SDL_Color(3, 169, 244, 255) # HA Blue (#03A9F4)
 COLOR_YELLOW = sdl2.SDL_Color(238, 176, 0, 255) # Yellow (#EEB000)
@@ -631,7 +631,7 @@ class HASDL2App:
         line1 = "HOME ASSISTANT"
         line2 = "for retro consoles"
         
-        # Berechne die Breite beider Zeilen für die Zentrierung
+        # Calculate width of both lines for centering
         tw1, _ = self.ui.get_text_size(line1, xl=True)
         tw2, _ = self.ui.get_text_size(line2, large=True)
         text_block_width = max(tw1, tw2)
@@ -781,7 +781,7 @@ class HASDL2App:
             icon_tex = self.domain_icons.get(domain) or self.domain_icons.get(f"{domain}_on")
             icon_offset = 0
             
-            # Live-Status abrufen
+            # Fetch live status
             is_on = entity.get("state") == "on"
             
             is_fav = self.is_favorite(entity_id)
@@ -789,14 +789,14 @@ class HASDL2App:
             if icon_tex:
                 icon_offset = 20
                 
-                # Icons je nach Status einfärben
+                # Color icons based on status
                 icon_color = COLOR_YELLOW if is_on else COLOR_GREY
                 sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
 
                 dst = sdl2.SDL_Rect(x, y + 2, icon_offset, icon_offset)
                 sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
                 
-                sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255) # Reset auf Standardweiß
+                sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255) # Reset to standard white
                 icon_offset += 8
                 
             color = "yellow" if (is_fav or is_selected) else "white"
@@ -827,7 +827,7 @@ class HASDL2App:
 
             self.ui.draw_text(display_label, x + icon_offset, y + 2, color)
 
-        # Scrollbar für die Entitäten-Liste
+        # Scrollbar for the entities list
         if len(entities) > visible_entities:
             self.ui.draw_scrollbar(
                 x + 235, y_start, 245, 
