@@ -480,7 +480,6 @@ class HASDL2App:
                                         self.entity_scroll_row = self.entity_index - self.visible_entities + 1
                             else:
                                 entities_count = len(self.entities_by_domain.get(current_domain, []))
-                                self.entity_index = min(entities_count - 1, self.entity_index + 1) # This line was duplicated, removed one
                                 if self.entity_index >= self.entity_scroll_row + self.visible_entities:
                                     self.entity_scroll_row = self.entity_index - self.visible_entities + 1
                     elif self.mode == "settings":
@@ -498,7 +497,7 @@ class HASDL2App:
                         count = len(self.entities_by_domain.get(current_domain, []))
                         self.entity_index = min(max(0, count - 1), self.entity_index + (self.visible_entities - 1))
                         if self.entity_index >= self.entity_scroll_row + (self.visible_entities - 1):
-                            self.entity_scroll_row = min(max(0, count - self.visible_entities), self.entity_index - (self.visible_entities - 2))
+                            self.entity_scroll_row = min(max(0, count - self.visible_entities), self.entity_index - self.visible_entities + 1)
                 elif event.key.keysym.sym in {sdl2.SDLK_RETURN, sdl2.SDLK_KP_ENTER}:
                     if self.mode == "main":
                         if self.active_list == "entities":
@@ -589,8 +588,7 @@ class HASDL2App:
                                         self.entity_scroll_row = self.entity_index
                             else:
                                 self.entity_index = max(0, self.entity_index - 1)
-                            if self.entity_index < self.entity_scroll_row: # This line was duplicated, removed one
-                                self.entity_scroll_row = self.entity_index
+                            self.entity_scroll_row = min(self.entity_scroll_row, self.entity_index)
                     elif self.mode == "settings":
                         self.settings_selected_index = max(0, self.settings_selected_index - 1)
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN:
@@ -630,7 +628,6 @@ class HASDL2App:
                                         self.entity_scroll_row = self.entity_index - self.visible_entities + 1
                             else:
                                 entities_count = len(self.entities_by_domain.get(current_domain, []))
-                                self.entity_index = min(entities_count - 1, self.entity_index + 1) # This line was duplicated, removed one
                                 if self.entity_index >= self.entity_scroll_row + self.visible_entities:
                                     self.entity_scroll_row = self.entity_index - self.visible_entities + 1
                     elif self.mode == "settings":
@@ -639,8 +636,7 @@ class HASDL2App:
                     # L1: Page Up in entities list
                     if self.mode == "main" and self.active_list == "entities":
                         self.entity_index = max(0, self.entity_index - (self.visible_entities - 1))
-                        if self.entity_index < self.entity_scroll_row:
-                            self.entity_scroll_row = self.entity_index
+                        self.entity_scroll_row = min(self.entity_scroll_row, self.entity_index)
                 elif btn == sdl2.SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
                     # R1: Page Down in entities list
                     if self.mode == "main" and self.active_list == "entities" and self.nav_index < len(self.domain_list):
@@ -648,7 +644,7 @@ class HASDL2App:
                         count = len(self.entities_by_domain.get(current_domain, []))
                         self.entity_index = min(max(0, count - 1), self.entity_index + (self.visible_entities - 1))
                         if self.entity_index >= self.entity_scroll_row + (self.visible_entities - 1):
-                            self.entity_scroll_row = min(max(0, count - self.visible_entities), self.entity_index - (self.visible_entities - 2))
+                            self.entity_scroll_row = min(max(0, count - self.visible_entities), self.entity_index - self.visible_entities + 1)
                 elif btn == self.controls["confirm"]:
                     if self.mode == "main":
                         self.reorder_mode = False
@@ -803,10 +799,12 @@ class HASDL2App:
                 is_fav_cat = True
 
         if is_domains:
-            if self.domain_list[self.nav_index] == "settings":
+            if self.domain_list and self.nav_index < len(self.domain_list) and self.domain_list[self.nav_index] == "settings":
                 y_label = "Favorite"
-            else:
+            elif self.domain_list:
                 y_label = "Reorder Categories" if self.reorder_mode else "Sort Mode"
+            else:
+                y_label = "Favorite"
         else:
             y_label = "Reorder" if is_fav_cat else "Favorite"
 
@@ -877,9 +875,9 @@ class HASDL2App:
 
         for i, domain in enumerate(self.domain_list):
             y_pos = y_start + (i * 30)
-            label = domain.capitalize()
+            label = domain.capitalize() if domain != "settings" else "Settings"
             
-            # Search for icon in self.domain_icons
+            # Search for icon in self.domain_icons (handles regular domains and settings)
             icon_tex = self.domain_icons.get(domain) or self.domain_icons.get(f"{domain}_on")
             icon_w = 0
             if icon_tex:
