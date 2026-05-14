@@ -69,6 +69,7 @@ class HASDL2App:
         self.ip_address = self._get_ip_address()
         self.running = True
         self.selection_start_time = time.time()
+        self.visible_entities = 13 # Number of entities visible in the list
         self.fav_flash_time = 0
         self.reorder_mode = False
         self.log_entries = [] # List of (timestamp, text, color)
@@ -189,7 +190,7 @@ class HASDL2App:
 
         # Load domain icons (light.png, switch.png, etc.)
         icon_dir = os.path.join(script_dir, "..", "assets", "icons")
-        domains = ["favorites", "light", "switch", "scene", "script", "sensor", "binary_sensor", "climate"]
+        domains = ["favorites", "light", "switch", "scene", "script", "sensor", "binary_sensor", "climate", "settings"]
         suffixes = ["", "_on", "_off"]
         
         for domain in domains:
@@ -329,8 +330,10 @@ class HASDL2App:
         supported_states = [s for s in all_states if entity_domain(s.get("entity_id", "")) in SUPPORTED_ACTIONS]
 
         # Use the grouping logic from ha_client which includes the "Favorites" domain
-        self.entities_by_domain = get_domain_groups(supported_states, self.favorites)
+        domain_order = self.config.get("domain_order", [])
+        self.entities_by_domain = get_domain_groups(supported_states, self.favorites, domain_order)
         self.domain_list = list(self.entities_by_domain.keys())
+        self.domain_list.append("settings") # Add settings as a fixed entry at the end
         
         # Safety: Ensure nav_index remains valid after data reload
         if self.domain_list:
@@ -369,31 +372,6 @@ class HASDL2App:
         self.load_data() # Refresh all states and then domain groups
         self.fav_flash_time = time.time()
 
-    def execute_action(self):
-        if not self.favorites or self.selected >= len(self.favorites):
-            return
-
-        favorite = self.favorites[self.selected]
-        entity_id = favorite_entity_id(favorite)
-        action = favorite.get("action", "auto")
-
-        resolved = resolve_action(entity_id, action)
-        if resolved is None:
-            self.set_message("Entity is read-only")
-            return
-
-        domain, service = resolved
-        previous = self.states.get(entity_id)
-        previous_state = str(previous.get("state", "")) if previous is not None else None
-
-        self.set_message(f"Executing {service} on {entity_id}...")
-        self.fav_flash_time = time.time()
-        self._start_background_task(
-            "execute_action",
-            self._execute_service_and_refresh_background,
-            domain, service, entity_id, previous_state, favorite
-        )
-
     def handle_input(self):
         events = sdl2.ext.get_events()
         for event in events:
@@ -405,6 +383,7 @@ class HASDL2App:
                     self.selection_start_time = time.time()
                     if self.mode == "settings":
                         self.mode = "main"
+                        self.reorder_mode = False # Exit reorder mode when leaving settings
                     else:
                         self.running = False
                 elif event.key.keysym.sym == sdl2.SDLK_LEFT:
@@ -418,14 +397,32 @@ class HASDL2App:
                         if self.active_list == "domains":
                             self.active_list = "entities"
                             self.entity_index = 0
+                            self.reorder_mode = False # Exit reorder mode when changing active list
                 elif event.key.keysym.sym == sdl2.SDLK_UP:
                     self.selection_start_time = time.time()
                     if self.mode == "main":
                         if self.active_list == "domains":
-                            self.nav_index = max(0, self.nav_index - 1)
-                            self.entity_index = 0
-                            self.entity_scroll_row = 0
-                            self.reorder_mode = False
+                            if self.reorder_mode and self.nav_index > 0:
+                                # Don't move things above Favorites if it's first
+                                start_idx = 1 if self.domain_list[0] == "favorites" else 0
+                                if self.nav_index > start_idx:
+                                    idx = self.nav_index
+                                    d1, d2 = self.domain_list[idx], self.domain_list[idx-1]
+                                    
+                                    # Update persistent order
+                                    order = [d for d in self.domain_list if d != "favorites"]
+                                    p_idx = order.index(d1)
+                                    order[p_idx], order[p_idx-1] = order[p_idx-1], order[p_idx]
+                                    
+                                    self.config["domain_order"] = order
+                                    self.save_config()
+                                    self.load_entities()
+                                    self.nav_index -= 1
+                            else:
+                                self.nav_index = max(0, self.nav_index - 1)
+                                self.entity_index = 0
+                                self.entity_scroll_row = 0
+                                self.reorder_mode = False
                         else:
                             if self.reorder_mode:
                                 if self.entity_index > 0:
@@ -441,19 +438,32 @@ class HASDL2App:
                                         self.entity_scroll_row = self.entity_index
                             else:
                                 self.entity_index = max(0, self.entity_index - 1)
-                            if self.entity_index < self.entity_scroll_row:
-                                self.entity_scroll_row = self.entity_index
+                            self.entity_scroll_row = min(self.entity_scroll_row, self.entity_index)
                     elif self.mode == "settings":
                         self.settings_selected_index = max(0, self.settings_selected_index - 1)
                 elif event.key.keysym.sym == sdl2.SDLK_DOWN:
                     self.selection_start_time = time.time()
                     if self.mode == "main":
                         if self.active_list == "domains":
-                            limit = len(self.domain_list) if self.domain_list else 1
-                            self.nav_index = min(limit - 1, self.nav_index + 1)
-                            self.entity_index = 0
-                            self.entity_scroll_row = 0
-                            self.reorder_mode = False
+                            if self.reorder_mode and self.nav_index < len(self.domain_list) - 1:
+                                start_idx = 0
+                                if self.nav_index >= start_idx and self.domain_list[self.nav_index] not in ["favorites", "settings"]:
+                                    idx = self.nav_index
+                                    d1, d2 = self.domain_list[idx], self.domain_list[idx+1]
+                                    if d2 != "settings": # Don't swap with settings
+                                        order = [d for d in self.domain_list if d not in ["favorites", "settings"]]
+                                        p_idx = order.index(d1)
+                                        order[p_idx], order[p_idx+1] = order[p_idx+1], order[p_idx]
+                                        self.config["domain_order"] = order
+                                        self.save_config()
+                                        self.load_entities()
+                                        self.nav_index += 1
+                            else:
+                                limit = len(self.domain_list) if self.domain_list else 1
+                                self.nav_index = min(limit - 1, self.nav_index + 1)
+                                self.entity_index = 0
+                                self.entity_scroll_row = 0
+                                self.reorder_mode = False
                         else:
                             current_domain = self.domain_list[self.nav_index]
                             if self.reorder_mode:
@@ -466,21 +476,19 @@ class HASDL2App:
                                     self.save_config()
                                     self.load_entities()
                                     self.entity_index += 1
-                                    visible_entities = 9
-                                    if self.entity_index >= self.entity_scroll_row + visible_entities:
-                                        self.entity_scroll_row = self.entity_index - visible_entities + 1
+                                    if self.entity_index >= self.entity_scroll_row + self.visible_entities:
+                                        self.entity_scroll_row = self.entity_index - self.visible_entities + 1
                             else:
                                 entities_count = len(self.entities_by_domain.get(current_domain, []))
-                                self.entity_index = min(entities_count - 1, self.entity_index + 1)
-                                visible_entities = 9
-                                if self.entity_index >= self.entity_scroll_row + visible_entities:
-                                    self.entity_scroll_row = self.entity_index - visible_entities + 1
+                                self.entity_index = min(entities_count - 1, self.entity_index + 1) # This line was duplicated, removed one
+                                if self.entity_index >= self.entity_scroll_row + self.visible_entities:
+                                    self.entity_scroll_row = self.entity_index - self.visible_entities + 1
                     elif self.mode == "settings":
-                        self.settings_selected_index = min(1, self.settings_selected_index + 1)
+                        self.settings_selected_index = min(2, self.settings_selected_index + 1)
                 elif event.key.keysym.sym == sdl2.SDLK_PAGEUP:
                     self.selection_start_time = time.time()
                     if self.mode == "main" and self.active_list == "entities":
-                        self.entity_index = max(0, self.entity_index - 8)
+                        self.entity_index = max(0, self.entity_index - (self.visible_entities - 1))
                         if self.entity_index < self.entity_scroll_row:
                             self.entity_scroll_row = self.entity_index
                 elif event.key.keysym.sym == sdl2.SDLK_PAGEDOWN:
@@ -488,39 +496,49 @@ class HASDL2App:
                     if self.mode == "main" and self.active_list == "entities" and self.nav_index < len(self.domain_list):
                         current_domain = self.domain_list[self.nav_index]
                         count = len(self.entities_by_domain.get(current_domain, []))
-                        self.entity_index = min(max(0, count - 1), self.entity_index + 8)
-                        if self.entity_index >= self.entity_scroll_row + 8:
-                            self.entity_scroll_row = min(max(0, count - 8), self.entity_index - 7)
+                        self.entity_index = min(max(0, count - 1), self.entity_index + (self.visible_entities - 1))
+                        if self.entity_index >= self.entity_scroll_row + (self.visible_entities - 1):
+                            self.entity_scroll_row = min(max(0, count - self.visible_entities), self.entity_index - (self.visible_entities - 2))
                 elif event.key.keysym.sym in {sdl2.SDLK_RETURN, sdl2.SDLK_KP_ENTER}:
                     if self.mode == "main":
                         if self.active_list == "entities":
                             self._execute_entity_action()
-                        else:
-                            self.execute_action()
+                        elif self.nav_index < len(self.domain_list):
+                            if self.domain_list[self.nav_index] == "settings":
+                                self.mode = "settings"
+                                self.settings_selected_index = 0
+                            else:
+                                self.reorder_mode = False
                     elif self.mode == "settings":
                         self._handle_settings_action()
                 elif event.key.keysym.sym == sdl2.SDLK_f:
-                    # Toggle favorite on F key
-                    if self.mode == "main" and self.active_list == "entities" and self.domain_list and self.nav_index < len(self.domain_list):
+                    if self.mode == "main" and self.nav_index < len(self.domain_list):
                         current_domain = self.domain_list[self.nav_index]
-                        if current_domain.lower() == "favorites":
-                            self.reorder_mode = not self.reorder_mode
-                            self.set_message("Reorder mode " + ("on" if self.reorder_mode else "off"))
-                        else:
-                            entities = self.entities_by_domain.get(current_domain, [])
-                            if entities and self.entity_index < len(entities):
-                                self.toggle_favorite(entities[self.entity_index]["entity_id"])
+                        if self.active_list == "domains":
+                            if current_domain != "settings":
+                                self.reorder_mode = not self.reorder_mode
+                                self.set_message("Domain reorder " + ("on" if self.reorder_mode else "off"))
+                        elif self.active_list == "entities":
+                            if current_domain.lower() == "favorites":
+                                self.reorder_mode = not self.reorder_mode
+                                self.set_message("Reorder mode " + ("on" if self.reorder_mode else "off"))
+                            else:
+                                entities = self.entities_by_domain.get(current_domain, [])
+                                if entities and self.entity_index < len(entities):
+                                    self.toggle_favorite(entities[self.entity_index]["entity_id"])
                 elif event.key.keysym.sym == sdl2.SDLK_r:
                     self.load_data()
                     self.set_message("Refreshed")
                 elif event.key.keysym.sym == sdl2.SDLK_s:
                     self.mode = "settings"
+                    self.reorder_mode = False # Exit reorder mode when entering settings
             elif event.type == sdl2.SDL_CONTROLLERBUTTONDOWN:
                 btn = event.cbutton.button
                 self.selection_start_time = time.time()
                 if btn == self.controls["cancel"]:
                     if self.mode == "settings":
                         self.mode = "main"
+                        self.reorder_mode = False
                     else:
                         self.running = False
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT:
@@ -534,14 +552,28 @@ class HASDL2App:
                         if self.active_list == "domains":
                             self.active_list = "entities"
                             self.entity_index = 0
+                            self.reorder_mode = False
                 elif event.cbutton.button == sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP:
                     self.selection_start_time = time.time()
                     if self.mode == "main":
                         if self.active_list == "domains":
-                            self.nav_index = max(0, self.nav_index - 1)
-                            self.entity_index = 0
-                            self.entity_scroll_row = 0
-                            self.reorder_mode = False
+                            if self.reorder_mode and self.nav_index > 0 and self.domain_list[self.nav_index] != "settings":
+                                start_idx = 1 if self.domain_list[0] == "favorites" else 0
+                                if self.nav_index > start_idx:
+                                    idx = self.nav_index
+                                    d1 = self.domain_list[idx]
+                                    order = [d for d in self.domain_list if d not in ["favorites", "settings"]]
+                                    p_idx = order.index(d1)
+                                    order[p_idx], order[p_idx-1] = order[p_idx-1], order[p_idx]
+                                    self.config["domain_order"] = order
+                                    self.save_config()
+                                    self.load_entities()
+                                    self.nav_index -= 1
+                            else:
+                                self.nav_index = max(0, self.nav_index - 1)
+                                self.entity_index = 0
+                                self.entity_scroll_row = 0
+                                self.reorder_mode = False
                         else:
                             if self.reorder_mode:
                                 if self.entity_index > 0:
@@ -557,7 +589,7 @@ class HASDL2App:
                                         self.entity_scroll_row = self.entity_index
                             else:
                                 self.entity_index = max(0, self.entity_index - 1)
-                            if self.entity_index < self.entity_scroll_row:
+                            if self.entity_index < self.entity_scroll_row: # This line was duplicated, removed one
                                 self.entity_scroll_row = self.entity_index
                     elif self.mode == "settings":
                         self.settings_selected_index = max(0, self.settings_selected_index - 1)
@@ -565,11 +597,23 @@ class HASDL2App:
                     self.selection_start_time = time.time()
                     if self.mode == "main":
                         if self.active_list == "domains":
-                            limit = len(self.domain_list) if self.domain_list else 1
-                            self.nav_index = min(limit - 1, self.nav_index + 1)
-                            self.entity_index = 0
-                            self.entity_scroll_row = 0
-                            self.reorder_mode = False
+                            if self.reorder_mode and self.nav_index < len(self.domain_list) - 1:
+                                if self.domain_list[self.nav_index] != "favorites":
+                                    idx = self.nav_index
+                                    d1 = self.domain_list[idx]
+                                    order = [d for d in self.domain_list if d != "favorites"]
+                                    p_idx = order.index(d1)
+                                    order[p_idx], order[p_idx+1] = order[p_idx+1], order[p_idx]
+                                    self.config["domain_order"] = order
+                                    self.save_config()
+                                    self.load_entities()
+                                    self.nav_index += 1
+                            else:
+                                limit = len(self.domain_list) if self.domain_list else 1
+                                self.nav_index = min(limit - 1, self.nav_index + 1)
+                                self.entity_index = 0
+                                self.entity_scroll_row = 0
+                                self.reorder_mode = False
                         else:
                             current_domain = self.domain_list[self.nav_index]
                             if self.reorder_mode:
@@ -582,21 +626,19 @@ class HASDL2App:
                                     self.save_config()
                                     self.load_entities()
                                     self.entity_index += 1
-                                    visible_entities = 9
-                                    if self.entity_index >= self.entity_scroll_row + visible_entities:
-                                        self.entity_scroll_row = self.entity_index - visible_entities + 1
+                                    if self.entity_index >= self.entity_scroll_row + self.visible_entities:
+                                        self.entity_scroll_row = self.entity_index - self.visible_entities + 1
                             else:
                                 entities_count = len(self.entities_by_domain.get(current_domain, []))
-                                self.entity_index = min(entities_count - 1, self.entity_index + 1)
-                                visible_entities = 9
-                                if self.entity_index >= self.entity_scroll_row + visible_entities:
-                                    self.entity_scroll_row = self.entity_index - visible_entities + 1
+                                self.entity_index = min(entities_count - 1, self.entity_index + 1) # This line was duplicated, removed one
+                                if self.entity_index >= self.entity_scroll_row + self.visible_entities:
+                                    self.entity_scroll_row = self.entity_index - self.visible_entities + 1
                     elif self.mode == "settings":
-                        self.settings_selected_index = min(1, self.settings_selected_index + 1)
+                        self.settings_selected_index = min(2, self.settings_selected_index + 1)
                 elif btn == sdl2.SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
                     # L1: Page Up in entities list
                     if self.mode == "main" and self.active_list == "entities":
-                        self.entity_index = max(0, self.entity_index - 8)
+                        self.entity_index = max(0, self.entity_index - (self.visible_entities - 1))
                         if self.entity_index < self.entity_scroll_row:
                             self.entity_scroll_row = self.entity_index
                 elif btn == sdl2.SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
@@ -604,33 +646,41 @@ class HASDL2App:
                     if self.mode == "main" and self.active_list == "entities" and self.nav_index < len(self.domain_list):
                         current_domain = self.domain_list[self.nav_index]
                         count = len(self.entities_by_domain.get(current_domain, []))
-                        self.entity_index = min(max(0, count - 1), self.entity_index + 8)
-                        if self.entity_index >= self.entity_scroll_row + 8:
-                            self.entity_scroll_row = min(max(0, count - 8), self.entity_index - 7)
+                        self.entity_index = min(max(0, count - 1), self.entity_index + (self.visible_entities - 1))
+                        if self.entity_index >= self.entity_scroll_row + (self.visible_entities - 1):
+                            self.entity_scroll_row = min(max(0, count - self.visible_entities), self.entity_index - (self.visible_entities - 2))
                 elif btn == self.controls["confirm"]:
                     if self.mode == "main":
+                        self.reorder_mode = False
                         if self.active_list == "entities":
                             self._execute_entity_action()
-                        else:
-                            self.execute_action()
+                        elif self.nav_index < len(self.domain_list):
+                            if self.domain_list[self.nav_index] == "settings":
+                                self.mode = "settings"
+                                self.settings_selected_index = 0
                     elif self.mode == "settings":
                         self._handle_settings_action()
                 elif btn == BTN_Y:  # Y button (North) -> Favorites
-                    # Toggle favorite / reorder on Y button
-                    if self.mode == "main" and self.active_list == "entities" and self.domain_list and self.nav_index < len(self.domain_list):
+                    if self.mode == "main" and self.nav_index < len(self.domain_list):
                         current_domain = self.domain_list[self.nav_index]
-                        if current_domain.lower() == "favorites":
-                            self.reorder_mode = not self.reorder_mode
-                            self.set_message("Reorder mode " + ("on" if self.reorder_mode else "off"))
-                        else:
-                            entities = self.entities_by_domain.get(current_domain, [])
-                            if entities and self.entity_index < len(entities):
-                                self.toggle_favorite(entities[self.entity_index]["entity_id"])
+                        if self.active_list == "domains":
+                            if current_domain != "settings":
+                                self.reorder_mode = not self.reorder_mode
+                                self.set_message("Domain reorder " + ("on" if self.reorder_mode else "off"))
+                        elif self.active_list == "entities":
+                            if current_domain.lower() == "favorites":
+                                self.reorder_mode = not self.reorder_mode
+                                self.set_message("Reorder mode " + ("on" if self.reorder_mode else "off"))
+                            else:
+                                entities = self.entities_by_domain.get(current_domain, [])
+                                if entities and self.entity_index < len(entities):
+                                    self.toggle_favorite(entities[self.entity_index]["entity_id"])
                 elif btn == BTN_X:  # X button (West) -> Refresh
                     self.load_data()
                     self.set_message("Refreshed")
                 elif btn == sdl2.SDL_CONTROLLER_BUTTON_START:
                     self.mode = "settings"
+                    self.reorder_mode = False
             elif event.type == sdl2.SDL_CONTROLLERAXISMOTION:
                 # Handle L2/R2 Triggers for Log Scrolling
                 axis = event.caxis.axis
@@ -659,6 +709,14 @@ class HASDL2App:
             self.setup_controls()
             self.save_config()
             self.set_message(f"Layout set to {new_layout.upper()}")
+        elif self.settings_selected_index == 1:
+            if "domain_order" in self.config:
+                del self.config["domain_order"]
+                self.save_config()
+                self.load_entities()
+                self.set_message("Domain order reset")
+            else:
+                self.set_message("Order already default")
         else:
             self.mode = "main"
             self.set_message("Settings saved")
@@ -724,8 +782,12 @@ class HASDL2App:
         self.draw_menu(25, 118)
 
         # 3. Main area (Middle) - Start at Y=105
-        self.ui.draw_retro_box(210, 105, 260, 265, "ENTITIES")
-        self._render_entities_list(225, 118)
+        if self.mode == "settings":
+            self.ui.draw_retro_box(210, 105, 260, 265, "SETTINGS")
+            self._render_settings_list(225, 118)
+        else:
+            self.ui.draw_retro_box(210, 105, 260, 265, "ENTITIES")
+            self._render_entities_list(225, 118)
 
         # 4. Right column (Info boxes) - Start at Y=105
         self.ui.draw_retro_box(480, 105, 150, 130, "CONTROLS")
@@ -735,10 +797,18 @@ class HASDL2App:
         
         # Contextual label for Y button
         is_fav_cat = False
-        if self.active_list == "entities" and self.domain_list and self.nav_index < len(self.domain_list):
+        is_domains = self.active_list == "domains"
+        if not is_domains and self.domain_list and self.nav_index < len(self.domain_list):
             if self.domain_list[self.nav_index].lower() == "favorites":
                 is_fav_cat = True
-        y_label = "Reorder" if is_fav_cat else "Favorite"
+
+        if is_domains:
+            if self.domain_list[self.nav_index] == "settings":
+                y_label = "Favorite"
+            else:
+                y_label = "Reorder Categories" if self.reorder_mode else "Sort Mode"
+        else:
+            y_label = "Reorder" if is_fav_cat else "Favorite"
 
         # Trigger flash if the control label has changed
         if y_label != self.last_y_label:
@@ -821,14 +891,15 @@ class HASDL2App:
             
             if i == self.nav_index:
                 # 1. Highlight background
+                base_color = "red" if self.active_list == "domains" and self.reorder_mode and domain != "settings" else "cyan"
                 self.ui.draw_selection_highlight(x - 10, y_pos - 3, 170, 30)
                 
                 # 1.1 Border around selection (1px rounded, same color as pointer)
-                self.ui.draw_rounded_rect(x - 10, y_pos - 3, 170, 30, "cyan")
+                self.ui.draw_rounded_rect(x - 10, y_pos - 3, 170, 30, base_color)
                 
                 # 2. Selection triangle (pointer) - Only if domains list is active
                 if self.active_list == "domains":
-                    self.ui.draw_pointer(x - 21, y_pos + 10, width=15, height=18)
+                    self.ui.draw_pointer(x - 21, y_pos + 10, width=15, height=18, color=base_color)
                 
                 # 3. Active text
                 self.ui.draw_text(label, x + icon_w, y_pos, "white")
@@ -843,14 +914,17 @@ class HASDL2App:
             return
             
         current_domain = self.domain_list[self.nav_index]
+        if current_domain == "settings":
+            self.ui.draw_text("Switch to Settings column", x, y_start, "cyan", small=True)
+            return
+
         entities = self.entities_by_domain.get(current_domain, [])
-        visible_entities = 9 # Angepasst für größeren Zeilenabstand
         start = self.entity_scroll_row
-        end = min(len(entities), start + visible_entities)
+        end = min(len(entities), start + self.visible_entities)
         
         for i in range(start, end):
             entity = entities[i]
-            y = y_start + ((i - start) * 28) # Erhöhter Zeilenabstand
+            y = y_start + ((i - start) * 20)
             
             # Selection visuals
             is_selected = (self.active_list == "entities" and i == self.entity_index)
@@ -859,9 +933,9 @@ class HASDL2App:
                 is_flashing = (time.time() - self.fav_flash_time < 0.15)
                 base_color = "red" if self.reorder_mode else "cyan"
                 flash_color = "white" if is_flashing else base_color
-                self.ui.draw_selection_highlight(x - 10, y - 3, 230, 28) # Höhe angepasst
-                self.ui.draw_rounded_rect(x - 10, y - 3, 230, 28, flash_color) # Höhe angepasst
-                self.ui.draw_pointer(x - 21, y + 5, width=15, height=18, color=flash_color)
+                self.ui.draw_selection_highlight(x - 10, y - 1, 230, 20)
+                self.ui.draw_rounded_rect(x - 10, y - 1, 230, 20, flash_color)
+                self.ui.draw_pointer(x - 21, y + 2, width=15, height=18, color=flash_color)
             
             # Icon
             entity_id = entity.get("entity_id", "")
@@ -916,37 +990,28 @@ class HASDL2App:
             self.ui.draw_text(display_label, x + icon_offset, y + 2, color)
 
         # Scrollbar für die Entitäten-Liste
-        if len(entities) > visible_entities:
+        if len(entities) > self.visible_entities:
             self.ui.draw_scrollbar(
                 x + 235, y_start, 245, 
-                self.entity_scroll_row, len(entities), visible_entities
+                self.entity_scroll_row, len(entities), self.visible_entities
             )
 
-    def render_settings(self):
-        y_offset = 80
-        if self.settings_selected_index == 0:
-            self.render_selection_bar(10, y_offset - 2, self.width - 20, 40)
-        
-        # Render Layout Option Piece by Piece
-        color = COLOR_HIGHLIGHT if self.settings_selected_index == 0 else COLOR_TEXT
-        text = f"Button Layout: {self.layout_type.upper()} ("
-        self.ui.draw_text(text, 30, y_offset, color)
-        
-        text_w, _ = self.ui.get_text_size(text)
-        icon_x = 30 + text_w
-        icon_w = self._render_button_icon(self.controls["confirm"], icon_x, y_offset + 4, size=24)
-        
-        self.ui.draw_text(" = Confirm)", icon_x + icon_w, y_offset, color)
-        
-        # Back Option
-        y_offset += 40
-        if self.settings_selected_index == 1:
-            self.render_selection_bar(10, y_offset - 2, self.width - 20, 40)
-        color = COLOR_HIGHLIGHT if self.settings_selected_index == 1 else COLOR_TEXT
-        self.ui.draw_text("Back to Main Menu", 30, y_offset, color)
-
-        self.ui.draw_text("D-Pad: Select | Start: Apply/Back", 20, self.height - 20, COLOR_TEXT, small=True)
-        self.ui.draw_text(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM, small=True)
+    def _render_settings_list(self, x, y_start):
+        options = [
+            f"Layout: {self.layout_type.upper()}",
+            "Reset Category Order",
+            "Back to Main Menu"
+        ]
+        for i, opt in enumerate(options):
+            y = y_start + (i * 30)
+            is_selected = (self.settings_selected_index == i)
+            if is_selected:
+                self.ui.draw_selection_highlight(x - 10, y - 3, 230, 28)
+                self.ui.draw_rounded_rect(x - 10, y - 3, 230, 28, "cyan")
+                self.ui.draw_pointer(x - 21, y + 5, width=15, height=18, color="cyan")
+                self.ui.draw_text(opt, x, y, "white")
+            else:
+                self.ui.draw_text(opt, x, y, "cyan")
 
 
     def _print_controls(self):

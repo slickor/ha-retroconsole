@@ -59,6 +59,11 @@ def load_config(path: Path, require_favorites: bool = False) -> dict[str, Any]:
         print("Warning: Placeholder token detected. Please update config.json.")
     if require_favorites and not isinstance(favorites, list):
         raise SystemExit("Config value 'favorites' must be a list.")
+    
+    domain_order = config.get("domain_order", [])
+    if not isinstance(domain_order, list):
+        print("Warning: Config value 'domain_order' must be a list. Resetting to default.")
+        domain_order = []
 
     config["base_url"] = base_url
     config["token"] = token
@@ -66,6 +71,7 @@ def load_config(path: Path, require_favorites: bool = False) -> dict[str, Any]:
         config["favorites"] = [normalize_favorite(item) for item in favorites]
     else:
         config["favorites"] = []
+    config["domain_order"] = domain_order
     return config
 
 
@@ -129,7 +135,7 @@ def fetch_states_map(base_url: str, token: str, timeout: float) -> dict[str, dic
     return {str(item.get("entity_id", "")): item for item in fetch_states_list(base_url, token, timeout)}
 
 
-def get_domain_groups(states: list[dict[str, Any]], favorites: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+def get_domain_groups(states: list[dict[str, Any]], favorites: list[dict[str, Any]], user_domain_order: list[str]) -> dict[str, list[dict[str, Any]]]:
     """Groups entities by domain and adds a virtual 'Favorites' domain at the top."""
     groups: dict[str, list[dict[str, Any]]] = {}
     
@@ -144,19 +150,39 @@ def get_domain_groups(states: list[dict[str, Any]], favorites: list[dict[str, An
             fav_list.append(states_map[eid])
     
     if fav_list:
-        # Sort favorites by their display name
-        groups["favorites"] = sorted(fav_list, key=lambda x: display_name(x.get("entity_id", ""), x).lower())
+        groups["favorites"] = fav_list # Use the order from the config directly for favorites, no re-sorting here
 
     # 2. Group remaining entities by domain
-    # Sort all entities by their display name before grouping
-    # This ensures entities within each domain are also sorted by display name
-    for state in sorted(states, key=lambda x: display_name(x.get("entity_id", ""), x).lower()):
+    # Sort all entities by their display name before grouping to ensure consistent order within domains
+    sorted_states = sorted(states, key=lambda x: display_name(x.get("entity_id", ""), x).lower())
+    
+    all_domains_from_states = set()
+    for state in sorted_states:
         domain = entity_domain(str(state.get("entity_id", "")))
         if domain:
+            all_domains_from_states.add(domain)
             if domain not in groups:
                 groups[domain] = []
             groups[domain].append(state)
-    return groups
+
+    # Now, create the final ordered dictionary based on user_domain_order
+    ordered_groups: dict[str, list[dict[str, Any]]] = {}
+    
+    # Always add 'favorites' first if it exists
+    if "favorites" in groups:
+        ordered_groups["favorites"] = groups["favorites"]
+
+    # Add domains from user_domain_order
+    for domain_name in user_domain_order:
+        if domain_name != "favorites" and domain_name in groups: # Ensure favorites is not re-added
+            ordered_groups[domain_name] = groups[domain_name]
+    
+    # Add any remaining domains (not in user_domain_order or favorites) alphabetically
+    remaining_domains = sorted([d for d in all_domains_from_states if d not in ordered_groups])
+    for domain_name in remaining_domains:
+        ordered_groups[domain_name] = groups[domain_name]
+
+    return ordered_groups
 
 
 def entity_domain(entity_id: str) -> str:
