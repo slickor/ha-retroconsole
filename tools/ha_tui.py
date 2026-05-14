@@ -77,8 +77,8 @@ def render(
             print("|" + "".ljust(width) + "|")
 
     print("|" + "".ljust(width) + "|")
-    print("|" + " D-Pad select   A run   X refresh   B quit".center(width) + "|")
-    print("|" + " PC: arrows     Enter   R           Q".center(width) + "|")
+    print("|" + " D-Pad move  A run  X refresh  Y fav  B quit".center(width) + "|")
+    print("|" + " PC: arrows  Enter  R          F      Q".center(width) + "|")
     if message:
         msg_area = fit_text(" " + message, width - len(VERSION) - 2)
         print("|" + msg_area.ljust(width - len(VERSION) - 1) + VERSION + " |")

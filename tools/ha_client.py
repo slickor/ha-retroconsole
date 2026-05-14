@@ -9,7 +9,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-VERSION = "0.8.7"
+VERSION = "0.9.0"
 
 
 SUPPORTED_ACTIONS = {
@@ -144,10 +144,13 @@ def get_domain_groups(states: list[dict[str, Any]], favorites: list[dict[str, An
             fav_list.append(states_map[eid])
     
     if fav_list:
-        groups["favorites"] = fav_list
+        # Sort favorites by their display name
+        groups["favorites"] = sorted(fav_list, key=lambda x: display_name(x.get("entity_id", ""), x).lower())
 
     # 2. Group remaining entities by domain
-    for state in sorted(states, key=lambda x: str(x.get("entity_id", ""))):
+    # Sort all entities by their display name before grouping
+    # This ensures entities within each domain are also sorted by display name
+    for state in sorted(states, key=lambda x: display_name(x.get("entity_id", ""), x).lower()):
         domain = entity_domain(str(state.get("entity_id", "")))
         if domain:
             if domain not in groups:

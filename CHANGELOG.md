@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2026-05-15
+### Added
+- **Enhanced Control Feedback:** The "CONTROLS" box now features a red flash animation when the function of a button changes (e.g., entering Reorder mode).
+- **Global Alphabetical Sorting:** All entities are now consistently sorted by their display name across all categories.
+### Changed
+- **UI Refinement:** Renamed the info panel to "CONTROLS" for better clarity on handheld devices.
+### Fixed
+- **State Syncing:** Fixed a bug where removing an entity from favorites caused it to temporarily disappear from its original domain list.
+
 ## [0.8.7] - 2026-05-14
 ### Added
 - **Favorite Reordering:** Introduced the ability to sort favorites directly on the device. Pressing "Y" (or "F" on PC) while in the Favorites category toggles a reorder mode.
