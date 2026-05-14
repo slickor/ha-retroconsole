@@ -5,11 +5,38 @@ All notable changes to this project will be documented in this file.
 ## [0.9.1] - 2026-05-15
 ### Added
 - **Settings Category:** Added a dedicated "Settings" entry at the bottom of the category list with its own icon.
+- **Compact UI:** Increased visible entities per page to 11 and optimized line spacing (24px) for better handheld readability.
+### Changed
+- **UI Text:** "Confirm" button label changed to "Toggle". "Reorder Mode" label changed to "Sort Item" for consistency.
+- **Controls:** Start/S button now exits the application.
+### Fixed
+- **IndexError:** Resolved a crash occurring when rendering the UI before domain data was fully loaded.
+- **Navigation:** Fixed a bug where moving the selection down in the entities list was not possible (both keyboard and gamepad).
+- **UI Safety:** Added checks to prevent crashes when accessing empty domain or entity lists.
+- **Compatibility:** Fixed shell script syntax for better compatibility with handheld OS (Dash/Busybox).
+- **Visual Alignment:** Corrected vertical alignment of text and selection boxes in both Categories and Entities lists for a pixel-perfect look.
+
+## [0.9.2] - 2026-05-15
+### Added
+- **Emulated Button Icons:** Replaced graphical button textures with dynamic, pixel-art style icons (Black text in white boxes) for A, B, X, Y, and shoulder buttons (L1/R1, L2/R2).
+- **Expanded Controls Info:** Added missing shortcuts for Paging (L1/R1) and Log scrolling (L2/R2) to the Controls box.
+### Changed
+- **Layout Refinement:** Optimized the Entities list to 10 items to prevent overlap with the console and improve spacing.
+- **Navigation Logic:** Unified sorting terminology to "Sort Item" and improved horizontal spacing in the info panel to prevent label overlap.
+### Fixed
+- **Navigation:** Resolved the "Skip-Bug" where the second entity was skipped when scrolling down.
+- **Stability:** Fixed several crashes (AttributeError, NameError) resulting from UI code reorganization into helper methods.
+- **Visual Alignment:** Final pixel-perfect vertical centering for text, icons, and selection pointers in all lists.
+
+## [0.9.1] - 2026-05-15
+### Added
+- **Settings Category:** Added a dedicated "Settings" entry at the bottom of the category list with its own icon.
 - **Compact UI:** Increased visible entities per page to 13 and optimized line spacing for better handheld readability.
 ### Fixed
 - **IndexError:** Resolved a crash occurring when rendering the UI before domain data was fully loaded.
 - **Navigation:** Fixed a bug where moving the selection down in the entities list was not possible.
 - **UI Safety:** Added checks to prevent crashes when accessing empty domain or entity lists.
+- **Compatibility:** Fixed shell script syntax for better compatibility with handheld OS (Dash/Busybox).
 
 ## [0.9.0] - 2026-05-15
 ### Added

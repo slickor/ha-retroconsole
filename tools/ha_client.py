@@ -9,7 +9,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-VERSION = "0.9.1"
+VERSION = "0.9.2"
 
 
 SUPPORTED_ACTIONS = {

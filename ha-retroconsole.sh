@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Automatische Pfad-Erkennung
+GAMEDIR="$(dirname "$0")/ha-retroconsole"
+
 XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
 
 if [ -d "/opt/system/Tools/PortMaster/" ]; then
@@ -16,11 +19,10 @@ source $controlfolder/control.txt
 [ -f $controlfolder/tasksetter ] && source $controlfolder/tasksetter
 get_controls
 
-GAMEDIR="/$directory/ports/ha-retroconsole"
 cd $GAMEDIR
 
-# Log file for debugging on device
-exec > >(tee "$GAMEDIR/log.txt") 2>&1
+# Kompatible Log-Umleitung (funktioniert auch auf Dash/Busybox)
+exec 1>"$GAMEDIR/log.txt" 2>&1
 
 # Ensure uinput is writable for gamepads
 $ESUDO chmod 666 /dev/uinput

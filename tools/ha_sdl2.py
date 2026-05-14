@@ -69,7 +69,7 @@ class HASDL2App:
         self.ip_address = self._get_ip_address()
         self.running = True
         self.selection_start_time = time.time()
-        self.visible_entities = 13 # Number of entities visible in the list
+        self.visible_entities = 10 # Number of entities visible in the list
         self.fav_flash_time = 0
         self.reorder_mode = False
         self.log_entries = [] # List of (timestamp, text, color)
@@ -481,7 +481,6 @@ class HASDL2App:
                             else:
                                 entities_count = len(self.entities_by_domain.get(current_domain, []))
                                 self.entity_index = min(entities_count - 1, self.entity_index + 1)
-                                self.entity_index = min(entities_count - 1, self.entity_index + 1)
                                 if self.entity_index >= self.entity_scroll_row + self.visible_entities:
                                     self.entity_scroll_row = self.entity_index - self.visible_entities + 1
                     elif self.mode == "settings":
@@ -630,6 +629,7 @@ class HASDL2App:
                                         self.entity_scroll_row = self.entity_index - self.visible_entities + 1
                             else:
                                 entities_count = len(self.entities_by_domain.get(current_domain, []))
+                                self.entity_index = min(entities_count - 1, self.entity_index + 1)
                                 if self.entity_index >= self.entity_scroll_row + self.visible_entities:
                                     self.entity_scroll_row = self.entity_index - self.visible_entities + 1
                     elif self.mode == "settings":
@@ -719,26 +719,34 @@ class HASDL2App:
             self.mode = "main"
             self.set_message("Settings saved")
 
-    def _render_button_icon(self, btn_id, x, y, size=20, color_mod=None):
-        """Renders a graphical button icon from the loaded textures."""
-        tex_name = self.btn_tex_map.get(btn_id)
-        texture = self.domain_icons.get(tex_name)
-        if texture:
-            if color_mod:
-                sdl2.SDL_SetTextureColorMod(texture, color_mod.r, color_mod.g, color_mod.b)
-            dst = sdl2.SDL_Rect(x, y, size, size)
-            sdl2.SDL_RenderCopy(self.renderer, texture, None, dst)
-            if color_mod:
-                sdl2.SDL_SetTextureColorMod(texture, 255, 255, 255)
-            return size
-        return 0
+    def _render_button_icon(self, btn_id, x, y, color_mod=None):
+        """Renders an emulated button icon (Text inside a filled rounded box)."""
+        char_map = {BTN_A: "A", BTN_B: "B", BTN_X: "X", BTN_Y: "Y"}
+        
+        if isinstance(btn_id, int):
+            label = char_map.get(btn_id, "?")
+            w, h = 15, 15 # 25% smaller than original 20x20
+        else:
+            label = str(btn_id)
+            tw, _ = self.ui.get_text_size(label, small=True)
+            w, h = tw + 6, 15
+
+        # Background color (White or Flash Color)
+        bg = self.ui.colors["white"] if not color_mod else color_mod
+        sdl2.SDL_SetRenderDrawColor(self.renderer, bg.r, bg.g, bg.b, 255)
+
+        # Draw filled rounded rect (pixel style)
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(x + 1, y, w - 2, h))
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(x, y + 1, w, h - 2))
+
+        # Draw black centered text
+        tw, th = self.ui.get_text_size(label, small=True)
+        self.ui.draw_text(label, x + (w - tw) // 2, y + (h - th) // 2 - 1, color=sdl2.SDL_Color(0, 0, 0, 255), small=True)
+        return w
 
     def render(self):
         self.ui.clear_screen()
-        if self.mode == "main":
-            self.render_layout()
-        elif self.mode == "settings":
-            self.render_settings()
+        self.render_layout()
         sdl2.SDL_RenderPresent(self.renderer)
 
     def render_layout(self):
@@ -789,85 +797,14 @@ class HASDL2App:
 
         # 4. Right column (Info boxes) - Start at Y=105
         self.ui.draw_retro_box(480, 105, 150, 130, "CONTROLS")
-        
-        # Render Shortcuts in Info Box
-        y_short = 122
-        
-        # Contextual label for Y button
-        is_fav_cat = False
-        is_domains = self.active_list == "domains"
-        if not is_domains and self.domain_list and self.nav_index < len(self.domain_list):
-            if self.domain_list[self.nav_index].lower() == "favorites":
-                is_fav_cat = True
-
-        if is_domains:
-            if self.domain_list and self.nav_index < len(self.domain_list) and self.domain_list[self.nav_index] == "settings":
-                y_label = "Favorite"
-            elif self.domain_list and self.nav_index < len(self.domain_list):
-                y_label = "Reorder Categories" if self.reorder_mode else "Sort Mode"
-            else:
-                y_label = "Favorite"
-        else:
-            y_label = "Reorder" if is_fav_cat else "Favorite"
-
-        # Trigger flash if the control label has changed
-        if y_label != self.last_y_label:
-            self.controls_flash_time = time.time()
-            self.last_y_label = y_label
-
-        is_ctrl_flashing = (time.time() - self.controls_flash_time < 0.4)
-
-        shortcuts = [
-            (self.controls["confirm"], "Confirm"),
-            (self.controls["cancel"], "Back"),
-            (BTN_Y, y_label),
-            (BTN_X, "Refresh")
-        ]
-        for btn, label in shortcuts:
-            # Apply red flash effect if the control just changed
-            is_new = (label == y_label and is_ctrl_flashing)
-            text_col = "red" if is_new else "white"
-            icon_mod = self.ui.colors["red"] if is_new else None
-
-            self._render_button_icon(btn, 490, y_short, size=20, color_mod=icon_mod)
-            self.ui.draw_text(label, 515, y_short + 2, text_col, small=True)
-            y_short += 24
+        self._render_controls_info(490, 118)
 
         self.ui.draw_retro_box(480, 240, 150, 130, "STATUS")
-        
-        cpu_mhz, free_ram = self._get_system_stats()
-        server_status = "Connected" if self.states else "Disconnected"
-        current_time = time.strftime("%H:%M:%S")
-
-        # Render Status Details
-        y_status = 253
-        for label, val in [
-            ("Time: ", current_time),
-            ("IP: ", self.ip_address),
-            ("Server: ", server_status),
-            ("CPU: ", cpu_mhz),
-            ("RAM: ", free_ram),
-            ("Ver: ", VERSION)
-        ]:
-            tw, _ = self.ui.draw_text(label, 490, y_status, "cyan", small=True)
-            self.ui.draw_text(str(val), 490 + tw, y_status, "white", small=True)
-            y_status += 18
+        self._render_status_info(490, 253)
 
         # 5. Bottom row (Console/Status) - Start at Y=380
         self.ui.draw_retro_box(10, 380, 620, 95, "Console")
-        
-        # Render log entries
-        log_y = 390 # Start position for the first log line
-        visible_logs = 5 # Number of log lines to display
-        start = self.log_scroll
-        end = min(len(self.log_entries), start + visible_logs)
-        
-        for i in range(start, end):
-            ts, txt, col = self.log_entries[i]
-            # Draw timestamp in dim color, text in its color
-            tw, _ = self.ui.draw_text(f"[{ts}] ", 25, log_y, COLOR_TEXT_DIM, small=True)
-            self.ui.draw_text(txt, 25 + tw, log_y, col, small=True)
-            log_y += 15
+        self._render_console_log(25, 390)
 
     def draw_menu(self, x, y_start):
         """Draws the navigation menu with pointer and highlight."""
@@ -899,13 +836,75 @@ class HASDL2App:
                 
                 # 2. Selection triangle (pointer) - Only if domains list is active
                 if self.active_list == "domains":
-                    self.ui.draw_pointer(x - 21, y_pos + 10, width=15, height=18, color=base_color)
+                    self.ui.draw_pointer(x - 21, y_pos + 3, width=15, height=18, color=base_color)
                 
                 # 3. Active text
                 self.ui.draw_text(label, x + icon_w, y_pos, "white")
             else:
                 # Normal text
                 self.ui.draw_text(label, x + icon_w, y_pos, "cyan")
+
+    def _render_controls_info(self, x, y_start):
+        """Renders contextual control shortcuts in the CONTROLS box."""
+        y_short = y_start
+        is_fav_cat = False
+        is_domains = self.active_list == "domains"
+        if not is_domains and self.domain_list and self.nav_index < len(self.domain_list):
+            if self.domain_list[self.nav_index].lower() == "favorites":
+                is_fav_cat = True
+
+        if is_domains:
+            if self.domain_list and self.nav_index < len(self.domain_list) and self.domain_list[self.nav_index] == "settings":
+                y_label = "Favorite"
+            else:
+                y_label = "Sort Item"
+        else:
+            y_label = "Sort Item" if is_fav_cat else "Favorite"
+
+        if y_label != self.last_y_label:
+            self.controls_flash_time = time.time()
+            self.last_y_label = y_label
+
+        is_ctrl_flashing = (time.time() - self.controls_flash_time < 0.4)
+
+        shortcuts = [
+            (self.controls["confirm"], "Toggle"),
+            (self.controls["cancel"], "Back"),
+            (BTN_Y, y_label),
+            (BTN_X, "Refresh"),
+            ("L1/R1", "Page +/-"),
+            ("L2/R2", "Log +/-")
+        ]
+        for btn, label in shortcuts:
+            is_new = (label == y_label and is_ctrl_flashing)
+            text_col = "red" if is_new else "white"
+            icon_mod = self.ui.colors["red"] if is_new else None
+            self._render_button_icon(btn, x, y_short, color_mod=icon_mod)
+            self.ui.draw_text(label, x + 52, y_short + 1, text_col, small=True)
+            y_short += 19
+
+    def _render_status_info(self, x, y_start):
+        """Renders system and HA status info in the STATUS box."""
+        cpu_mhz, free_ram = self._get_system_stats()
+        server_status = "Connected" if self.states else "Disconnected"
+        current_time = time.strftime("%H:%M:%S")
+        y_status = y_start
+        for label, val in [("Time: ", current_time), ("IP: ", self.ip_address), ("Server: ", server_status), ("CPU: ", cpu_mhz), ("RAM: ", free_ram), ("Ver: ", VERSION)]:
+            tw, _ = self.ui.draw_text(label, x, y_status, "cyan", small=True)
+            self.ui.draw_text(str(val), x + tw, y_status, "white", small=True)
+            y_status += 18
+
+    def _render_console_log(self, x, y_start):
+        """Renders the scrollable console log in the bottom box."""
+        log_y = y_start
+        visible_logs = 5
+        start = self.log_scroll
+        end = min(len(self.log_entries), start + visible_logs)
+        for i in range(start, end):
+            ts, txt, col = self.log_entries[i]
+            tw, _ = self.ui.draw_text(f"[{ts}] ", x, log_y, COLOR_TEXT_DIM, small=True)
+            self.ui.draw_text(txt, x + tw, log_y, col, small=True)
+            log_y += 15
 
     def _render_entities_list(self, x, y_start):
         """Renders the list of entities for the currently selected domain."""
@@ -924,7 +923,7 @@ class HASDL2App:
         
         for i in range(start, end):
             entity = entities[i]
-            y = y_start + ((i - start) * 20)
+            y = y_start + ((i - start) * 23)
             
             # Selection visuals
             is_selected = (self.active_list == "entities" and i == self.entity_index)
@@ -933,9 +932,9 @@ class HASDL2App:
                 is_flashing = (time.time() - self.fav_flash_time < 0.15)
                 base_color = "red" if self.reorder_mode else "cyan"
                 flash_color = "white" if is_flashing else base_color
-                self.ui.draw_selection_highlight(x - 10, y - 1, 230, 20)
-                self.ui.draw_rounded_rect(x - 10, y - 1, 230, 20, flash_color)
-                self.ui.draw_pointer(x - 21, y + 2, width=15, height=18, color=flash_color)
+                self.ui.draw_selection_highlight(x - 10, y - 1, 230, 28)
+                self.ui.draw_rounded_rect(x - 10, y - 1, 230, 28, flash_color)
+                self.ui.draw_pointer(x - 21, y + 4, width=15, height=18, color=flash_color)
             
             # Icon
             entity_id = entity.get("entity_id", "")
