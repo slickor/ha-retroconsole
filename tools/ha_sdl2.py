@@ -480,6 +480,8 @@ class HASDL2App:
                                         self.entity_scroll_row = self.entity_index - self.visible_entities + 1
                             else:
                                 entities_count = len(self.entities_by_domain.get(current_domain, []))
+                                self.entity_index = min(entities_count - 1, self.entity_index + 1)
+                                self.entity_index = min(entities_count - 1, self.entity_index + 1)
                                 if self.entity_index >= self.entity_scroll_row + self.visible_entities:
                                     self.entity_scroll_row = self.entity_index - self.visible_entities + 1
                     elif self.mode == "settings":
@@ -801,7 +803,7 @@ class HASDL2App:
         if is_domains:
             if self.domain_list and self.nav_index < len(self.domain_list) and self.domain_list[self.nav_index] == "settings":
                 y_label = "Favorite"
-            elif self.domain_list:
+            elif self.domain_list and self.nav_index < len(self.domain_list):
                 y_label = "Reorder Categories" if self.reorder_mode else "Sort Mode"
             else:
                 y_label = "Favorite"

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.1] - 2026-05-15
+### Added
+- **Settings Category:** Added a dedicated "Settings" entry at the bottom of the category list with its own icon.
+- **Compact UI:** Increased visible entities per page to 13 and optimized line spacing for better handheld readability.
+### Fixed
+- **IndexError:** Resolved a crash occurring when rendering the UI before domain data was fully loaded.
+- **Navigation:** Fixed a bug where moving the selection down in the entities list was not possible.
+- **UI Safety:** Added checks to prevent crashes when accessing empty domain or entity lists.
+
 ## [0.9.0] - 2026-05-15
 ### Added
 - **Enhanced Control Feedback:** The "CONTROLS" box now features a red flash animation when the function of a button changes (e.g., entering Reorder mode).
