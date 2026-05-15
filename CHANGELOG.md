@@ -2,51 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.9.1] - 2026-05-15
-### Added
-- **Settings Category:** Added a dedicated "Settings" entry at the bottom of the category list with its own icon.
-- **Compact UI:** Increased visible entities per page to 11 and optimized line spacing (24px) for better handheld readability.
+## [0.9.3] - 2026-05-15
 ### Changed
-- **UI Text:** "Confirm" button label changed to "Toggle". "Reorder Mode" label changed to "Sort Item" for consistency.
-- **Controls:** Start/S button now exits the application.
-### Fixed
-- **IndexError:** Resolved a crash occurring when rendering the UI before domain data was fully loaded.
-- **Navigation:** Fixed a bug where moving the selection down in the entities list was not possible (both keyboard and gamepad).
-- **UI Safety:** Added checks to prevent crashes when accessing empty domain or entity lists.
-- **Compatibility:** Fixed shell script syntax for better compatibility with handheld OS (Dash/Busybox).
-- **Visual Alignment:** Corrected vertical alignment of text and selection boxes in both Categories and Entities lists for a pixel-perfect look.
-
-## [0.9.2] - 2026-05-15
-### Added
-- **Emulated Button Icons:** Replaced graphical button textures with dynamic, pixel-art style icons (Black text in white boxes) for A, B, X, Y, and shoulder buttons (L1/R1, L2/R2).
-- **Expanded Controls Info:** Added missing shortcuts for Paging (L1/R1) and Log scrolling (L2/R2) to the Controls box.
-### Changed
-- **Layout Refinement:** Optimized the Entities list to 10 items to prevent overlap with the console and improve spacing.
-- **Navigation Logic:** Unified sorting terminology to "Sort Item" and improved horizontal spacing in the info panel to prevent label overlap.
-### Fixed
-- **Navigation:** Resolved the "Skip-Bug" where the second entity was skipped when scrolling down.
-- **Stability:** Fixed several crashes (AttributeError, NameError) resulting from UI code reorganization into helper methods.
-- **Visual Alignment:** Final pixel-perfect vertical centering for text, icons, and selection pointers in all lists.
+- **UI Spacing:** Erhöhter Zeilenabstand in der `CONTROLS`-Box für bessere Übersichtlichkeit auf kleinen Displays.
+- **Version Management:** Version auf 0.9.3 angehoben.
 
 ## [0.9.1] - 2026-05-15
 ### Added
-- **Settings Category:** Added a dedicated "Settings" entry at the bottom of the category list with its own icon.
-- **Compact UI:** Increased visible entities per page to 13 and optimized line spacing for better handheld readability.
+- **Alphabetical Sorting:** Entities within domains (except Favorites) are now sorted alphabetically by their friendly name.
+- **Domain Sorting:** Categories (domains) in the navigation are now sorted alphabetically, with "Favorites" remaining at the top.
+### Changed
+- **Version Management:** Updated version to 0.9.1 across `ha_client.py` and `port.json`.
+- **Error Handling:** Replaced `SystemExit` with custom `HAClientError` exceptions in `ha_client.py` for graceful error handling in the UI.
+- **UI Input Dispatch:** Refactored `ui/app.py`'s input handling into a more modular dispatcher pattern (`_dispatch_action`, `_handle_main_input`, `_handle_picker_input`).
+- **UI Rendering:** Centralized common UI rendering logic in `ui/app.py` into `_render_header` and `_render_footer` methods.
+- **SDL2 Layout:** Optimized `ha_sdl2.py` layout system to use relative positioning and constants instead of hardcoded pixel values.
 ### Fixed
-- **IndexError:** Resolved a crash occurring when rendering the UI before domain data was fully loaded.
-- **Navigation:** Fixed a bug where moving the selection down in the entities list was not possible.
-- **UI Safety:** Added checks to prevent crashes when accessing empty domain or entity lists.
-- **Compatibility:** Fixed shell script syntax for better compatibility with handheld OS (Dash/Busybox).
+- **SDL2 Pointer Visibility:** Corrected an issue in `ha_sdl2.py` where the entity selection pointer/highlight was not visible after switching from categories to entities.
+- **Build Script Redundancy:** Adjusted `build_zip.ps1` to only copy `ha_client.py` from the root directory, eliminating the redundant copy in `tools/`.
 
 ## [0.9.0] - 2026-05-15
-### Added
-- **Enhanced Control Feedback:** The "CONTROLS" box now features a red flash animation when the function of a button changes (e.g., entering Reorder mode).
-- **Global Alphabetical Sorting:** All entities are now consistently sorted by their display name across all categories.
 ### Changed
-- **UI Refinement:** Renamed the info panel to "CONTROLS" for better clarity on handheld devices.
-### Fixed
-- **State Syncing:** Fixed a bug where removing an entity from favorites caused it to temporarily disappear from its original domain list.
-
+- **Version Management:** Centralized version definition in `ha_client.py`.
+- **Cleanup:** Removed redundant version definitions in `ui/app.py`.
 ## [0.8.7] - 2026-05-14
 ### Added
 - **Favorite Reordering:** Introduced the ability to sort favorites directly on the device. Pressing "Y" (or "F" on PC) while in the Favorites category toggles a reorder mode.

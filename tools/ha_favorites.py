@@ -8,6 +8,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Any
+sys.path.insert(0, os.path.dirname(__file__) + "/..")
 
 from ha_client import (
     call_service,

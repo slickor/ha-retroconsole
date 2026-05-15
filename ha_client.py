@@ -9,7 +9,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-VERSION = "0.9.2"
+VERSION = "0.9.3"
 
 
 SUPPORTED_ACTIONS = {
@@ -19,22 +19,26 @@ SUPPORTED_ACTIONS = {
     "script": {"turn_on"},
 }
 
+class HAClientError(Exception):
+    """Base exception for Home Assistant client errors."""
+    pass
+
 
 def normalize_favorite(item: Any) -> dict[str, str]:
     if isinstance(item, str):
         entity_id = item.strip()
         if not entity_id:
-            raise SystemExit("Favorite entity_id must not be empty.")
+            raise HAClientError("Favorite entity_id must not be empty.")
         return {"entity_id": entity_id, "label": "", "action": "auto"}
 
     if not isinstance(item, dict):
-        raise SystemExit("Each favorite must be an entity_id string or an object.")
+        raise HAClientError("Each favorite must be an entity_id string or an object.")
 
     entity_id = str(item.get("entity_id", "")).strip()
     label = str(item.get("label", "")).strip()
     action = str(item.get("action", "auto")).strip() or "auto"
     if not entity_id:
-        raise SystemExit("Favorite object is missing entity_id.")
+        raise HAClientError("Favorite object is missing entity_id.")
     return {"entity_id": entity_id, "label": label, "action": action}
 
 
@@ -43,27 +47,22 @@ def load_config(path: Path, require_favorites: bool = False) -> dict[str, Any]:
         with path.open("r", encoding="utf-8") as handle:
             config = json.load(handle)
     except FileNotFoundError:
-        raise SystemExit(f"Config not found: {path}")
+        raise HAClientError(f"Config not found: {path}")
     except json.JSONDecodeError as exc:
-        raise SystemExit(f"Config is not valid JSON: {exc}")
+        raise HAClientError(f"Config is not valid JSON: {exc}")
 
     base_url = str(config.get("base_url", "")).strip().rstrip("/")
     token = str(config.get("token", "")).strip()
     favorites = config.get("favorites", [])
 
     if not base_url:
-        raise SystemExit("Missing config value: base_url")
+        raise HAClientError("Missing config value: base_url")
     if not token:
         print("Warning: No token provided in config.")
     elif token == "PASTE_LONG_LIVED_ACCESS_TOKEN_HERE":
         print("Warning: Placeholder token detected. Please update config.json.")
     if require_favorites and not isinstance(favorites, list):
-        raise SystemExit("Config value 'favorites' must be a list.")
-    
-    domain_order = config.get("domain_order", [])
-    if not isinstance(domain_order, list):
-        print("Warning: Config value 'domain_order' must be a list. Resetting to default.")
-        domain_order = []
+        raise HAClientError("Config value 'favorites' must be a list.")
 
     config["base_url"] = base_url
     config["token"] = token
@@ -71,7 +70,6 @@ def load_config(path: Path, require_favorites: bool = False) -> dict[str, Any]:
         config["favorites"] = [normalize_favorite(item) for item in favorites]
     else:
         config["favorites"] = []
-    config["domain_order"] = domain_order
     return config
 
 
@@ -81,7 +79,7 @@ def save_config(path: Path, config: dict[str, Any]) -> None:
             json.dump(config, handle, indent=2, ensure_ascii=False)
             handle.write("\n")
     except OSError as exc:
-        raise SystemExit(f"Could not save config: {exc}")
+        raise HAClientError(f"Could not save config: {exc}")
 
 
 def request_json(
@@ -108,12 +106,12 @@ def request_json(
             payload = response.read().decode("utf-8")
     except HTTPError as exc:
         if exc.code in {401, 403}:
-            raise SystemExit("Home Assistant rejected the token.")
-        raise SystemExit(f"Home Assistant HTTP error: {exc.code} {exc.reason}")
+            raise HAClientError("Home Assistant rejected the token.")
+        raise HAClientError(f"Home Assistant HTTP error: {exc.code} {exc.reason}")
     except URLError as exc:
-        raise SystemExit(f"Could not reach Home Assistant: {exc.reason}")
+        raise HAClientError(f"Could not reach Home Assistant: {exc.reason}")
     except TimeoutError:
-        raise SystemExit("Connection timed out.")
+        raise HAClientError("Connection timed out.")
 
     if not payload:
         return None
@@ -127,7 +125,7 @@ def request_json(
 def fetch_states_list(base_url: str, token: str, timeout: float) -> list[dict[str, Any]]:
     states = request_json(base_url, token, "/api/states", timeout)
     if not isinstance(states, list):
-        raise SystemExit("Unexpected Home Assistant response: expected a list.")
+        raise HAClientError("Unexpected Home Assistant response: expected a list.")
     return states
 
 
@@ -135,7 +133,7 @@ def fetch_states_map(base_url: str, token: str, timeout: float) -> dict[str, dic
     return {str(item.get("entity_id", "")): item for item in fetch_states_list(base_url, token, timeout)}
 
 
-def get_domain_groups(states: list[dict[str, Any]], favorites: list[dict[str, Any]], user_domain_order: list[str]) -> dict[str, list[dict[str, Any]]]:
+def get_domain_groups(states: list[dict[str, Any]], favorites: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     """Groups entities by domain and adds a virtual 'Favorites' domain at the top."""
     groups: dict[str, list[dict[str, Any]]] = {}
     
@@ -143,46 +141,28 @@ def get_domain_groups(states: list[dict[str, Any]], favorites: list[dict[str, An
     states_map = {s.get("entity_id"): s for s in states if s.get("entity_id")}
     
     # 1. Create Favorites group first so it appears at the top of the list
-    fav_list = []
-    for fav in favorites:
-        eid = fav.get("entity_id")
-        if eid in states_map:
-            fav_list.append(states_map[eid])
-    
+    fav_list = [states_map[eid] for fav in favorites if (eid := favorite_entity_id(fav)) in states_map]
     if fav_list:
-        groups["favorites"] = fav_list # Use the order from the config directly for favorites, no re-sorting here
+        groups["favorites"] = fav_list
 
-    # 2. Group remaining entities by domain
-    # Sort all entities by their display name before grouping to ensure consistent order within domains
-    sorted_states = sorted(states, key=lambda x: display_name(x.get("entity_id", ""), x).lower())
-    
-    all_domains_from_states = set()
-    for state in sorted_states:
-        domain = entity_domain(str(state.get("entity_id", "")))
-        if domain:
-            all_domains_from_states.add(domain)
-            if domain not in groups:
-                groups[domain] = []
-            groups[domain].append(state)
+    # 2. Collect all other entities and group them by domain
+    other_groups: dict[str, list[dict[str, Any]]] = {}
+    for state in states:
+        eid = str(state.get("entity_id", ""))
+        domain = entity_domain(eid)
+        if domain and domain != "favorites":
+            if domain not in other_groups:
+                other_groups[domain] = []
+            other_groups[domain].append(state)
 
-    # Now, create the final ordered dictionary based on user_domain_order
-    ordered_groups: dict[str, list[dict[str, Any]]] = {}
-    
-    # Always add 'favorites' first if it exists
-    if "favorites" in groups:
-        ordered_groups["favorites"] = groups["favorites"]
+    # 3. Sort domains alphabetically and sort entities within those domains by display name
+    for domain in sorted(other_groups.keys()):
+        entities = other_groups[domain]
+        # Sort entities by their friendly name (display_name)
+        entities.sort(key=lambda s: display_name(str(s.get("entity_id", "")), s).lower())
+        groups[domain] = entities
 
-    # Add domains from user_domain_order
-    for domain_name in user_domain_order:
-        if domain_name != "favorites" and domain_name in groups: # Ensure favorites is not re-added
-            ordered_groups[domain_name] = groups[domain_name]
-    
-    # Add any remaining domains (not in user_domain_order or favorites) alphabetically
-    remaining_domains = sorted([d for d in all_domains_from_states if d not in ordered_groups])
-    for domain_name in remaining_domains:
-        ordered_groups[domain_name] = groups[domain_name]
-
-    return ordered_groups
+    return groups
 
 
 def entity_domain(entity_id: str) -> str:

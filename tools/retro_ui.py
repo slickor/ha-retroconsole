@@ -131,17 +131,21 @@ class RetroUI:
         sdl_color = self.colors.get(color, self.colors["cyan"]) if isinstance(color, str) else color
         sdl2.SDL_SetRenderDrawColor(self.renderer, sdl_color.r, sdl_color.g, sdl_color.b, 255)
         
-        # Lines (indented by 2 pixels for rounding, exactly within bounds)
-        sdl2.SDL_RenderDrawLine(self.renderer, x + 2, y, x + w - 3, y)             # Top
-        sdl2.SDL_RenderDrawLine(self.renderer, x + 2, y + h - 1, x + w - 3, y + h - 1) # Bottom
-        sdl2.SDL_RenderDrawLine(self.renderer, x, y + 2, x, y + h - 3)             # Left
-        sdl2.SDL_RenderDrawLine(self.renderer, x + w - 1, y + 2, x + w - 1, y + h - 3) # Right
+        # 2-pixel rounding logic for a "rounder" look
+        # Main lines (indented by 3 pixels)
+        sdl2.SDL_RenderDrawLine(self.renderer, x + 3, y, x + w - 4, y)             # Top
+        sdl2.SDL_RenderDrawLine(self.renderer, x + 3, y + h - 1, x + w - 4, y + h - 1) # Bottom
+        sdl2.SDL_RenderDrawLine(self.renderer, x, y + 3, x, y + h - 4)             # Left
+        sdl2.SDL_RenderDrawLine(self.renderer, x + w - 1, y + 3, x + w - 1, y + h - 4) # Right
         
-        # Corner pixels for diagonal rounding
-        sdl2.SDL_RenderDrawPoint(self.renderer, x + 1, y + 1)         # TL
-        sdl2.SDL_RenderDrawPoint(self.renderer, x + w - 2, y + 1)     # TR
-        sdl2.SDL_RenderDrawPoint(self.renderer, x + 1, y + h - 2)     # BL
-        sdl2.SDL_RenderDrawPoint(self.renderer, x + w - 2, y + h - 2) # BR
+        # TL corner
+        sdl2.SDL_RenderDrawPoint(self.renderer, x + 2, y + 1); sdl2.SDL_RenderDrawPoint(self.renderer, x + 1, y + 2)
+        # TR corner
+        sdl2.SDL_RenderDrawPoint(self.renderer, x + w - 3, y + 1); sdl2.SDL_RenderDrawPoint(self.renderer, x + w - 2, y + 2)
+        # BL corner
+        sdl2.SDL_RenderDrawPoint(self.renderer, x + 2, y + h - 2); sdl2.SDL_RenderDrawPoint(self.renderer, x + 1, y + h - 3)
+        # BR corner
+        sdl2.SDL_RenderDrawPoint(self.renderer, x + w - 3, y + h - 2); sdl2.SDL_RenderDrawPoint(self.renderer, x + w - 2, y + h - 3)
 
     def draw_retro_box(self, x, y, w, h, title="", color="cyan"):
         """Draws a frame box with a title break."""
