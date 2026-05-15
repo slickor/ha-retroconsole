@@ -19,6 +19,7 @@ from ha_client import (
     changed_favorites,
     display_name,
     entity_domain,
+    get_state_with_unit,
     get_domain_groups,
     favorite_action,
     favorite_entity_id,
@@ -47,6 +48,9 @@ COLOR_TEXT = COLOR_CYAN
 COLOR_TEXT_DIM = COLOR_GREY
 COLOR_HIGHLIGHT = COLOR_CYAN
 
+# Domains that are allowed to be shown in the UI even if they have no actions
+VIEWABLE_DOMAINS = ["light", "switch", "sensor", "binary_sensor", "climate", "scene", "script"]
+
 class HASDL2App:
     def __init__(self, config_path):
         self.config_path = config_path
@@ -57,6 +61,9 @@ class HASDL2App:
         self.active_list = "domains" # Active column: "domains" or "entities"
         self.reorder_mode = False # True if currently reordering a favorite
         self.entity_index = 0 # Index for the middle entity list
+        self.settings_index = 0 # Index for settings options
+        self.settings_active = False # True if middle column shows settings
+        self.settings_view = "menu" # "menu" or "categories"
         self.mode = "main" # "main", "favorites", or "settings"
         self.settings_selected_index = 0
         self.entity_scroll_row = 0 # Scroll position for main entity list
@@ -91,6 +98,8 @@ class HASDL2App:
         self.task_queue = queue.Queue()
         self.current_task_thread = None
         self.game_controllers = []
+        self.prev_btn_y_label = ""
+        self.btn_y_flash_time = 0
 
     def _get_system_stats(self):
         """Fetches real CPU MHz and Free RAM on Linux devices."""
@@ -191,7 +200,7 @@ class HASDL2App:
 
         # Load domain icons (light.png, switch.png, etc.)
         icon_dir = os.path.join(script_dir, "..", "assets", "icons")
-        domains = ["favorites", "light", "switch", "scene", "script", "sensor", "binary_sensor", "climate"]
+        domains = ["favorites", "light", "switch", "scene", "script", "sensor", "binary_sensor", "climate", "settings"]
         suffixes = ["", "_on", "_off"]
         
         for domain in domains:
@@ -328,11 +337,23 @@ class HASDL2App:
     def load_entities(self):
         # Filter states to only include those with supported actions
         all_states = list(self.states.values())
-        supported_states = [s for s in all_states if entity_domain(s.get("entity_id", "")) in SUPPORTED_ACTIONS]
+        hidden = self.config.get("hidden_domains", [])
+        
+        # Filter by domains we want to see and domains that are not hidden in settings
+        supported_states = [
+            s for s in all_states 
+            if (domain := entity_domain(s.get("entity_id", ""))) in VIEWABLE_DOMAINS 
+            and domain not in hidden
+        ]
 
         # Use the grouping logic from ha_client which includes the "Favorites" domain
         self.entities_by_domain = get_domain_groups(supported_states, self.favorites)
         self.domain_list = list(self.entities_by_domain.keys())
+
+        # Handle custom domain sorting from config
+        domain_order = self.config.get("domain_order", [])
+        if domain_order:
+            self.domain_list.sort(key=lambda d: domain_order.index(d) if d in domain_order else 999)
         
         # Safety: Ensure nav_index remains valid after data reload
         if self.domain_list:
@@ -467,7 +488,8 @@ class HASDL2App:
         if key == sdl2.SDLK_ESCAPE:
             self.running = False
         elif key == sdl2.SDLK_LEFT:
-            self.active_list = "domains"
+            if self.active_list == "entities":
+                self.active_list = "domains"
         elif key == sdl2.SDLK_RIGHT:
             self._enter_entities()
         elif key == sdl2.SDLK_UP:
@@ -487,7 +509,8 @@ class HASDL2App:
         if btn == self.controls["cancel"]:
             self.running = False
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT:
-            self.active_list = "domains"
+            if self.active_list == "entities":
+                self.active_list = "domains"
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
             self._enter_entities()
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP:
@@ -524,27 +547,48 @@ class HASDL2App:
             self._handle_settings_action()
 
     def _enter_entities(self):
-        if self.active_list == "domains":
+        if self.active_list in ["domains", "settings"]:
+            if self.active_list == "settings":
+                self.settings_index = 0
+                self.settings_active = True
+                self.settings_view = "menu"
             self.active_list = "entities"
             self.entity_index = 0
             self.entity_scroll_row = 0
 
     def _nav_up(self):
         if self.reorder_mode:
-            if self.entity_index > 0:
-                favs = self.config["favorites"]
-                favs[self.entity_index], favs[self.entity_index - 1] = \
-                    favs[self.entity_index - 1], favs[self.entity_index]
-                self.entity_index -= 1
-                if self.entity_index < self.entity_scroll_row:
-                    self.entity_scroll_row = self.entity_index
-                self.load_entities()
+            if self.active_list == "entities":
+                if self.entity_index > 0:
+                    favs = self.config["favorites"]
+                    favs[self.entity_index], favs[self.entity_index - 1] = \
+                        favs[self.entity_index - 1], favs[self.entity_index]
+                    self.entity_index -= 1
+                    if self.entity_index < self.entity_scroll_row:
+                        self.entity_scroll_row = self.entity_index
+                    self.load_entities()
+            elif self.active_list == "domains":
+                if self.nav_index > 0:
+                    self.domain_list[self.nav_index], self.domain_list[self.nav_index - 1] = \
+                        self.domain_list[self.nav_index - 1], self.domain_list[self.nav_index]
+                    self.nav_index -= 1
+            return
+
+        if self.active_list == "entities" and self.settings_active:
+            if self.settings_view == "menu":
+                self.settings_index = 0
+            else:
+                self.settings_index = max(0, self.settings_index - 1)
             return
 
         if self.active_list == "domains":
             self.nav_index = max(0, self.nav_index - 1)
             self.entity_index = 0
             self.entity_scroll_row = 0
+        elif self.active_list == "settings":
+            self.active_list = "domains"
+            self.settings_active = False
+            self.nav_index = len(self.domain_list) - 1
         else:
             self.entity_index = max(0, self.entity_index - 1)
             if self.entity_index < self.entity_scroll_row:
@@ -552,22 +596,40 @@ class HASDL2App:
 
     def _nav_down(self):
         if self.reorder_mode:
-            favs = self.config["favorites"]
-            if self.entity_index < len(favs) - 1:
-                favs[self.entity_index], favs[self.entity_index + 1] = \
-                    favs[self.entity_index + 1], favs[self.entity_index]
-                self.entity_index += 1
-                visible_entities = 9
-                if self.entity_index >= self.entity_scroll_row + visible_entities:
-                    self.entity_scroll_row = self.entity_index - visible_entities + 1
-                self.load_entities()
+            if self.active_list == "entities":
+                favs = self.config["favorites"]
+                if self.entity_index < len(favs) - 1:
+                    favs[self.entity_index], favs[self.entity_index + 1] = \
+                        favs[self.entity_index + 1], favs[self.entity_index]
+                    self.entity_index += 1
+                    visible_entities = 9
+                    if self.entity_index >= self.entity_scroll_row + visible_entities:
+                        self.entity_scroll_row = self.entity_index - visible_entities + 1
+                    self.load_entities()
+            elif self.active_list == "domains":
+                if self.nav_index < len(self.domain_list) - 1:
+                    self.domain_list[self.nav_index], self.domain_list[self.nav_index + 1] = \
+                        self.domain_list[self.nav_index + 1], self.domain_list[self.nav_index]
+                    self.nav_index += 1
+            return
+
+        if self.active_list == "entities" and self.settings_active:
+            if self.settings_view == "menu":
+                self.settings_index = 0
+            else:
+                self.settings_index = min(len(VIEWABLE_DOMAINS) - 1, self.settings_index + 1)
             return
 
         if self.active_list == "domains":
-            limit = len(self.domain_list) if self.domain_list else 1
-            self.nav_index = min(limit - 1, self.nav_index + 1)
-            self.entity_index = 0
-            self.entity_scroll_row = 0
+            if self.nav_index < len(self.domain_list) - 1:
+                self.nav_index += 1
+                self.entity_index = 0
+                self.entity_scroll_row = 0
+            else:
+                self.active_list = "settings"
+                self.settings_active = True
+        elif self.active_list == "settings":
+            pass # Bottom of left column
         else:
             current_domain = self.domain_list[self.nav_index]
             entities_count = len(self.entities_by_domain.get(current_domain, []))
@@ -591,16 +653,28 @@ class HASDL2App:
                 self.entity_scroll_row = min(max(0, count - 8), self.entity_index - 7)
 
     def _handle_confirm(self):
-        if self.active_list == "entities":
+        if self.settings_active and self.active_list == "entities":
+            if self.settings_view == "menu":
+                if self.settings_index == 0:
+                    self.settings_view = "categories"
+                    self.settings_index = 0
+            else:
+                self._handle_reorder_toggle() # Reusing toggle logic for settings checkbox
+        elif self.active_list == "entities":
             self._execute_entity_action()
         else:
-            self.execute_action()
+            self._enter_entities()
 
     def _handle_reorder_toggle(self):
         """Logic to switch between regular favorite toggle and reordering."""
         if self.mode != "main" or not self.domain_list:
             return
             
+        # Handle settings category toggle if settings panel is active
+        if self.active_list == "entities" and self.settings_active:
+            self._handle_settings_toggle()
+            return
+
         current_domain = self.domain_list[self.nav_index]
         if self.active_list == "entities":
             entities = self.entities_by_domain.get(current_domain, [])
@@ -616,25 +690,34 @@ class HASDL2App:
                 else:
                     self.set_message("Sorting: Use D-Pad to move")
             else:
-                # Normal toggle for non-favorites lists
-                self.toggle_favorite(entities[self.entity_index]["entity_id"])
-        elif self.reorder_mode:
-            # Safety: turn off reorder if we moved back to domains
-            self.reorder_mode = False
-
-    def _handle_settings_action(self):
-        if self.settings_selected_index == 0:
-            # Toggle layout
-            new_layout = "spruce" if self.layout_type == "muos" else "muos"
-            self.config["control_layout"] = new_layout
-            self.setup_controls()
-            self.save_config()
-            self.set_message(f"Layout set to {new_layout.upper()}")
+                entities = self.entities_by_domain.get(current_domain, [])
+                if entities and self.entity_index < len(entities):
+                    self.toggle_favorite(entities[self.entity_index]["entity_id"])
+        elif self.active_list == "domains":
+            # Category reordering toggle
+            self.reorder_mode = not self.reorder_mode
+            if not self.reorder_mode:
+                self.config["domain_order"] = list(self.domain_list)
+                self.save_config()
+                self.set_message("Category order saved")
+            else:
+                self.set_message("Sorting Categories: Use D-Pad")
         else:
-            self.mode = "main"
-            self.set_message("Settings saved")
+            self._handle_settings_toggle()
 
-    def _render_button_icon(self, btn_val, x, y, size=15):
+    def _handle_settings_toggle(self):
+        """Toggle domain visibility in settings."""
+        hidden = self.config.get("hidden_domains", [])
+        domain = VIEWABLE_DOMAINS[self.settings_index]
+        if domain in hidden:
+            hidden.remove(domain)
+        else:
+            hidden.append(domain)
+        self.config["hidden_domains"] = hidden
+        self.save_config()
+        self.load_entities()
+
+    def _render_button_icon(self, btn_val, x, y, size=15, color="white"):
         """Renders a procedural button icon (white circle/box with black text)."""
         if isinstance(btn_val, int):
             label = {BTN_A: "A", BTN_B: "B", BTN_X: "X", BTN_Y: "Y"}.get(btn_val, "?")
@@ -655,7 +738,7 @@ class HASDL2App:
             if (side - tw) % 2 != 0: side += 1
             width = height = side
 
-        self.ui.draw_rounded_rect(x, y, width, height, "white")
+        self.ui.draw_rounded_rect(x, y, width, height, color)
         self.ui.draw_text(label, x + (width - tw) // 2, y + (height - th) // 2, "black", small=True)
         return width
 
@@ -701,21 +784,41 @@ class HASDL2App:
         self.ui.draw_text(line1, start_x, 8, "white", xl=True)
         self.ui.draw_text(line2, start_x, 52, "cyan", large=True)
 
-        # 2. Left column (Navigation) - Start at Y=105
-        self.ui.draw_retro_box(self.margin, self.header_h, self.col1_w, 265, "CATEGORIES")
+        # 2. Left column (Navigation) - Categories at top, Settings at bottom
+        cat_box_h = 210
+        self.ui.draw_retro_box(self.margin, self.header_h, self.col1_w, cat_box_h, "CATEGORIES")
         self.draw_menu(self.margin + 15, self.header_h + 13)
 
+        set_box_y = self.header_h + cat_box_h + 5
+        self.ui.draw_retro_box(self.margin, set_box_y, self.col1_w, 50, "SETTINGS")
+        self._render_settings_entry(self.margin + 15, set_box_y + 13)
+
         # 3. Main area (Middle) - Start at Y=105
-        self.ui.draw_retro_box(self.col2_x, self.header_h, self.col2_w, 265, "ENTITIES")
-        self._render_entities_list(self.col2_x + 15, self.header_h + 13)
+        box_title = "SETTINGS" if self.settings_active else "ENTITIES"
+        self.ui.draw_retro_box(self.col2_x, self.header_h, self.col2_w, 265, box_title)
+        
+        if self.settings_active:
+            self._render_settings_panel(self.col2_x + 15, self.header_h + 13)
+        else:
+            self._render_entities_list(self.col2_x + 15, self.header_h + 13)
 
         # 4. Right column (Controls box) - Height increased to 192 (uniform distribution)
         self.ui.draw_retro_box(self.col3_x, self.header_h, self.col3_w, 192, "CONTROLS")
         
         # Control shortcuts
         y_info = self.header_h + 16
-        current_domain = self.domain_list[self.nav_index] if self.domain_list else ""
-
+        
+        # Determine Y button label contextually
+        btn_y_label = "Favorite"
+        if self.active_list == "domains":
+            btn_y_label = "Sort Item"
+        elif self.active_list == "entities" and self.domain_list:
+            current_domain = self.domain_list[self.nav_index]
+            if current_domain == "favorites":
+                btn_y_label = "Confirm" if self.reorder_mode else "Sort Item"
+        elif self.active_list == "settings":
+            btn_y_label = ""
+            
         btn_x = self.col3_x + 10
         text_x = btn_x + 22
 
@@ -725,12 +828,16 @@ class HASDL2App:
         self._render_button_icon(self.controls["cancel"], btn_x, y_info + 22, size=15)
         self.ui.draw_text("Back", text_x, y_info + 23, "white", small=True)
 
-        # Favorite / Reorder
-        btn_y_label = "Favorite"
-        if current_domain == "favorites" and self.active_list == "entities":
-            btn_y_label = "Confirm" if self.reorder_mode else "Reorder"
-        self._render_button_icon(BTN_Y, btn_x, y_info + 44, size=15)
-        self.ui.draw_text(btn_y_label, text_x, y_info + 45, "white", small=True)
+        # Detect label change (for Sort Item flash) and trigger flash
+        if btn_y_label != self.prev_btn_y_label:
+            self.btn_y_flash_time = time.time()
+            self.prev_btn_y_label = btn_y_label
+
+        is_flashing = (time.time() - self.btn_y_flash_time < 0.4)
+        btn_y_color = "yellow" if is_flashing else "white"
+        if btn_y_label:
+            self._render_button_icon(BTN_Y, btn_x, y_info + 44, size=15, color=btn_y_color)
+            self.ui.draw_text(btn_y_label, text_x, y_info + 45, btn_y_color, small=True)
 
         # Refresh
         self._render_button_icon(BTN_X, btn_x, y_info + 66, size=15)
@@ -787,6 +894,64 @@ class HASDL2App:
             self.ui.draw_text(txt, 25 + tw, log_y, col, small=True)
             log_y += 15
 
+    def _render_settings_entry(self, x, y_pos):
+        """Renders the settings icon and text in its separate box."""
+        icon_tex = self.domain_icons.get("settings")
+        icon_w = 24
+        if icon_tex:
+            dst = sdl2.SDL_Rect(x, y_pos + 1, icon_w, icon_w)
+            sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+            icon_w += 10
+        
+        if self.active_list == "settings":
+            # Selection logic for settings box
+            highlight_w = self.col1_w - 20
+            self.ui.draw_selection_highlight(x - 10, y_pos - 3, highlight_w, 30, color="cyan")
+            self.ui.draw_rounded_rect(x - 10, y_pos - 3, highlight_w, 30, "cyan")
+            self.ui.draw_pointer(x - 21, y_pos + 3, width=15, height=18, color="cyan")
+            self.ui.draw_text("Settings", x + icon_w, y_pos + 2, "white")
+        else:
+            self.ui.draw_text("Settings", x + icon_w, y_pos + 2, "cyan")
+
+    def _render_settings_panel(self, x, y):
+        """Renders the domain visibility settings."""
+        if self.settings_view == "menu":
+            self.ui.draw_text("Settings Menu:", x, y, "cyan")
+            y += 35
+            color = "white"
+            if self.active_list == "entities" and self.settings_index == 0:
+                color = "cyan"
+                self.ui.draw_pointer(x - 21, y + 2, width=15, height=18)
+            self.ui.draw_text("> Visible Categories", x, y, color, small=True)
+        else:
+            self.ui.draw_text("Visible Categories:", x, y, "cyan")
+            y += 30
+            hidden = self.config.get("hidden_domains", [])
+            
+            for i, domain in enumerate(VIEWABLE_DOMAINS):
+                is_hidden = domain in hidden
+                color = "white"
+                if self.active_list == "entities" and i == self.settings_index:
+                    color = "cyan"
+                    self.ui.draw_pointer(x - 21, y + 2, width=15, height=18)
+
+                # Render status icon (on/off checkbox style)
+                status_icon_name = "binary_sensor_off" if is_hidden else "binary_sensor_on"
+                status_tex = self.domain_icons.get(status_icon_name)
+                icon_size = 20
+                
+                if status_tex:
+                    # Apply color: Yellow for active/on, Grey for inactive/off
+                    icon_color = COLOR_YELLOW if not is_hidden else COLOR_GREY
+                    sdl2.SDL_SetTextureColorMod(status_tex, icon_color.r, icon_color.g, icon_color.b)
+                    
+                    dst = sdl2.SDL_Rect(x, y + 2, icon_size, icon_size)
+                    sdl2.SDL_RenderCopy(self.renderer, status_tex, None, dst)
+                    sdl2.SDL_SetTextureColorMod(status_tex, 255, 255, 255) # Reset
+                
+                self.ui.draw_text(domain.capitalize(), x + icon_size + 8, y + 2, color, small=True)
+                y += 28 # Match entities list spacing
+
     def draw_menu(self, x, y_start):
         """Draws the navigation menu with pointer and highlight."""
         if not self.domain_list:
@@ -794,7 +959,7 @@ class HASDL2App:
             return
 
         for i, domain in enumerate(self.domain_list):
-            y_pos = y_start + (i * 30)
+            y_pos = y_start + (i * 28)
             label = domain.capitalize()
             
             # Search for icon in self.domain_icons
@@ -807,17 +972,19 @@ class HASDL2App:
                 sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
                 icon_w += 10 # Spacing to text
             
-            if i == self.nav_index:
+            if self.active_list == "domains" and i == self.nav_index:
                 # 1. Highlight background
                 highlight_w = self.col1_w - 20
-                self.ui.draw_selection_highlight(x - 10, y_pos - 3, highlight_w, 30)
+                highlight_color = "red" if (self.reorder_mode and self.active_list == "domains") else "cyan"
+                
+                self.ui.draw_selection_highlight(x - 10, y_pos - 3, highlight_w, 28, color=highlight_color)
                 
                 # 1.1 Border around selection (1px rounded, same color as pointer)
-                self.ui.draw_rounded_rect(x - 10, y_pos - 3, highlight_w, 30, "cyan")
+                self.ui.draw_rounded_rect(x - 10, y_pos - 3, highlight_w, 28, highlight_color)
                 
                 # 2. Selection triangle (pointer) - Only if domains list is active
                 if self.active_list == "domains":
-                    self.ui.draw_pointer(x - 21, y_pos + 3, width=15, height=18)
+                    self.ui.draw_pointer(x - 21, y_pos + 3, width=15, height=18, color=highlight_color)
                 
                 # 3. Active text
                 self.ui.draw_text(label, x + icon_w, y_pos + 2, "white") # Text 2 pixels lower

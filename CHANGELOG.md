@@ -2,6 +2,60 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.2] - 2026-05-15
+### Changed
+- **Settings UI:** Shortened "App Settings" label to "Settings".
+- **Settings UI:** Removed unnecessary "A: Toggle | B: Back" text from the Settings panel.
+### Fixed
+- **Navigation:** Resolved issue where last category entry and "App Settings" were double-highlighted when scrolling down to Settings.
+- **Navigation:** Fixed Entities box not immediately updating to Settings content when navigating to the Settings panel.
+- **Input Logic:** Corrected Y/F button logic in Settings to properly toggle category visibility instead of marking favorites.
+- **Version Management:** Version bumped to 0.10.2.
+
+## [0.10.1] - 2026-05-15
+### Changed
+- **Settings UI:** Replaced text-based selection markers (`[*]`/`[ ]`) in the "Visible Categories" menu with graphical toggle icons.
+- **UI Alignment:** Synchronized spacing in the settings panel with the main entity list for a more uniform look.
+- **Version Management:** Version bumped to 0.10.1.
+
+## [0.10.0] - 2026-05-15
+### Changed
+- **UI Refinement:** Categories box entry size and spacing adjusted to match Entities box (28px).
+- **Settings Overhaul:** Introduced nested settings menu structure for better organization.
+- **Settings:** Moved domain visibility toggles into a "Visible Categories" sub-menu.
+- **Version Management:** Version bumped to 0.10.0.
+
+## [0.9.8] - 2026-05-15
+### Added
+- **Functional Settings:** The Settings panel now allows toggling the visibility of individual domains in the Categories box.
+- **Sensor Support:** Added support for `sensor` and `binary_sensor` domains.
+- **Units of Measurement:** Sensors now display their unit (e.g., °C, %) next to their state value.
+### Changed
+- **Data Filtering:** Improved how entities are filtered for display to support read-only sensors.
+- **Version Management:** Version bumped to 0.9.8.
+
+## [0.9.7] - 2026-05-15
+### Fixed
+- **Bug Fix:** Resolved an `IndentationError` in `ha_sdl2.py` within the `_nav_up` method.
+### Changed
+- **Version Management:** Version bumped to 0.9.7.
+
+## [0.9.6] - 2026-05-15
+### Added
+- **Settings Box:** Moved "Settings" from the category list into its own dedicated box below the categories.
+- **Category Sorting:** Categories can now be reordered using the Y button (Sort Item) while the categories column is focused.
+### Changed
+- **UI Layout:** Adjusted Categories box height to accommodate the new Settings box.
+- **Contextual Controls:** Refined "Y" button labels to show "Sort Item" or "Favorite" depending on active focus.
+- **Navigation:** Improved D-Pad logic for jumping between Categories, Settings, and Entities.
+
+## [0.9.5] - 2026-05-15
+### Added
+- **Visual Feedback:** Added a yellow flash effect to the "Sort Item" button in the controls panel when its context or label changes.
+### Fixed
+- **Bug Fix:** Resolved a `NameError` in `ha_sdl2.py` by adding the missing `color` parameter to the `_render_button_icon` method.
+- **Version Management:** Version bumped to 0.9.5.
+
 ## [0.9.4] - 2026-05-15
 ### Changed
 - **Localization:** Replaced remaining German comments and words in code with English.

@@ -9,7 +9,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-VERSION = "0.9.4"
+VERSION = "0.10.2"
 
 
 SUPPORTED_ACTIONS = {
@@ -17,6 +17,7 @@ SUPPORTED_ACTIONS = {
     "switch": {"toggle", "turn_on", "turn_off"},
     "scene": {"turn_on"},
     "script": {"turn_on"},
+    "climate": {"turn_on", "turn_off"},
 }
 
 class HAClientError(Exception):
@@ -176,6 +177,16 @@ def display_name(entity_id: str, state: dict[str, Any] | None) -> str:
     if isinstance(attributes, dict) and attributes.get("friendly_name"):
         return str(attributes["friendly_name"])
     return entity_id
+
+
+def get_state_with_unit(state_obj: dict[str, Any]) -> str:
+    """Returns the state string appended with its unit of measurement if available."""
+    state = str(state_obj.get("state", "unknown"))
+    attributes = state_obj.get("attributes", {})
+    unit = attributes.get("unit_of_measurement")
+    if unit:
+        return f"{state} {unit}"
+    return state
 
 
 def favorite_entity_id(favorite: str | dict[str, str]) -> str:
