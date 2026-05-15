@@ -2,10 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.4] - 2026-05-15
+### Changed
+- **Localization:** Replaced remaining German comments and words in code with English.
+- **Version Management:** Version bumped to 0.9.4.
+
 ## [0.9.3] - 2026-05-15
 ### Changed
-- **UI Spacing:** Erhöhter Zeilenabstand in der `CONTROLS`-Box für bessere Übersichtlichkeit auf kleinen Displays.
-- **Version Management:** Version auf 0.9.3 angehoben.
+- **UI Spacing:** Increased line spacing in the `CONTROLS` box for better clarity on small displays.
+- **Version Management:** Version bumped to 0.9.3.
 
 ## [0.9.1] - 2026-05-15
 ### Added

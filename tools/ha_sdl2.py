@@ -709,7 +709,7 @@ class HASDL2App:
         self.ui.draw_retro_box(self.col2_x, self.header_h, self.col2_w, 265, "ENTITIES")
         self._render_entities_list(self.col2_x + 15, self.header_h + 13)
 
-        # 4. Right column (Controls box) - Height increased to 192 (gleichmäßige Aufteilung)
+        # 4. Right column (Controls box) - Height increased to 192 (uniform distribution)
         self.ui.draw_retro_box(self.col3_x, self.header_h, self.col3_w, 192, "CONTROLS")
         
         # Control shortcuts
@@ -803,7 +803,7 @@ class HASDL2App:
             if icon_tex:
                 icon_w = 24
                 # Render icon slightly vertically offset
-                dst = sdl2.SDL_Rect(x, y_pos + 1, icon_w, icon_w) # Icon 1 pixel höher
+                dst = sdl2.SDL_Rect(x, y_pos + 1, icon_w, icon_w) # Icon 1 pixel higher
                 sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
                 icon_w += 10 # Spacing to text
             
@@ -820,10 +820,10 @@ class HASDL2App:
                     self.ui.draw_pointer(x - 21, y_pos + 3, width=15, height=18)
                 
                 # 3. Active text
-                self.ui.draw_text(label, x + icon_w, y_pos + 2, "white") # Text 2 Pixel tiefer
+                self.ui.draw_text(label, x + icon_w, y_pos + 2, "white") # Text 2 pixels lower
             else:
                 # Normal text
-                self.ui.draw_text(label, x + icon_w, y_pos + 2, "cyan") # Text 2 Pixel tiefer
+                self.ui.draw_text(label, x + icon_w, y_pos + 2, "cyan") # Text 2 pixels lower
 
     def _render_entities_list(self, x, y_start):
         """Renders the list of entities for the currently selected domain."""
