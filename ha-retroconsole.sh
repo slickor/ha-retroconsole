@@ -30,6 +30,12 @@ $ESUDO chmod 666 /dev/uinput
 # Check if libs exist, if not, run installer
 if [ ! -d "libs" ]; then
     echo "First run detected, installing..."
+    if [ ! -f "./install.sh" ]; then
+        echo "ERROR: install.sh not found in $GAMEDIR"
+        echo "The installation cannot proceed. Please ensure all files are present."
+        sleep 5
+        exit 1
+    fi
     if ! bash ./install.sh; then
         echo "Installation failed. Please check your internet connection and try again."
         exit 1
