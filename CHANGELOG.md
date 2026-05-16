@@ -2,6 +2,78 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.12] - 2026-05-16
+### Fixed
+- **Navigation:** Resolved a bug in the settings menu where it was impossible to scroll down to "Display Brightness".
+### Changed
+- **Console Output:** Updated startup logging to display a complete list of PC and Handheld controls.
+- **Version Management:** Version bumped to 0.10.12.
+
+## [0.10.11] - 2026-05-16
+### Added
+- **System Control:** Integrated native brightness control for muOS and Linux-based handhelds.
+- **Visuals:** Expanded scanline overlay to cover the entire background area for a more immersive CRT effect.
+- **Settings:** Added "Display Brightness" sub-menu with real-time adjustment.
+### Changed
+- **Version Management:** Version bumped to 0.10.11.
+
+## [0.10.10] - 2026-05-16
+### Fixed
+- **Code Cleanup:** Removed duplicate keys in `ICON_MAP` within `ha_sdl2.py`.
+### Changed
+- **Version Management:** Version bumped to 0.10.10.
+
+## [0.10.9] - 2026-05-16
+### Changed
+- **Icon Management:** Switched to a mapping system to support original Remix Icon filenames.
+- **Asset Support:** Optimized for 96x96px high-resolution icons to improve visual clarity in the Status box.
+- **UI Loading:** Simplified the icon loading sequence in `ha_sdl2.py`.
+- **Version Management:** Version bumped to 0.10.9.
+
+## [0.10.8] - 2026-05-16
+### Changed
+- **Status UI:** Increased the icon size in the footer Status box by 50% (48x48).
+- **Status UI:** Implemented multi-line text wrapping (max 2 lines, 15 chars each) with truncation for long state values in the Status box.
+- **Version Management:** Version bumped to 0.10.8.
+
+## [0.10.7] - 2026-05-16
+### Added
+- **Selection Feedback:** The bottom-right "Status" box now displays the icon and live state of the currently selected entity.
+- **Smart Formatting:** Sensors now display their values with units, and binary sensors show "ON" or "OFF" in the Status box.
+### Changed
+- **Version Management:** Version bumped to 0.10.7.
+
+## [0.10.6] - 2026-05-16
+### Fixed
+- **UI Rendering:** Resolved a double-drawing issue in the Categories box where selection highlights and pointers were rendered at both old and new positions.
+### Changed
+- **Version Management:** Version bumped to 0.10.6.
+
+## [0.10.5] - 2026-05-16
+### Changed
+- **UI Layout:** Renamed the right-hand "STATUS" box to "INFOS".
+- **UI Layout:** Horizontally shrunk the "Console" box to make room for a new dedicated "Status" box at the bottom.
+### Added
+- **UI Layout:** Added a new "Status" box in the footer area, starting at the horizontal center of the screen.
+- **Version Management:** Version bumped to 0.10.5.
+
+## [0.10.4] - 2026-05-15
+### Added
+- **Icons:** Integrated new `categories.png` icon for the settings menu.
+### Fixed
+- **Input Handling:** Cleaned up redundant `running = False` calls that caused immediate exits.
+- **Navigation:** Fixed "Left" button behavior in settings to properly return to previous menu levels using the Smart-Back logic.
+- **UI Consistency:** Removed redundant lines and fixed text alignment in the settings panel.
+- **Version Management:** Version bumped to 0.10.4.
+
+## [0.10.3] - 2026-05-15
+### Changed
+- **UI Consistency:** Harmonized "Visible Categories" menu entry style with standard entity lists.
+- **UI Spacing:** Removed redundant "Settings Menu:" header in the settings panel.
+### Fixed
+- **Navigation:** Implemented "Smart-Back" logic for ESC/B/Cancel to navigate back through menus instead of closing the app.
+- **Navigation:** Fixed "Left" and "Back" navigation from sub-settings back to the main settings menu.
+
 ## [0.10.2] - 2026-05-15
 ### Changed
 - **Settings UI:** Shortened "App Settings" label to "Settings".

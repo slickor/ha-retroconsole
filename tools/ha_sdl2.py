@@ -4,6 +4,7 @@ import time
 import threading
 import socket
 import queue
+import ctypes
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 
 import sdl2
@@ -51,6 +52,25 @@ COLOR_HIGHLIGHT = COLOR_CYAN
 # Domains that are allowed to be shown in the UI even if they have no actions
 VIEWABLE_DOMAINS = ["light", "switch", "sensor", "binary_sensor", "climate", "scene", "script"]
 
+# Mapping of internal keys to original Remix Icon filenames
+ICON_MAP = {
+    "favorites": "star-s-fill",
+    "light": "lightbulb-line",
+    "light_on": "lightbulb-fill",
+    "switch": "toggle-line",
+    "switch_on": "toggle-fill",
+    "scene": "magic-line",
+    "script": "terminal-box-line",
+    "sensor": "dashboard-3-line",
+    "binary_sensor": "checkbox-blank-circle-line",
+    "binary_sensor_on": "checkbox-circle-fill",
+    "binary_sensor_off": "checkbox-blank-circle-line",
+    "climate": "thermometer-line",
+    "settings": "settings-3-line",
+    "categories": "stack-line",
+    "brightness": "sun-line"
+}
+
 class HASDL2App:
     def __init__(self, config_path):
         self.config_path = config_path
@@ -63,7 +83,7 @@ class HASDL2App:
         self.entity_index = 0 # Index for the middle entity list
         self.settings_index = 0 # Index for settings options
         self.settings_active = False # True if middle column shows settings
-        self.settings_view = "menu" # "menu" or "categories"
+        self.settings_view = "menu" # "menu", "categories", or "brightness"
         self.mode = "main" # "main", "favorites", or "settings"
         self.settings_selected_index = 0
         self.entity_scroll_row = 0 # Scroll position for main entity list
@@ -101,6 +121,10 @@ class HASDL2App:
         self.prev_btn_y_label = ""
         self.btn_y_flash_time = 0
 
+        # Brightness Control Setup
+        self.backlight_path = self._find_backlight_path()
+        self.current_brightness = self._get_brightness()
+
     def _get_system_stats(self):
         """Fetches real CPU MHz and Free RAM on Linux devices."""
         cpu_mhz = "N/A"
@@ -133,6 +157,39 @@ class HASDL2App:
             return ip
         except Exception:
             return "127.0.0.1"
+
+    def _find_backlight_path(self):
+        """Locates the system backlight brightness file."""
+        base_path = "/sys/class/backlight"
+        if os.path.exists(base_path):
+            dirs = os.listdir(base_path)
+            if dirs:
+                # Often 'backlight' or 'panel' on handhelds
+                return os.path.join(base_path, dirs[0], "brightness")
+        return None
+
+    def _get_brightness(self):
+        """Reads the current system brightness (0-255 or 0-100)."""
+        if self.backlight_path and os.path.exists(self.backlight_path):
+            try:
+                with open(self.backlight_path, "r") as f:
+                    return int(f.read().strip())
+            except: pass
+        return 100
+
+    def _set_brightness(self, value):
+        """Writes brightness to system file."""
+        if self.backlight_path:
+            try:
+                # Note: This usually requires write permissions to the sysfs file
+                # On muOS/PortMaster, the launcher script or sudo might be needed
+                with open(self.backlight_path, "w") as f:
+                    f.write(str(value))
+                self.current_brightness = value
+                return True
+            except Exception as e:
+                self.set_message(f"Brightness Error: {str(e)[:20]}")
+        return False
 
     def setup_controls(self):
         """Detects OS and sets up button mapping."""
@@ -200,21 +257,17 @@ class HASDL2App:
 
         # Load domain icons (light.png, switch.png, etc.)
         icon_dir = os.path.join(script_dir, "..", "assets", "icons")
-        domains = ["favorites", "light", "switch", "scene", "script", "sensor", "binary_sensor", "climate", "settings"]
-        suffixes = ["", "_on", "_off"]
         
-        for domain in domains:
-            for suffix in suffixes:
-                icon_name = f"{domain}{suffix}"
-                # We search for .png first, then fallback to .bmp
-                icon_path = self._find_icon(icon_dir, icon_name)
-                if os.path.exists(icon_path):
-                    surface = sdlimage.IMG_Load(icon_path.encode('utf-8'))
-                    if surface:
-                        texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
-                        if texture:
-                            self.domain_icons[icon_name] = texture
-                        sdl2.SDL_FreeSurface(surface)
+        for internal_name, remix_filename in ICON_MAP.items():
+            icon_path = self._find_icon(icon_dir, remix_filename)
+            if os.path.exists(icon_path):
+                surface = sdlimage.IMG_Load(icon_path.encode('utf-8'))
+                if surface:
+                    texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
+                    if texture:
+                        # We still store it under the internal name for the rest of the app
+                        self.domain_icons[internal_name] = texture
+                    sdl2.SDL_FreeSurface(surface)
 
         # Load main assets
         for btn in ["ha_logo"]:
@@ -484,12 +537,37 @@ class HASDL2App:
             elif value < threshold:
                 self.trigger_r_pressed = False
 
+    def _go_back(self):
+        """Smart back navigation logic for menus and sub-menus."""
+        if self.settings_active:
+            if self.settings_view != "menu":
+                self.settings_view = "menu"
+                self.settings_index = 0
+            else:
+                self.settings_active = False
+                self.active_list = "settings"
+        else:
+            self.running = False
+
     def _handle_main_keydown(self, key):
         if key == sdl2.SDLK_ESCAPE:
-            self.running = False
+            self._go_back()
+        elif key == sdl2.SDLK_b:
+            self._go_back()
         elif key == sdl2.SDLK_LEFT:
-            if self.active_list == "entities":
+            if self.active_list == "entities" and self.settings_active:
+                if self.settings_view == "brightness":
+                    self._handle_brightness_adjust(-10)
+                else:
+                    self._go_back()
+            elif self.active_list == "entities":
                 self.active_list = "domains"
+        elif key == sdl2.SDLK_RIGHT:
+            if self.active_list == "entities" and self.settings_active:
+                if self.settings_view == "brightness":
+                    self._handle_brightness_adjust(10)
+                else:
+                    self.active_list = "domains"
         elif key == sdl2.SDLK_RIGHT:
             self._enter_entities()
         elif key == sdl2.SDLK_UP:
@@ -507,12 +585,21 @@ class HASDL2App:
 
     def _handle_main_controller(self, btn):
         if btn == self.controls["cancel"]:
-            self.running = False
+            self._go_back()
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT:
             if self.active_list == "entities":
-                self.active_list = "domains"
+                if self.settings_active:
+                    if self.settings_view == "brightness":
+                        self._handle_brightness_adjust(-10)
+                    else:
+                        self._go_back()
+                else:
+                    self.active_list = "domains"
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-            self._enter_entities()
+            if self.settings_active and self.settings_view == "brightness":
+                self._handle_brightness_adjust(10)
+            else:
+                self._enter_entities()
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP:
             self._nav_up()
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN:
@@ -525,6 +612,11 @@ class HASDL2App:
             self._handle_confirm()
         elif btn == BTN_Y:
             self._handle_reorder_toggle()
+
+    def _handle_brightness_adjust(self, delta):
+        """Adjusts the system brightness by a given delta."""
+        new_val = max(0, min(100, self.current_brightness + delta))
+        self._set_brightness(new_val)
 
     def _handle_settings_keydown(self, key):
         if key == sdl2.SDLK_ESCAPE:
@@ -576,6 +668,7 @@ class HASDL2App:
 
         if self.active_list == "entities" and self.settings_active:
             if self.settings_view == "menu":
+                self.settings_index = max(0, self.settings_index - 1)
                 self.settings_index = 0
             else:
                 self.settings_index = max(0, self.settings_index - 1)
@@ -615,7 +708,7 @@ class HASDL2App:
 
         if self.active_list == "entities" and self.settings_active:
             if self.settings_view == "menu":
-                self.settings_index = 0
+                self.settings_index = min(1, self.settings_index + 1) # 1 = limit for 2 menu items
             else:
                 self.settings_index = min(len(VIEWABLE_DOMAINS) - 1, self.settings_index + 1)
             return
@@ -658,6 +751,9 @@ class HASDL2App:
                 if self.settings_index == 0:
                     self.settings_view = "categories"
                     self.settings_index = 0
+                elif self.settings_index == 1:
+                    self.settings_view = "brightness"
+                    self.current_brightness = self._get_brightness()
             else:
                 self._handle_reorder_toggle() # Reusing toggle logic for settings checkbox
         elif self.active_list == "entities":
@@ -742,8 +838,34 @@ class HASDL2App:
         self.ui.draw_text(label, x + (width - tw) // 2, y + (height - th) // 2, "black", small=True)
         return width
 
+    def _draw_global_scanlines(self):
+        """Draws scanlines across the entire physical screen, filling letterbox/pillarbox areas."""
+        real_w, real_h = ctypes.c_int(), ctypes.c_int()
+        sdl2.SDL_GetRendererOutputSize(self.renderer, ctypes.byref(real_w), ctypes.byref(real_h))
+        
+        # Berechne den Skalierungsfaktor, um die logischen Y-Koordinaten (95, 98) 
+        # auf die tatsächliche physikalische Auflösung zu mappen.
+        scale_y = real_h.value / float(self.height)
+
+        # Temporarily disable logical scaling to access the full display buffer
+        sdl2.SDL_RenderSetLogicalSize(self.renderer, 0, 0)
+        self.ui.draw_scanlines(0, 0, real_w.value, real_h.value, spacing=3)
+        
+        # Zeichne den Double-Bar Separator über die gesamte physikalische Breite (real_w)
+        # Dadurch wird er auf 16:9 Geräten bis ganz an den Rand gezeichnet.
+        sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 163, 255, 255)
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, int(95 * scale_y), real_w.value, 1))
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, int(98 * scale_y), real_w.value, 1))
+        
+        # Restore logical 4:3 scaling
+        sdl2.SDL_RenderSetLogicalSize(self.renderer, self.width, self.height)
+
     def render(self):
         self.ui.clear_screen()
+        
+        # Draw global background effects first (outside the 640x480 box)
+        self._draw_global_scanlines()
+        
         if self.mode == "main":
             self.render_layout()
         elif self.mode == "settings":
@@ -752,11 +874,6 @@ class HASDL2App:
 
     def render_layout(self):
         """Divides the screen into 5 zones (Header, Nav, Main, Info, Log)."""
-        # 1. Header Area - Redesigned (Floating style with Scanlines)
-        
-        # Scanline effect behind the logo/title area for extra retro vibe
-        self.ui.draw_scanlines(0, 5, 640, 85, spacing=3)
-
         # Double-Bar Separator (Industrial Style)
         sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 163, 255, 255)
         sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 95, 640, 1)) # Primary Bar
@@ -857,8 +974,8 @@ class HASDL2App:
         icon_w = self._render_button_icon("START", btn_x, y_info + 134, size=15)
         self.ui.draw_text("Exit", btn_x + icon_w + 5, y_info + 135, "white", small=True)
 
-        # Status Box - New position and height (+53px) to align with Console bottom
-        self.ui.draw_retro_box(self.col3_x, 302, self.col3_w, 173, "STATUS")
+        # Infos Box (formerly Status)
+        self.ui.draw_retro_box(self.col3_x, 302, self.col3_w, 173, "INFOS")
         
         cpu_mhz, free_ram = self._get_system_stats()
         server_status = "Connected" if self.states else "Disconnected"
@@ -878,8 +995,65 @@ class HASDL2App:
             self.ui.draw_text(str(val), btn_x + tw, y_status, "white", small=True)
             y_status += 18
 
-        # 5. Bottom row (Console) - Horizontally shortened to align with Entities box
-        self.ui.draw_retro_box(self.margin, self.footer_y, (self.col2_x + self.col2_w) - self.margin, 95, "Console")
+        # 5. Bottom row (Console & Status)
+        # Console - Horizontally shortened
+        self.ui.draw_retro_box(self.margin, self.footer_y, 320, 95, "Console")
+
+        # New Status box at the bottom
+        status_x = 340 # Starts roughly in the middle of the entities box
+        self.ui.draw_retro_box(status_x, self.footer_y, 130, 95, "Status")
+
+        # Display selected entity status in the new Status box
+        selected_entity = None
+        if self.domain_list and self.nav_index < len(self.domain_list):
+            curr_dom = self.domain_list[self.nav_index]
+            ents = self.entities_by_domain.get(curr_dom, [])
+            if self.entity_index < len(ents):
+                selected_entity = ents[self.entity_index]
+
+        if selected_entity and not self.settings_active:
+            eid = selected_entity.get("entity_id", "")
+            dom = entity_domain(eid)
+            
+            # Determine icon
+            icon_tex = self.domain_icons.get(dom) or self.domain_icons.get(f"{dom}_on")
+            
+            # Determine state text with custom formatting
+            if dom == "binary_sensor":
+                st_text = selected_entity.get("state", "unknown").upper()
+            elif dom == "sensor":
+                st_text = get_state_with_unit(selected_entity)
+            else:
+                st_text = selected_entity.get("state", "unknown").capitalize()
+
+            # Center icon and text
+            box_center_x = status_x + 65
+            if icon_tex:
+                is_on = selected_entity.get("state") == "on"
+                icon_color = COLOR_YELLOW if is_on else COLOR_GREY
+                sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
+                # 48x48 centered icon (+50% size increase)
+                dst = sdl2.SDL_Rect(box_center_x - 24, self.footer_y + 12, 48, 48)
+                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
+
+            # Split text into max 2 lines of 15 chars each
+            status_lines = []
+            if len(st_text) <= 15:
+                status_lines.append(st_text)
+            else:
+                status_lines.append(st_text[:15])
+                if len(st_text) <= 30:
+                    status_lines.append(st_text[15:])
+                else:
+                    status_lines.append(st_text[15:27] + "...")
+
+            # Render text lines centered below the icon
+            y_text = self.footer_y + 62
+            for line in status_lines:
+                lw, _ = self.ui.get_text_size(line, small=True)
+                self.ui.draw_text(line, box_center_x - (lw // 2), y_text, "white", small=True)
+                y_text += 15
         
         # Render log entries
         log_y = 390 # Start position for the first log line
@@ -915,25 +1089,42 @@ class HASDL2App:
 
     def _render_settings_panel(self, x, y):
         """Renders the domain visibility settings."""
+        highlight_w = self.col2_w - 30
+
         if self.settings_view == "menu":
-            self.ui.draw_text("Settings Menu:", x, y, "cyan")
-            y += 35
-            color = "white"
-            if self.active_list == "entities" and self.settings_index == 0:
-                color = "cyan"
-                self.ui.draw_pointer(x - 21, y + 2, width=15, height=18)
-            self.ui.draw_text("> Visible Categories", x, y, color, small=True)
-        else:
+            menu_items = [("Visible Categories", "categories"), ("Display Brightness", "brightness")]
+            for i, (label, icon_key) in enumerate(menu_items):
+                color = "white"
+                is_selected = (self.active_list == "entities" and self.settings_index == i)
+                
+                icon_tex = self.domain_icons.get(icon_key)
+                if icon_tex:
+                    dst = sdl2.SDL_Rect(x, y + (i * 28) + 2, 24, 24)
+                    sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+
+                if is_selected:
+                    color = "cyan"
+                    self.ui.draw_selection_highlight(x - 10, y + (i * 28) - 3, highlight_w, 28, color="cyan")
+                    self.ui.draw_rounded_rect(x - 10, y + (i * 28) - 3, highlight_w, 28, "cyan")
+                    self.ui.draw_pointer(x - 21, y + (i * 28) + 2, width=15, height=18, color="cyan")
+                
+                self.ui.draw_text(label, x + 34, y + (i * 28) + 2, color)
+
+        elif self.settings_view == "categories":
             self.ui.draw_text("Visible Categories:", x, y, "cyan")
-            y += 30
+            y_list = y + 30
             hidden = self.config.get("hidden_domains", [])
             
             for i, domain in enumerate(VIEWABLE_DOMAINS):
                 is_hidden = domain in hidden
+                
+                is_selected = (self.active_list == "entities" and i == self.settings_index)
                 color = "white"
-                if self.active_list == "entities" and i == self.settings_index:
+                if is_selected:
                     color = "cyan"
-                    self.ui.draw_pointer(x - 21, y + 2, width=15, height=18)
+                    self.ui.draw_selection_highlight(x - 10, y_list - 3, highlight_w, 28, color="cyan")
+                    self.ui.draw_rounded_rect(x - 10, y_list - 3, highlight_w, 28, "cyan")
+                    self.ui.draw_pointer(x - 21, y_list + 2, width=15, height=18, color="cyan")
 
                 # Render status icon (on/off checkbox style)
                 status_icon_name = "binary_sensor_off" if is_hidden else "binary_sensor_on"
@@ -945,12 +1136,26 @@ class HASDL2App:
                     icon_color = COLOR_YELLOW if not is_hidden else COLOR_GREY
                     sdl2.SDL_SetTextureColorMod(status_tex, icon_color.r, icon_color.g, icon_color.b)
                     
-                    dst = sdl2.SDL_Rect(x, y + 2, icon_size, icon_size)
+                    dst = sdl2.SDL_Rect(x, y_list + 2, icon_size, icon_size)
                     sdl2.SDL_RenderCopy(self.renderer, status_tex, None, dst)
                     sdl2.SDL_SetTextureColorMod(status_tex, 255, 255, 255) # Reset
                 
-                self.ui.draw_text(domain.capitalize(), x + icon_size + 8, y + 2, color, small=True)
-                y += 28 # Match entities list spacing
+                self.ui.draw_text(domain.capitalize(), x + icon_size + 8, y_list + 2, color, small=True)
+                y_list += 28 # Match entities list spacing
+        
+        elif self.settings_view == "brightness":
+            self.ui.draw_text("Display Brightness:", x, y, "cyan")
+            y_bar = y + 50
+            # Draw a simple bar
+            bar_w = highlight_w - 40
+            self.ui.draw_rounded_rect(x, y_bar, bar_w, 20, "white")
+            # Fill bar based on brightness
+            fill_w = int((self.current_brightness / 100.0) * (bar_w - 6))
+            sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 163, 255, 255)
+            sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(x + 3, y_bar + 3, fill_w, 14))
+            
+            self.ui.draw_text(f"{self.current_brightness}%", x + bar_w + 10, y_bar, "white")
+            self.ui.draw_text("Use D-Pad Left/Right", x, y_bar + 40, "gray", small=True)
 
     def draw_menu(self, x, y_start):
         """Draws the navigation menu with pointer and highlight."""
@@ -977,14 +1182,14 @@ class HASDL2App:
                 highlight_w = self.col1_w - 20
                 highlight_color = "red" if (self.reorder_mode and self.active_list == "domains") else "cyan"
                 
-                self.ui.draw_selection_highlight(x - 10, y_pos - 3, highlight_w, 28, color=highlight_color)
+                self.ui.draw_selection_highlight(x - 10, y_pos, highlight_w, 28, color=highlight_color)
                 
                 # 1.1 Border around selection (1px rounded, same color as pointer)
-                self.ui.draw_rounded_rect(x - 10, y_pos - 3, highlight_w, 28, highlight_color)
+                self.ui.draw_rounded_rect(x - 10, y_pos, highlight_w, 28, highlight_color)
                 
                 # 2. Selection triangle (pointer) - Only if domains list is active
                 if self.active_list == "domains":
-                    self.ui.draw_pointer(x - 21, y_pos + 3, width=15, height=18, color=highlight_color)
+                    self.ui.draw_pointer(x - 21, y_pos + 6, width=15, height=18, color=highlight_color)
                 
                 # 3. Active text
                 self.ui.draw_text(label, x + icon_w, y_pos + 2, "white") # Text 2 pixels lower
@@ -1175,4 +1380,18 @@ if __name__ == "__main__":
     
     config_path = Path(args.config)
     app = HASDL2App(config_path)
+
+    print(f"\n[HA RetroConsole v{VERSION}]")
+    print("-" * 50)
+    print("CONTROLS (Handheld / PC):")
+    print("D-Pad / Arrows      : Navigate")
+    print("A / Enter           : Execute Action / Select")
+    print("B / Esc / B-Key     : Back / Exit")
+    print("X / R-Key           : Refresh States")
+    print("Y / F-Key           : Sort Items / Toggle Favorite")
+    print("L1, R1 / PageUp, Dn : Page Up/Down (Entities)")
+    print("L2, R2              : Scroll Console Log")
+    print("Start / S-Key       : Open App Settings")
+    print("-" * 50 + "\n")
+
     app.run()
