@@ -8,11 +8,11 @@ Turn your retro handheld into a smart home command center. HA RetroConsole provi
 
 ## Current Status
 
-**Version 0.9.0** is now live. The project has moved past the initial prototyping stages and features a completely redesigned, theme-based user interface. 
+**Version 0.10.15** is now live. The project has moved past the initial prototyping stages and features a completely redesigned, theme-based user interface. 
 
 Key milestones reached:
 - **Phase 4 (Deployable App):** Successfully completed with automated build scripts for PortMaster.
-- **Phase 5 (Device Testing):** In progress, with successful verification on devices like the TrimUI Smart Pro.
+- **Phase 5 (Device Testing):** Completed. Successfully verified on muOS, Spruce, and Knulli distributions for the TrimUI Smart Pro.
 
 For detailed setup instructions, see the Installation & Configuration Guide.
 
@@ -106,12 +106,12 @@ The token is created in Home Assistant from your user profile under:
 
 ## Roadmap
 
-- Phase 0: Test Home Assistant connectivity via REST (completed).
-- Phase 1: Load and group entities (completed).
-- Phase 2: First controller-friendly desktop UI (completed).
-- Phase 3: SDL2 app for handheld resolutions (completed).
-- Phase 4: Build a deployable App (completed).
-- Phase 5: Test on R36S and TrimUI Smart Pro (in progress).
+- Phase 0: Test Home Assistant connectivity via REST (Completed).
+- Phase 1: Load and group entities (Completed).
+- Phase 2: First controller-friendly desktop UI (Completed).
+- Phase 3: SDL2 app for handheld resolutions (Completed).
+- Phase 4: Build a deployable App (Completed).
+- Phase 5: Test on R36S and TrimUI Smart Pro (Completed).
 
 Detailed progress can be tracked in `docs/ROADMAP.md` and `CHANGELOG.md`.
 

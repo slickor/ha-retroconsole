@@ -197,14 +197,19 @@ class HASDL2App:
         
         if layout == "auto":
             # Auto-detection
-            if os.path.exists("/mnt/SDCARD/spruce"):
-                layout = "spruce"
+            # Spruce uses /mnt/SDCARD/spruce, Knulli/Batocera uses /userdata
+            if os.path.exists("/mnt/SDCARD/spruce") or os.path.exists("/userdata/system"):
+                layout = "spruce" # Nintendo Style: B=Confirm, A=Cancel
             else:
-                layout = "muos"
+                layout = "muos" # Xbox Style: A=Confirm, B=Cancel
 
         self.layout_type = layout
         # muOS/Default: Confirm=A (0), Cancel=B (1) | Spruce: Confirm=B (1), Cancel=A (0)
         self.controls = {"confirm": BTN_A, "cancel": BTN_B} if layout == "muos" else {"confirm": BTN_B, "cancel": BTN_A}
+
+        confirm_label = "A" if self.controls["confirm"] == BTN_A else "B"
+        cancel_label = "B" if self.controls["cancel"] == BTN_B else "A"
+        print(f"DEBUG: Control layout: {layout.upper()} (Confirm={confirm_label}, Cancel={cancel_label})")
 
     def init_sdl(self):
         sdl2.SDL_Init(sdl2.SDL_INIT_VIDEO | sdl2.SDL_INIT_GAMECONTROLLER)
@@ -539,13 +544,17 @@ class HASDL2App:
 
     def _go_back(self):
         """Smart back navigation logic for menus and sub-menus."""
-        if self.settings_active:
+        if self.mode == "settings":
+            self.mode = "main"
+        elif self.settings_active:
             if self.settings_view != "menu":
                 self.settings_view = "menu"
                 self.settings_index = 0
             else:
                 self.settings_active = False
                 self.active_list = "settings"
+        elif self.active_list == "entities":
+            self.active_list = "domains"
         else:
             self.running = False
 
@@ -638,10 +647,14 @@ class HASDL2App:
         elif btn == self.controls["confirm"]:
             self._handle_settings_action()
 
+    def _handle_settings_action(self):
+        """Action handler for the dedicated settings mode."""
+        if self.settings_selected_index == 1: # 'Back' option
+            self.mode = "main"
+
     def _enter_entities(self):
         if self.active_list in ["domains", "settings"]:
             if self.active_list == "settings":
-                self.settings_index = 0
                 self.settings_active = True
                 self.settings_view = "menu"
             self.active_list = "entities"
@@ -669,7 +682,6 @@ class HASDL2App:
         if self.active_list == "entities" and self.settings_active:
             if self.settings_view == "menu":
                 self.settings_index = max(0, self.settings_index - 1)
-                self.settings_index = 0
             else:
                 self.settings_index = max(0, self.settings_index - 1)
             return
@@ -843,16 +855,16 @@ class HASDL2App:
         real_w, real_h = ctypes.c_int(), ctypes.c_int()
         sdl2.SDL_GetRendererOutputSize(self.renderer, ctypes.byref(real_w), ctypes.byref(real_h))
         
-        # Berechne den Skalierungsfaktor, um die logischen Y-Koordinaten (95, 98) 
-        # auf die tatsächliche physikalische Auflösung zu mappen.
+        # Calculate the scaling factor to map logical Y coordinates (95, 98)
+        # to the actual physical resolution.
         scale_y = real_h.value / float(self.height)
 
         # Temporarily disable logical scaling to access the full display buffer
         sdl2.SDL_RenderSetLogicalSize(self.renderer, 0, 0)
         self.ui.draw_scanlines(0, 0, real_w.value, real_h.value, spacing=3)
         
-        # Zeichne den Double-Bar Separator über die gesamte physikalische Breite (real_w)
-        # Dadurch wird er auf 16:9 Geräten bis ganz an den Rand gezeichnet.
+        # Draw the double-bar separator across the entire physical width (real_w).
+        # This ensures it is drawn to the very edge on 16:9 devices.
         sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 163, 255, 255)
         sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, int(95 * scale_y), real_w.value, 1))
         sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, int(98 * scale_y), real_w.value, 1))

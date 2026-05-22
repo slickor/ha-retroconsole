@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.15] - 2026-05-22
+### Added
+- **Distribution Support:** Added automatic detection and optimized controller mapping for Knulli (Batocera-based).
+- **Debug Tools:** Implemented console debug output to verify identified control layouts (muOS vs. Spruce/Knulli) at startup.
+### Fixed
+- **Navigation:** Refined "Smart-Back" logic to prevent accidental application exit when navigating back from entity lists.
+- **Input Logic:** Standardized "Nintendo" vs "Xbox" button behaviors across muOS, Spruce, and Knulli distributions.
+### Changed
+- **Version Management:** Version bumped to 0.10.15.
+
 ## [0.10.12] - 2026-05-16
 ### Fixed
 - **Navigation:** Resolved a bug in the settings menu where it was impossible to scroll down to "Display Brightness".
