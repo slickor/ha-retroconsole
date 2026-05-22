@@ -849,6 +849,16 @@ class HASDL2App:
             else:
                 self._handle_reorder_toggle() # Reusing toggle logic for settings checkbox
         elif self.active_list == "entities":
+            current_domain = self.domain_list[self.nav_index]
+            entities = self.entities_by_domain.get(current_domain, [])
+            if entities and self.entity_index < len(entities):
+                entity = entities[self.entity_index]
+                if entity_domain(entity["entity_id"]) == "camera":
+                    if self.camera_tex:
+                        self.mode = "camera_fullscreen"
+                    else:
+                        self.set_message("Camera snapshot loading...", color="yellow")
+                    return
             self._execute_entity_action()
         else:
             self._enter_entities()
