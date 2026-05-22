@@ -30,6 +30,7 @@ from ha_client import (
     refresh_after_action,
     save_config,
     resolve_action,
+    fetch_camera_snapshot,
 )
 
 # Controller Button Mapping Aliases (SDL Constants)
@@ -50,7 +51,21 @@ COLOR_TEXT_DIM = COLOR_GREY
 COLOR_HIGHLIGHT = COLOR_CYAN
 
 # Domains that are allowed to be shown in the UI even if they have no actions
-VIEWABLE_DOMAINS = ["light", "switch", "sensor", "binary_sensor", "climate", "scene", "script"]
+VIEWABLE_DOMAINS = [
+    "light", 
+    "switch", 
+    "sensor", 
+    "binary_sensor", 
+    "climate", 
+    "scene", 
+    "script", 
+    "media_player", 
+    "cover", 
+    "fan", 
+    "lock", 
+    "input_boolean",
+    "camera"
+]
 
 # Mapping of internal keys to original Remix Icon filenames
 ICON_MAP = {
@@ -68,7 +83,12 @@ ICON_MAP = {
     "climate": "thermometer-line",
     "settings": "settings-3-line",
     "categories": "stack-line",
-    "brightness": "sun-line"
+    "brightness": "sun-line",
+    "media_player": "play-circle-line",
+    "cover": "layout-row-fill",
+    "fan": "fan-line",
+    "lock": "lock-line",
+    "camera": "video-on-line"
 }
 
 class HASDL2App:
@@ -93,6 +113,7 @@ class HASDL2App:
         self.selection_start_time = time.time()
         self.fav_flash_time = 0
         self.log_entries = [] # List of (timestamp, text, color)
+        self.btn_flash_times = {} # Map of btn_id -> timestamp for visual feedback
         self.log_scroll = 0
         self.trigger_l_pressed = False
         self.trigger_r_pressed = False
@@ -119,6 +140,8 @@ class HASDL2App:
         self.current_task_thread = None
         self.game_controllers = []
         self.prev_btn_y_label = ""
+        self.camera_tex = None
+        self.last_camera_eid = None
         self.btn_y_flash_time = 0
 
         # Brightness Control Setup
@@ -351,6 +374,15 @@ class HASDL2App:
             timeout=10.0
         )
 
+    def _fetch_camera_snapshot_background(self, entity_id):
+        """Fetches camera snapshot in a background thread."""
+        return fetch_camera_snapshot(
+            self.config["base_url"],
+            self.config["token"],
+            entity_id,
+            timeout=5.0
+        )
+
     def _execute_service_and_refresh_background(self, domain, service, entity_id, previous_state, favorite):
         """Executes a service call and refreshes states in a background thread."""
         call_service(
@@ -495,14 +527,35 @@ class HASDL2App:
     def _handle_keydown(self, key):
         self.selection_start_time = time.time()
 
+        # Handle fullscreen mode inputs
+        if self.mode == "camera_fullscreen":
+            if key in {sdl2.SDLK_ESCAPE, sdl2.SDLK_b}:
+                self._go_back()
+            return
+
         # Global keys
         if key == sdl2.SDLK_r:
             self.load_data()
+            self.btn_flash_times[BTN_X] = time.time()
             self.set_message("Refreshed")
             return
         if key == sdl2.SDLK_s:
             self.mode = "settings"
+            self.btn_flash_times["START"] = time.time()
             return
+
+        # Map keys to visual buttons for flashing
+        key_map = {
+            sdl2.SDLK_RETURN: self.controls["confirm"],
+            sdl2.SDLK_KP_ENTER: self.controls["confirm"],
+            sdl2.SDLK_ESCAPE: self.controls["cancel"],
+            sdl2.SDLK_b: self.controls["cancel"],
+            sdl2.SDLK_f: BTN_Y,
+            sdl2.SDLK_PAGEUP: "L1",
+            sdl2.SDLK_PAGEDOWN: "R1"
+        }
+        if key in key_map:
+            self.btn_flash_times[key_map[key]] = time.time()
 
         if self.mode == "main":
             self._handle_main_keydown(key)
@@ -510,16 +563,30 @@ class HASDL2App:
             self._handle_settings_keydown(key)
 
     def _handle_controller_button(self, btn):
-        self.selection_start_time = time.time()
+
+        # Handle fullscreen mode inputs
+        if self.mode == "camera_fullscreen":
+            if btn == self.controls["cancel"]:
+                self._go_back()
+            return
 
         # Global buttons
         if btn == BTN_X:
             self.load_data()
+            self.btn_flash_times[BTN_X] = time.time()
             self.set_message("Refreshed")
             return
         if btn == sdl2.SDL_CONTROLLER_BUTTON_START:
             self.mode = "settings"
+            self.btn_flash_times["START"] = time.time()
             return
+
+        # Map shoulder buttons to strings for flashing
+        btn_map = {
+            sdl2.SDL_CONTROLLER_BUTTON_LEFTSHOULDER: "L1",
+            sdl2.SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: "R1"
+        }
+        self.btn_flash_times[btn_map.get(btn, btn)] = time.time()
 
         if self.mode == "main":
             self._handle_main_controller(btn)
@@ -531,12 +598,14 @@ class HASDL2App:
         threshold = 16000
         if axis == sdl2.SDL_CONTROLLER_AXIS_TRIGGERLEFT:
             if value > threshold and not self.trigger_l_pressed:
+                self.btn_flash_times["L2"] = time.time()
                 self.log_scroll = max(0, self.log_scroll - 1)
                 self.trigger_l_pressed = True
             elif value < threshold:
                 self.trigger_l_pressed = False
         elif axis == sdl2.SDL_CONTROLLER_AXIS_TRIGGERRIGHT:
             if value > threshold and not self.trigger_r_pressed:
+                self.btn_flash_times["R2"] = time.time()
                 self.log_scroll = min(max(0, len(self.log_entries) - 5), self.log_scroll + 1)
                 self.trigger_r_pressed = True
             elif value < threshold:
@@ -544,7 +613,9 @@ class HASDL2App:
 
     def _go_back(self):
         """Smart back navigation logic for menus and sub-menus."""
-        if self.mode == "settings":
+        if self.mode == "camera_fullscreen":
+            self.mode = "main"
+        elif self.mode == "settings":
             self.mode = "main"
         elif self.settings_active:
             if self.settings_view != "menu":
@@ -660,6 +731,7 @@ class HASDL2App:
             self.active_list = "entities"
             self.entity_index = 0
             self.entity_scroll_row = 0
+            self._update_selection_context()
 
     def _nav_up(self):
         if self.reorder_mode:
@@ -690,14 +762,17 @@ class HASDL2App:
             self.nav_index = max(0, self.nav_index - 1)
             self.entity_index = 0
             self.entity_scroll_row = 0
+            self._update_selection_context()
         elif self.active_list == "settings":
             self.active_list = "domains"
             self.settings_active = False
             self.nav_index = len(self.domain_list) - 1
+            self._update_selection_context()
         else:
             self.entity_index = max(0, self.entity_index - 1)
             if self.entity_index < self.entity_scroll_row:
                 self.entity_scroll_row = self.entity_index
+            self._update_selection_context()
 
     def _nav_down(self):
         if self.reorder_mode:
@@ -730,9 +805,11 @@ class HASDL2App:
                 self.nav_index += 1
                 self.entity_index = 0
                 self.entity_scroll_row = 0
+                self._update_selection_context()
             else:
                 self.active_list = "settings"
                 self.settings_active = True
+                self._update_selection_context()
         elif self.active_list == "settings":
             pass # Bottom of left column
         else:
@@ -742,12 +819,14 @@ class HASDL2App:
             visible_entities = 9
             if self.entity_index >= self.entity_scroll_row + visible_entities:
                 self.entity_scroll_row = self.entity_index - visible_entities + 1
+            self._update_selection_context()
 
     def _page_up(self):
         if self.active_list == "entities":
             self.entity_index = max(0, self.entity_index - 8)
             if self.entity_index < self.entity_scroll_row:
                 self.entity_scroll_row = self.entity_index
+            self._update_selection_context()
 
     def _page_down(self):
         if self.active_list == "entities" and self.nav_index < len(self.domain_list):
@@ -756,6 +835,7 @@ class HASDL2App:
             self.entity_index = min(max(0, count - 1), self.entity_index + 8)
             if self.entity_index >= self.entity_scroll_row + 8:
                 self.entity_scroll_row = min(max(0, count - 8), self.entity_index - 7)
+            self._update_selection_context()
 
     def _handle_confirm(self):
         if self.settings_active and self.active_list == "entities":
@@ -825,12 +905,51 @@ class HASDL2App:
         self.save_config()
         self.load_entities()
 
+    def _update_selection_context(self):
+        """Updates contextual logic (marquee timer, camera previews) when selection changes."""
+        self.selection_start_time = time.time()
+        
+        # Clear camera preview if not focused on an entity
+        if self.active_list != "entities" or not self.domain_list or self.settings_active:
+            if self.camera_tex:
+                sdl2.SDL_DestroyTexture(self.camera_tex)
+                self.camera_tex = None
+            self.last_camera_eid = None
+            return
+
+        current_domain = self.domain_list[self.nav_index]
+        entities = self.entities_by_domain.get(current_domain, [])
+        if not entities or self.entity_index >= len(entities):
+            return
+
+        entity = entities[self.entity_index]
+        eid = entity.get("entity_id", "")
+        
+        if entity_domain(eid) == "camera":
+            # Trigger fetch only if the selected camera has changed
+            if eid != self.last_camera_eid:
+                self.last_camera_eid = eid
+                if self.camera_tex:
+                    sdl2.SDL_DestroyTexture(self.camera_tex)
+                    self.camera_tex = None
+                self._start_background_task("fetch_camera", self._fetch_camera_snapshot_background, eid)
+        else:
+            # Not a camera, cleanup any existing preview texture
+            self.last_camera_eid = None
+            if self.camera_tex:
+                sdl2.SDL_DestroyTexture(self.camera_tex)
+                self.camera_tex = None
+
     def _render_button_icon(self, btn_val, x, y, size=15, color="white"):
         """Renders a procedural button icon (white circle/box with black text)."""
         if isinstance(btn_val, int):
             label = {BTN_A: "A", BTN_B: "B", BTN_X: "X", BTN_Y: "Y"}.get(btn_val, "?")
         else:
             label = str(btn_val)
+
+        # Check if button should flash due to recent input
+        is_flashing = (time.time() - self.btn_flash_times.get(btn_val, 0) < 0.12)
+        box_color = "cyan" if is_flashing else color
 
         tw, th = self.ui.get_text_size(label, small=True)
 
@@ -846,7 +965,7 @@ class HASDL2App:
             if (side - tw) % 2 != 0: side += 1
             width = height = side
 
-        self.ui.draw_rounded_rect(x, y, width, height, color)
+        self.ui.draw_rounded_rect(x, y, width, height, box_color)
         self.ui.draw_text(label, x + (width - tw) // 2, y + (height - th) // 2, "black", small=True)
         return width
 
@@ -875,14 +994,41 @@ class HASDL2App:
     def render(self):
         self.ui.clear_screen()
         
-        # Draw global background effects first (outside the 640x480 box)
-        self._draw_global_scanlines()
-        
-        if self.mode == "main":
-            self.render_layout()
-        elif self.mode == "settings":
-            self.render_settings()
+        if self.mode == "camera_fullscreen":
+            self.render_camera_fullscreen()
+        else:
+            # Draw global background effects first (outside the 640x480 box)
+            self._draw_global_scanlines()
+            
+            if self.mode == "main":
+                self.render_layout()
+            elif self.mode == "settings":
+                self.render_settings()
+
         sdl2.SDL_RenderPresent(self.renderer)
+
+    def render_camera_fullscreen(self):
+        """Renders the selected camera snapshot in fullscreen."""
+        if not self.camera_tex:
+            self.mode = "main"
+            return
+
+        # Query texture dimensions to calculate aspect ratio
+        tw, th = ctypes.c_int(), ctypes.c_int()
+        sdl2.SDL_QueryTexture(self.camera_tex, None, None, ctypes.byref(tw), ctypes.byref(th))
+        tex_w, tex_h = float(tw.value), float(th.value)
+        
+        if tex_w <= 0 or tex_h <= 0:
+            return
+
+        # Calculate best fit for logical resolution while maintaining aspect ratio
+        scale = min(float(self.width) / tex_w, float(self.height) / tex_h)
+        render_w, render_h = int(tex_w * scale), int(tex_h * scale)
+        dst_x = int((self.width - render_w) / 2)
+        dst_y = int((self.height - render_h) / 2)
+
+        dst_rect = sdl2.SDL_Rect(dst_x, dst_y, render_w, render_h)
+        sdl2.SDL_RenderCopy(self.renderer, self.camera_tex, None, dst_rect)
 
     def render_layout(self):
         """Divides the screen into 5 zones (Header, Nav, Main, Info, Log)."""
@@ -1040,7 +1186,11 @@ class HASDL2App:
 
             # Center icon and text
             box_center_x = status_x + 65
-            if icon_tex:
+            if dom == "camera" and self.camera_tex:
+                # Render camera snapshot centered in the status box (approx 16:9)
+                dst = sdl2.SDL_Rect(box_center_x - 50, self.footer_y + 12, 100, 56)
+                sdl2.SDL_RenderCopy(self.renderer, self.camera_tex, None, dst)
+            elif icon_tex:
                 is_on = selected_entity.get("state") == "on"
                 icon_color = COLOR_YELLOW if is_on else COLOR_GREY
                 sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
@@ -1352,6 +1502,8 @@ class HASDL2App:
             self.ui.cleanup()
         if self.renderer:
             sdl2.SDL_DestroyRenderer(self.renderer)
+        if self.camera_tex:
+            sdl2.SDL_DestroyTexture(self.camera_tex)
         for tex in self.domain_icons.values():
             sdl2.SDL_DestroyTexture(tex)
         for controller in self.game_controllers:
@@ -1369,6 +1521,17 @@ class HASDL2App:
                 self.states = task_result["result"]
                 self.set_message("Connected")
                 self.load_entities()
+                self._update_selection_context()
+            elif task_result["type"] == "fetch_camera":
+                img_data = task_result["result"]
+                if img_data:
+                    # Convert raw bytes to SDL texture
+                    rw = sdl2.SDL_RWFromMem(img_data, len(img_data))
+                    # IMG_Load_RW with 1 as second param closes the RW automatically
+                    surface = sdlimage.IMG_Load_RW(rw, 1)
+                    if surface:
+                        self.camera_tex = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
+                        sdl2.SDL_FreeSurface(surface)
             elif task_result["type"] == "execute_action":
                 new_states = task_result["result"]["new_states"]
                 favorite = task_result["result"]["favorite"]

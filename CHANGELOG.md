@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.20] - 2026-05-22
+### Fixed
+- **Camera:** Resolved an issue where pressing "Confirm" on a camera entity would mistakenly call a `turn_on` service.
+- **UI Rendering:** Implemented aspect-ratio-corrected rendering for camera fullscreen mode to prevent image stretching on 4:3 displays.
+
+## [0.10.19] - 2026-05-22
+### Added
+- **Camera:** Introduced a dedicated `camera_fullscreen` mode. Pressing "Confirm" on a camera entity now opens the snapshot in full-screen view.
+
+## [0.10.18] - 2026-05-22
+### Added
+- **Camera:** Implemented background camera snapshot fetching when a camera entity is selected in the list.
+### Changed
+- **Navigation:** Marquee auto-scroll now only resets when the selection actually changes, rather than on every key press.
+
+## [0.10.17] - 2026-05-22
+### Added
+- **Visuals:** Added tactile visual feedback for button presses; control icons in the "CONTROLS" box now flash Cyan when used.
+### Changed
+- **Performance:** Reduced the post-action refresh delay from 250ms to 100ms for faster UI updates.
+
+## [0.10.16] - 2026-05-22
+### Added
+- **Domain Support:** Expanded supported domains to include `media_player`, `cover`, `fan`, `lock`, `input_boolean`, and `camera`.
+- **Icons:** Added new custom icons for `cover` (`layout-row-fill`) and `camera` (`video-on-line`).
+
 ## [0.10.15] - 2026-05-22
 ### Added
 - **Distribution Support:** Added automatic detection and optimized controller mapping for Knulli (Batocera-based).

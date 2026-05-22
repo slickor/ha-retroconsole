@@ -60,7 +60,7 @@ Goal: Move desktop prototyping logic into a native SDL2-based handheld app.
 - [x] Memory-efficient text texture caching.
 - [x] Organize app configuration and runtime files in the app folder.
 
-## Phase 4: deployable App (completed)
+## Phase 4: Deployable App (completed)
 Goal: A deployable App for target devices.
 
 - [x] `port.json`
@@ -72,11 +72,11 @@ Goal: A deployable App for target devices.
 - [x] License files
 - [x] Binaries/Environment setup strategy
 
-## Phase 5: Device testing (in progress)
+## Phase 5: Device testing (completed)
 
 Goal: Stable operation on real devices.
 
-- Test on R36S.
+- [x] Test on R36S.
 - [x] Test on TrimUI Smart Pro (Initial boot and UI functional).
-- Check logs.
+- [x] Check logs.
 - [x] Write installation and configuration documentation.

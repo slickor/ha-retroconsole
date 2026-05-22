@@ -9,7 +9,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-VERSION = "0.10.15"
+VERSION = "0.10.20"
 
 
 SUPPORTED_ACTIONS = {
@@ -18,6 +18,11 @@ SUPPORTED_ACTIONS = {
     "scene": {"turn_on"},
     "script": {"turn_on"},
     "climate": {"turn_on", "turn_off"},
+    "media_player": {"toggle", "media_play_pause", "media_stop"},
+    "cover": {"toggle", "open_cover", "close_cover"},
+    "fan": {"toggle", "turn_on", "turn_off"},
+    "input_boolean": {"toggle", "turn_on", "turn_off"},
+    "lock": {"lock", "unlock"},
 }
 
 class HAClientError(Exception):
@@ -222,6 +227,19 @@ def resolve_action(entity_id: str, action: str = "auto") -> tuple[str, str] | No
     return domain, action
 
 
+def fetch_camera_snapshot(base_url: str, token: str, entity_id: str, timeout: float) -> bytes:
+    """Fetches a JPEG snapshot from a camera entity."""
+    request = Request(
+        f"{base_url}/api/camera_proxy/{entity_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            return response.read()
+    except Exception:
+        return b""
+
+
 def call_service(
     base_url: str,
     token: str,
@@ -256,7 +274,7 @@ def refresh_after_action(
         latest_state = str(latest.get("state", "")) if latest is not None else None
         if latest_state in {"on", "off"} and latest_state != previous_state:
             return latest_states
-        time.sleep(0.25)
+        time.sleep(0.1)
         latest_states = fetch_states_map(base_url, token, timeout)
     return latest_states
 
