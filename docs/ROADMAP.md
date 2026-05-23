@@ -58,6 +58,11 @@ Goal: Move desktop prototyping logic into a native SDL2-based handheld app.
 - [x] Visual feedback (flash) for actions and favorites.
 - [x] Dynamic local IP detection and display.
 - [x] Memory-efficient text texture caching.
+- [x] Scrollable Categories-Box for large setups.
+- [x] Scrollable settings panel for domain visibility.
+- [x] Intuitive column navigation with D-Pad Left/Right.
+- [x] Unified scrollbar layout and length.
+- [x] Improved domain name formatting and custom domain icons.
 - [x] Organize app configuration and runtime files in the app folder.
 
 ## Phase 4: Deployable App (completed)

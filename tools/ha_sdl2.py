@@ -84,10 +84,11 @@ ICON_MAP = {
     "settings": "settings-3-line",
     "categories": "stack-line",
     "brightness": "sun-line",
-    "media_player": "play-circle-line",
+    "media_player": "film-line",
     "cover": "layout-row-fill",
     "fan": "fan-line",
     "lock": "lock-line",
+    "input_boolean": "input-cursor-move",
     "camera": "video-on-line"
 }
 
@@ -100,6 +101,8 @@ class HASDL2App:
         self.nav_index = 0 # Index for the left navigation column
         self.active_list = "domains" # Active column: "domains" or "entities"
         self.reorder_mode = False # True if currently reordering a favorite
+        self.cat_scroll_row = 0 # Scroll position for categories list
+        self.settings_scroll_row = 0 # Scroll position for settings lists
         self.entity_index = 0 # Index for the middle entity list
         self.settings_index = 0 # Index for settings options
         self.settings_active = False # True if middle column shows settings
@@ -448,8 +451,16 @@ class HASDL2App:
         # Safety: Ensure nav_index remains valid after data reload
         if self.domain_list:
             self.nav_index = min(self.nav_index, len(self.domain_list) - 1)
+            # Keep category scroll row in check
+            visible_cats = 7
+            if self.nav_index < self.cat_scroll_row:
+                self.cat_scroll_row = self.nav_index
+            elif self.nav_index >= self.cat_scroll_row + visible_cats:
+                self.cat_scroll_row = self.nav_index - visible_cats + 1
+            self.cat_scroll_row = max(0, min(self.cat_scroll_row, max(0, len(self.domain_list) - visible_cats)))
         else:
             self.nav_index = 0
+            self.cat_scroll_row = 0
 
     def get_domain_icon(self, entity_id):
         domain = entity_domain(entity_id)
@@ -635,21 +646,23 @@ class HASDL2App:
         elif key == sdl2.SDLK_b:
             self._go_back()
         elif key == sdl2.SDLK_LEFT:
-            if self.active_list == "entities" and self.settings_active:
-                if self.settings_view == "brightness":
-                    self._handle_brightness_adjust(-10)
-                else:
-                    self._go_back()
-            elif self.active_list == "entities":
-                self.active_list = "domains"
-        elif key == sdl2.SDLK_RIGHT:
-            if self.active_list == "entities" and self.settings_active:
-                if self.settings_view == "brightness":
-                    self._handle_brightness_adjust(10)
+            if self.active_list == "entities":
+                if self.settings_active:
+                    if self.settings_view == "brightness":
+                        self._handle_brightness_adjust(-10)
+                    else:
+                        self._go_back()
                 else:
                     self.active_list = "domains"
         elif key == sdl2.SDLK_RIGHT:
-            self._enter_entities()
+            if self.active_list == "entities":
+                if self.settings_active:
+                    if self.settings_view == "brightness":
+                        self._handle_brightness_adjust(10)
+                    elif self.settings_view == "menu":
+                        self._handle_confirm()
+            else:
+                self._enter_entities()
         elif key == sdl2.SDLK_UP:
             self._nav_up()
         elif key == sdl2.SDLK_DOWN:
@@ -676,8 +689,12 @@ class HASDL2App:
                 else:
                     self.active_list = "domains"
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-            if self.settings_active and self.settings_view == "brightness":
-                self._handle_brightness_adjust(10)
+            if self.active_list == "entities":
+                if self.settings_active:
+                    if self.settings_view == "brightness":
+                        self._handle_brightness_adjust(10)
+                    elif self.settings_view == "menu":
+                        self._handle_confirm()
             else:
                 self._enter_entities()
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP:
@@ -749,6 +766,8 @@ class HASDL2App:
                     self.domain_list[self.nav_index], self.domain_list[self.nav_index - 1] = \
                         self.domain_list[self.nav_index - 1], self.domain_list[self.nav_index]
                     self.nav_index -= 1
+                    if self.nav_index < self.cat_scroll_row:
+                        self.cat_scroll_row = self.nav_index
             return
 
         if self.active_list == "entities" and self.settings_active:
@@ -756,10 +775,14 @@ class HASDL2App:
                 self.settings_index = max(0, self.settings_index - 1)
             else:
                 self.settings_index = max(0, self.settings_index - 1)
+                if self.settings_view == "categories" and self.settings_index < self.settings_scroll_row:
+                    self.settings_scroll_row = self.settings_index
             return
 
         if self.active_list == "domains":
             self.nav_index = max(0, self.nav_index - 1)
+            if self.nav_index < self.cat_scroll_row:
+                self.cat_scroll_row = self.nav_index
             self.entity_index = 0
             self.entity_scroll_row = 0
             self._update_selection_context()
@@ -767,6 +790,9 @@ class HASDL2App:
             self.active_list = "domains"
             self.settings_active = False
             self.nav_index = len(self.domain_list) - 1
+            visible_cats = 7
+            if self.nav_index >= self.cat_scroll_row + visible_cats:
+                self.cat_scroll_row = self.nav_index - visible_cats + 1
             self._update_selection_context()
         else:
             self.entity_index = max(0, self.entity_index - 1)
@@ -791,6 +817,9 @@ class HASDL2App:
                     self.domain_list[self.nav_index], self.domain_list[self.nav_index + 1] = \
                         self.domain_list[self.nav_index + 1], self.domain_list[self.nav_index]
                     self.nav_index += 1
+                    visible_cats = 7
+                    if self.nav_index >= self.cat_scroll_row + visible_cats:
+                        self.cat_scroll_row = self.nav_index - visible_cats + 1
             return
 
         if self.active_list == "entities" and self.settings_active:
@@ -798,11 +827,18 @@ class HASDL2App:
                 self.settings_index = min(1, self.settings_index + 1) # 1 = limit for 2 menu items
             else:
                 self.settings_index = min(len(VIEWABLE_DOMAINS) - 1, self.settings_index + 1)
+                if self.settings_view == "categories":
+                    visible_settings = 8
+                    if self.settings_index >= self.settings_scroll_row + visible_settings:
+                        self.settings_scroll_row = self.settings_index - visible_settings + 1
             return
 
         if self.active_list == "domains":
             if self.nav_index < len(self.domain_list) - 1:
                 self.nav_index += 1
+                visible_cats = 7
+                if self.nav_index >= self.cat_scroll_row + visible_cats:
+                    self.cat_scroll_row = self.nav_index - visible_cats + 1
                 self.entity_index = 0
                 self.entity_scroll_row = 0
                 self._update_selection_context()
@@ -843,6 +879,7 @@ class HASDL2App:
                 if self.settings_index == 0:
                     self.settings_view = "categories"
                     self.settings_index = 0
+                    self.settings_scroll_row = 0
                 elif self.settings_index == 1:
                     self.settings_view = "brightness"
                     self.current_brightness = self._get_brightness()
@@ -1284,10 +1321,16 @@ class HASDL2App:
 
         elif self.settings_view == "categories":
             self.ui.draw_text("Visible Categories:", x, y, "cyan")
-            y_list = y + 30
+            y_list_start = y + 30
             hidden = self.config.get("hidden_domains", [])
             
-            for i, domain in enumerate(VIEWABLE_DOMAINS):
+            visible_settings = 8
+            start = self.settings_scroll_row
+            end = min(len(VIEWABLE_DOMAINS), start + visible_settings)
+
+            for i in range(start, end):
+                domain = VIEWABLE_DOMAINS[i]
+                y_list = y_list_start + ((i - start) * 28)
                 is_hidden = domain in hidden
                 
                 is_selected = (self.active_list == "entities" and i == self.settings_index)
@@ -1312,8 +1355,14 @@ class HASDL2App:
                     sdl2.SDL_RenderCopy(self.renderer, status_tex, None, dst)
                     sdl2.SDL_SetTextureColorMod(status_tex, 255, 255, 255) # Reset
                 
-                self.ui.draw_text(domain.capitalize(), x + icon_size + 8, y_list + 2, color, small=True)
-                y_list += 28 # Match entities list spacing
+                self.ui.draw_text(domain.replace("_", "-").capitalize(), x + icon_size + 8, y_list + 2, color, small=True)
+            
+            # Scrollbar for the settings list
+            if len(VIEWABLE_DOMAINS) > visible_settings:
+                self.ui.draw_scrollbar(
+                    x + highlight_w + 5, self.header_h + 5, 255,
+                    self.settings_scroll_row, len(VIEWABLE_DOMAINS), visible_settings
+                )
         
         elif self.settings_view == "brightness":
             self.ui.draw_text("Display Brightness:", x, y, "cyan")
@@ -1337,7 +1386,14 @@ class HASDL2App:
 
         for i, domain in enumerate(self.domain_list):
             y_pos = y_start + (i * 28)
-            label = domain.capitalize()
+        visible_cats = 7
+        start = self.cat_scroll_row
+        end = min(len(self.domain_list), start + visible_cats)
+
+        for i in range(start, end):
+            domain = self.domain_list[i]
+            y_pos = y_start + ((i - start) * 28)
+            label = domain.replace("_", "-").capitalize()
             
             # Search for icon in self.domain_icons
             icon_tex = self.domain_icons.get(domain) or self.domain_icons.get(f"{domain}_on")
@@ -1368,6 +1424,13 @@ class HASDL2App:
             else:
                 # Normal text
                 self.ui.draw_text(label, x + icon_w, y_pos + 2, "cyan") # Text 2 pixels lower
+
+        # Scrollbar for the categories list
+        if len(self.domain_list) > visible_cats:
+            self.ui.draw_scrollbar(
+                self.margin + self.col1_w - 6, self.header_h + 5, 200,
+                self.cat_scroll_row, len(self.domain_list), visible_cats
+            )
 
     def _render_entities_list(self, x, y_start):
         """Renders the list of entities for the currently selected domain."""
@@ -1456,7 +1519,7 @@ class HASDL2App:
         # Scrollbar for the entities list
         if len(entities) > visible_entities:
             self.ui.draw_scrollbar(
-                x + highlight_w + 5, y_start, 245, 
+                x + highlight_w + 5, self.header_h + 5, 255, 
                 self.entity_scroll_row, len(entities), visible_entities
             )
 
