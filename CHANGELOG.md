@@ -4,19 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [0.11.0] - 2026-05-24
 ### Added
-- **Navigation:** Einführung der Spalten-Navigation; Wechsel zwischen Kategorien und Entitäten nun direkt via Steuerkreuz/D-Pad (Links/Rechts) möglich.
-- **Settings:** Die Liste der sichtbaren Kategorien ("Visible Categories") ist nun ebenfalls scrollbar.
+- **Navigation:** Introduced column-based navigation; switching between categories and entities is now possible directly via D-Pad (Left/Right).
+- **Settings:** The list of visible categories ("Visible Categories") is now also scrollable.
 ### Changed
-- **UI:** Vereinheitlichung der Scrollbar-Längen und Abstände in allen Boxen für ein saubereres Erscheinungsbild.
+- **UI:** Unified scrollbar lengths and spacing in all boxes for a cleaner appearance.
 ### Fixed
-- **Input:** Behebung von Syntax-Fehlern in der Navigations-Logik, die zu Abstürzen führten.
+- **Input:** Fixed syntax errors in the navigation logic that led to crashes.
 
 ## [0.10.21] - 2026-05-23
 ### Added
-- **UI:** Die Kategorien-Box ist nun scrollbar, wenn mehr als 7 Kategorien vorhanden sind.
+- **UI:** The Categories box is now scrollable when more than 7 categories are present.
 ### Changed
-- **UI:** Domain-Namen werden nun schöner formatiert (Unterstriche werden durch Bindestriche ersetzt).
-- **Icons:** Das Icon für `media_player` wurde auf `film-line` und für `input_boolean` auf `input-cursor-move` aktualisiert.
+- **UI:** Domain names are now formatted more cleanly (underscores are replaced by hyphens).
+- **Icons:** The icon for `media_player` was updated to `film-line` and for `input_boolean` to `input-cursor-move`.
 
 ## [0.10.20] - 2026-05-22
 ### Fixed

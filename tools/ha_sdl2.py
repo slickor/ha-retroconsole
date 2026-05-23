@@ -1384,8 +1384,6 @@ class HASDL2App:
             self.ui.draw_text("Loading...", x, y_start, "cyan")
             return
 
-        for i, domain in enumerate(self.domain_list):
-            y_pos = y_start + (i * 28)
         visible_cats = 7
         start = self.cat_scroll_row
         end = min(len(self.domain_list), start + visible_cats)
