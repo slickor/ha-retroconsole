@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.6] - 2026-05-24
+### Added
+- **Sync:** Implemented periodic background synchronization (1s interval) to keep entity states updated across multiple devices.
+### Changed
+- **Maintenance:** Performed a major code cleanup in `ha_sdl2.py` to remove redundant method definitions and duplicate logic.
+- **UI:** Refined list buffers and scrollbar calculations to ensure consistent behavior across all domains.
+### Fixed
+- **Stability:** Resolved potential `UnboundLocalError` in system stats and attribute rendering.
+
 ## [0.11.5] - 2026-05-24
 ### Added
 - **UI:** Implemented a new multi-column layout for 640x480 resolution with improved spacing.

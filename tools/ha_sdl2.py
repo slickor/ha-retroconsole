@@ -121,6 +121,7 @@ class HASDL2App:
         self.log_scroll = 0
         self.trigger_l_pressed = False
         self.trigger_r_pressed = False
+        self.last_refresh_time = time.time()
         self.axis_r_y_pressed = False # For vertical scrolling in details
 
         self.width = 640
@@ -138,9 +139,11 @@ class HASDL2App:
         # Calculate main_area_h based on 480 total height (header + gaps + console + controls)
         self.main_area_h = 480 - self.header_h - self.console_h - self.controls_bar_h - (2 * self.v_gap)
 
+        self.col1_w = 172  # 10 Pixel breiter
         self.col1_w = 172  # 10 pixels wider
         self.col2_w = 228
 
+        # X-Positionen mit 3px Abstand zum Bildschirmrand (h_gap)
         # X-Positions with 3px distance to screen edge (h_gap)
         self.col1_x = self.h_gap
         self.col2_x = self.col1_x + self.col1_w + self.h_gap
@@ -192,8 +195,11 @@ class HASDL2App:
                     filtered_attrs.append((label, val_str))
 
             item_h = 15
-            # Available height for attributes (header area uses approx 53px)
-            visible_attrs = (height - 60) // item_h
+            # Berechnung der Platzverhältnisse (ID=18px, State=20px, Attributes-Header=15px -> ca. 53px Header-Höhe)
+            visible_attrs = (height - 53) // item_h
+            attr_start_y = y + 15 # Merken für Scrollbar-Start (nach "Attributes:")
+            # Verfügbare Höhe für Attribute (Gesamthöhe minus ID/State/Header/Padding)
+            visible_attrs = (height - (y - (self.main_y + 13)) - 15) // item_h
             has_scrollbar = len(filtered_attrs) > visible_attrs
             
             content_area_width = width
@@ -238,8 +244,8 @@ class HASDL2App:
             if len(filtered_attrs) > visible_attrs:
                 self.ui.draw_scrollbar(
                     int(self.col3_x + self.col3_w - self.SCROLLBAR_WIDTH - 4), 
-                    y + 15, 
-                    height - (y - (self.main_y + 13)) - 25,
+                    attr_start_y, 
+                    visible_attrs * item_h,
                     self.details_scroll_row, len(filtered_attrs), visible_attrs
                 )
         else:
@@ -887,7 +893,7 @@ class HASDL2App:
                     else:
                         self._go_back()
                 else:
-                    self.active_list = "domains"
+                    self.active_list = "domains" # Back to category list
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT: # D-Pad Right
             if self.active_list == "entities":
                 if self.settings_active:
@@ -901,9 +907,9 @@ class HASDL2App:
             self._nav_up()
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN: # D-Pad Down
             self._nav_down()
-        elif btn == sdl2.SDL_CONTROLLER_BUTTON_LEFTSHOULDER: # L1
+        elif btn == sdl2.SDL_CONTROLLER_BUTTON_LEFTSHOULDER: # L1 button
             self._page_up()
-        elif btn == sdl2.SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: # R1
+        elif btn == sdl2.SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: # R1 button
             self._page_down()
         elif btn == self.controls["confirm"]: # Confirm button
             self._handle_confirm()
@@ -986,7 +992,7 @@ class HASDL2App:
             self.entity_scroll_row = 0
             self._update_selection_context()
         elif self.active_list == "settings":
-            self.active_list = "domains" # Back to category list
+            self.active_list = "domains" # Zurück zur Kategorienliste
             self.settings_active = False
             self.nav_index = len(self.domain_list) - 1
             visible_cats = 7
@@ -1147,7 +1153,7 @@ class HASDL2App:
         else:
             hidden.append(domain)
         self.config["hidden_domains"] = hidden
-        self.set_message(f"Category '{domain}' visibility toggled.")
+        self.set_message(f"Kategorie '{domain}' Sichtbarkeit umgeschaltet.")
         self.save_config()
         self.load_entities()
 
@@ -1323,6 +1329,7 @@ class HASDL2App:
             self._render_entities_list(self.col2_x + self.margin, self.main_y + 13, self.main_area_h)
 
         # 4. Right column (260 px): Details + System-Infos
+        info_h = 110
         info_h = 85 # Verkleinert von 110 für die 4 kompakten Zeilen
         details_h = self.main_area_h - info_h - self.v_gap
         self.ui.draw_retro_box(self.col3_x, self.main_y, self.col3_w, details_h, "DETAILS")
@@ -1348,7 +1355,7 @@ class HASDL2App:
             sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
             icon_w += 10
         
-        if self.active_list == "settings": # If the settings entry itself is selected in the left column
+        if self.active_list == "settings": # Wenn der Einstellungs-Eintrag selbst in der linken Spalte ausgewählt ist
             # Selection logic for settings box
             highlight_w = self.col1_w - self.margin
             self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y_pos - 3), highlight_w, 30, color="cyan")
@@ -1359,7 +1366,7 @@ class HASDL2App:
             self.ui.draw_text("Settings", x + icon_w, y_pos + 2, "cyan")
 
     def _render_settings_panel(self, x, y, box_h):
-        """Renders the settings options in the middle column."""
+        """Rendert die Einstellungsoptionen in der mittleren Spalte."""
         highlight_w = self.col2_w - self.margin
         
         # Verfügbare Höhe für Listenelemente berechnen
@@ -1369,7 +1376,7 @@ class HASDL2App:
         visible_items = available_h // item_h
 
         if self.settings_view == "menu":
-            menu_items = [("Visible Categories", "categories"), ("Display Brightness", "brightness")]
+            menu_items = [("Sichtbare Kategorien", "categories"), ("Bildschirmhelligkeit", "brightness")]
             for i, (label, icon_key) in enumerate(menu_items):
                 is_selected = (self.settings_active and self.active_list == "entities" and self.settings_index == i)
                 
@@ -1389,7 +1396,7 @@ class HASDL2App:
                 self.ui.draw_text(label, x + 34, y + (i * item_h) + 2, color)
 
         elif self.settings_view == "categories":
-            self.ui.draw_text("Visible Categories:", x, y, "cyan")
+            self.ui.draw_text("Sichtbare Kategorien:", x, y, "cyan")
             y_list_start = y + 30
             hidden = self.config.get("hidden_domains", [])
             
@@ -1426,10 +1433,10 @@ class HASDL2App:
                 
                 self.ui.draw_text(domain.replace("_", "-").capitalize(), x + icon_size + 8, y_list + 2, color, small=True)
             
-            # Scrollbar for settings list
+            # Scrollleiste für die Einstellungsliste
             if len(VIEWABLE_DOMAINS) > visible_items:
                 self.ui.draw_scrollbar(
-                    int(self.col2_x + self.col2_w - self.SCROLLBAR_WIDTH - 4), y_list_start, box_h - 48,
+                    int(self.col2_x + self.col2_w - self.SCROLLBAR_WIDTH - 4), y_list_start, visible_items * item_h,
                     self.settings_scroll_row, len(VIEWABLE_DOMAINS), visible_items
                 )
         
@@ -1449,14 +1456,13 @@ class HASDL2App:
             self.ui.draw_text("Use D-Pad Left/Right", x, y_bar + 40, "gray", small=True)
 
     def draw_menu(self, x, y_start, box_h):
-        """Draws the navigation menu with pointer and highlight."""
+        """Zeichnet das Navigationsmenü mit Zeiger und Hervorhebung."""
         if not self.domain_list:
             self.ui.draw_text("Loading...", x, y_start, "cyan")
             return
 
         item_h = 28
-        # Balanced buffer to keep elements and scrollbar track inside box
-        visible_cats = (box_h - 15) // item_h 
+        visible_cats = (box_h - 18) // item_h # Increased buffer (18 instead of 12) prevents overflow
         start = self.cat_scroll_row
         end = min(len(self.domain_list), start + visible_cats)
 
@@ -1472,7 +1478,7 @@ class HASDL2App:
                 icon_w = 24
                 # Render icon slightly vertically offset
                 dst = sdl2.SDL_Rect(int(x), int(y_pos + 1), icon_w, icon_w) # Icon 1 pixel higher
-                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst) # Render icon
+                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst) # Icon rendern
                 icon_w += 10 # Spacing to text
             
             if self.active_list == "domains" and i == self.nav_index:
@@ -1498,7 +1504,7 @@ class HASDL2App:
         # Scrollbar for the categories list
         if len(self.domain_list) > visible_cats:
             self.ui.draw_scrollbar(
-                int(self.col1_x + self.col1_w - self.SCROLLBAR_WIDTH - 4), y_start, box_h - 18,
+                int(self.col1_x + self.col1_w - self.SCROLLBAR_WIDTH - 4), y_start, visible_cats * item_h,
                 self.cat_scroll_row, len(self.domain_list), visible_cats
             )
 
@@ -1511,8 +1517,7 @@ class HASDL2App:
         current_domain = self.domain_list[self.nav_index]
         entities = self.entities_by_domain.get(current_domain, [])
         item_h = 28
-        # Balanced buffer to keep elements and scrollbar track inside box
-        visible_entities = (box_h - 15) // item_h 
+        visible_entities = (box_h - 18) // item_h # Ein Element mehr anzeigen
         start = self.entity_scroll_row
         end = min(len(entities), start + visible_entities)
         
@@ -1591,7 +1596,7 @@ class HASDL2App:
         # Scrollbar for the entities list
         if len(entities) > visible_entities:
             self.ui.draw_scrollbar(
-                int(self.col2_x + self.col2_w - self.SCROLLBAR_WIDTH - 4), y_start, box_h - 18,
+                int(self.col2_x + self.col2_w - self.SCROLLBAR_WIDTH - 4), y_start, visible_entities * item_h,
                 self.entity_scroll_row, len(entities), visible_entities
             )
 
@@ -1601,6 +1606,12 @@ class HASDL2App:
 
         while self.running:
             self.handle_input()
+
+            # Periodic background refresh (every 1 second)
+            if time.time() - self.last_refresh_time >= 1.0:
+                if not self.current_task_thread or not self.current_task_thread.is_alive():
+                    self._start_background_task("periodic_refresh", self._fetch_states_background)
+                    self.last_refresh_time = time.time()
 
             # Process results from background tasks
             try:
@@ -1640,6 +1651,9 @@ class HASDL2App:
                 self.set_message("Connected")
                 self.load_entities()
                 self._update_selection_context()
+            elif task_result["type"] == "periodic_refresh":
+                self.states = task_result["result"]
+                self.load_entities()
             elif task_result["type"] == "fetch_camera":
                 img_data = task_result["result"]
                 if img_data:
@@ -1684,9 +1698,7 @@ if __name__ == "__main__":
     print("Y / F-Key           : Sort Items / Toggle Favorite")
     print("L1, R1 / PageUp, Dn : Page Up/Down (Entities)")
     print("L2, R2              : Scroll Console Log")
-    print("I, K / R-Stick      : Scroll Details (PC / Handheld)")
     print("Start / S-Key       : Open App Settings")
     print("-" * 50 + "\n")
 
-    app.run()
     app.run()
