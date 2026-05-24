@@ -107,6 +107,7 @@ class HASDL2App:
         self.settings_index = 0 # Index for settings options
         self.settings_active = False # True if middle column shows settings
         self.settings_view = "menu" # "menu", "categories", or "brightness"
+        self.details_scroll_row = 0 # Scroll position for details box
         self.mode = "main" # "main", "favorites", or "settings"
         self.settings_selected_index = 0
         self.entity_scroll_row = 0 # Scroll position for main entity list
@@ -120,18 +121,35 @@ class HASDL2App:
         self.log_scroll = 0
         self.trigger_l_pressed = False
         self.trigger_r_pressed = False
+        self.axis_r_y_pressed = False # For vertical scrolling in details
+
         self.width = 640
-        self.height = 480
+        self.height = 480 # Fixed GUI size
 
         # Layout Constants
-        self.margin = 10
-        self.header_h = 105
-        self.footer_y = 380
-        self.col1_w = 190
-        self.col2_w = 260
-        self.col3_w = 150
-        self.col2_x = self.margin + self.col1_w + self.margin
-        self.col3_x = self.col2_x + self.col2_w + self.margin
+        self.margin = 12
+        self.header_h = 56 # Header height increased by 10px
+        self.h_gap = 12
+        self.v_gap = 12
+        self.console_h = 76
+        self.controls_bar_h = 26
+        self.SCROLLBAR_WIDTH = 4
+        
+        # Calculate main_area_h based on 480 total height (header + gaps + console + controls)
+        self.main_area_h = 480 - self.header_h - self.console_h - self.controls_bar_h - (2 * self.v_gap)
+
+        self.col1_w = 172  # 10 pixels wider
+        self.col2_w = 228
+
+        # X-Positions with 3px distance to screen edge (h_gap)
+        self.col1_x = self.h_gap
+        self.col2_x = self.col1_x + self.col1_w + self.h_gap
+        self.col3_x = self.col2_x + self.col2_w + self.h_gap
+        self.col3_w = 640 - self.col3_x - self.h_gap  # Remaining width to the right edge
+
+        self.main_y = self.header_h + self.v_gap
+        self.console_y = self.main_y + self.main_area_h + self.v_gap
+        self.controls_bar_y = self.console_y + self.console_h
 
         self.window = None
         self.renderer = None
@@ -150,6 +168,184 @@ class HASDL2App:
         # Brightness Control Setup
         self.backlight_path = self._find_backlight_path()
         self.current_brightness = self._get_brightness()
+
+    def _render_details_box(self, x, y, width, height):
+        """Renders detailed attributes of the currently selected entity."""
+        selected_entity = None
+        if self.domain_list and self.nav_index < len(self.domain_list):
+            curr_dom = self.domain_list[self.nav_index]
+            ents = self.entities_by_domain.get(curr_dom, [])
+            if self.entity_index < len(ents):
+                selected_entity = ents[self.entity_index]
+
+        if selected_entity:
+            entity_id = selected_entity.get("entity_id", "")
+            attributes = selected_entity.get("attributes", {})
+            state = selected_entity.get("state", "unknown")
+            
+            # Filter and prepare attributes for scrolling
+            filtered_attrs = []
+            for k, v in attributes.items():
+                if k not in ["friendly_name", "icon", "entity_picture", "supported_features"]:
+                    label = str(k).replace("_", " ").capitalize()
+                    val_str = str(v)
+                    filtered_attrs.append((label, val_str))
+
+            item_h = 15
+            # Available height for attributes (header area uses approx 53px)
+            visible_attrs = (height - 60) // item_h
+            has_scrollbar = len(filtered_attrs) > visible_attrs
+            
+            content_area_width = width
+            if has_scrollbar:
+                content_area_width -= (self.SCROLLBAR_WIDTH + 4) # 4px gap for scrollbar
+
+            # Draw ID line
+            id_label_text = "ID: "
+            id_label_tw, _ = self.ui.get_text_size(id_label_text, small=True)
+            display_entity_id = self.ui.truncate_text(entity_id, content_area_width - id_label_tw, small=True)
+            self.ui.draw_text(f"{id_label_text}{display_entity_id}", x, y, "cyan", small=True)
+            y += 18
+
+            # Draw Status line
+            state_label_text = "State: "
+            state_label_tw, _ = self.ui.get_text_size(state_label_text, small=True)
+            display_state = self.ui.truncate_text(state, content_area_width - state_label_tw, small=True)
+            self.ui.draw_text(f"{state_label_text}{display_state}", x, y, "white", small=True)
+            y += 20
+            
+            self.ui.draw_text("Attributes:", x, y, "cyan", small=True)
+            y += 15
+            
+            start = self.details_scroll_row
+            end = min(len(filtered_attrs), start + visible_attrs)
+
+            key_col_w = int(width * 0.66) # 66% for label
+            val_col_x = x + key_col_w + 5 # 5px gap between label and value
+
+            for i in range(start, end):
+                label, val_str = filtered_attrs[i]
+                
+                # Truncate label and value for their respective columns
+                display_label = self.ui.truncate_text(f"{label}:", key_col_w, small=True)
+                display_val = self.ui.truncate_text(val_str, content_area_width - key_col_w - 5, small=True)
+
+                self.ui.draw_text(display_label, x, y, "gray", small=True)
+                self.ui.draw_text(display_val, val_col_x, y, "white", small=True)
+                y += item_h
+
+            # Scrollbar for details
+            if len(filtered_attrs) > visible_attrs:
+                self.ui.draw_scrollbar(
+                    int(self.col3_x + self.col3_w - self.SCROLLBAR_WIDTH - 4), 
+                    y + 15, 
+                    height - (y - (self.main_y + 13)) - 25,
+                    self.details_scroll_row, len(filtered_attrs), visible_attrs
+                )
+        else:
+            self.ui.draw_text("Select an entity to see details...", x, y, "gray", small=True)
+
+    def _render_system_infos_box(self, x, y):
+        """Renders system statistics in a compact grid."""
+        small_gap = 5 # Gap between label and value
+        line_height = 16
+        content_width = self.col3_w - 2 * self.margin
+        half_content_width = content_width // 2
+        current_y = y
+
+        cpu_mhz, free_ram = self._get_system_stats()
+        current_time = time.strftime("%H:%M:%S")
+        
+        items = [
+            ("Time:", current_time),
+            ("CPU:", cpu_mhz),
+            ("RAM:", free_ram),
+            ("Ver:", VERSION),
+            ("Srv:", "Online" if self.states else "Offline")
+        ]
+        
+        for i in range(0, len(items), 2):
+            # Column 1
+            label1, val1 = items[i]
+            label1_tw, _ = self.ui.get_text_size(label1, small=True)
+            val1_max_width = half_content_width - label1_tw - small_gap
+            display_val1 = self.ui.truncate_text(val1, val1_max_width, small=True)
+            self.ui.draw_text(label1, x, current_y, "cyan", small=True)
+            self.ui.draw_text(display_val1, x + label1_tw + small_gap, current_y, "white", small=True)
+
+            # Column 2 (if exists)
+            if i + 1 < len(items):
+                label2, val2 = items[i+1]
+                label2_tw, _ = self.ui.get_text_size(label2, small=True)
+                val2_max_width = half_content_width - label2_tw - small_gap
+                display_val2 = self.ui.truncate_text(val2, val2_max_width, small=True)
+                self.ui.draw_text(label2, x + half_content_width, current_y, "cyan", small=True)
+                self.ui.draw_text(display_val2, x + half_content_width + label2_tw + small_gap, current_y, "white", small=True)
+            
+            current_y += line_height
+
+        # IP address on its own line
+        ip_label_text = "IP:"
+        ip_label_tw, _ = self.ui.get_text_size(ip_label_text, small=True)
+        ip_value_max_width = content_width - ip_label_tw - small_gap
+        display_ip = self.ui.truncate_text(self.ip_address, ip_value_max_width, small=True)
+        self.ui.draw_text(ip_label_text, x, current_y, "cyan", small=True)
+        self.ui.draw_text(display_ip, x + ip_label_tw + small_gap, current_y, "white", small=True)
+
+    def _render_console_log(self, x, y):
+        """Renders the last two entries of the log."""
+        logs = self.log_entries[-4:]
+        for ts, txt, col in logs:
+            tw, _ = self.ui.draw_text(f"[{ts}] ", x, y, COLOR_TEXT_DIM, small=True)
+            self.ui.draw_text(txt, x + tw, y, col, small=True)
+            y += 15
+
+    def _render_controls_bar(self, x, y):
+        """Renders gamepad controls in a single horizontal row at the bottom."""
+        btn_y_label = "Favorite"
+        if self.active_list == "domains":
+            btn_y_label = "Sort Item"
+        elif self.active_list == "entities" and self.domain_list:
+            current_domain = self.domain_list[self.nav_index]
+            if current_domain == "favorites":
+                btn_y_label = "Confirm" if self.reorder_mode else "Sort Item"
+
+        controls = [
+            (self.controls["confirm"], "Confirm"),
+            (self.controls["cancel"], "Back"),
+            (BTN_Y, btn_y_label),
+            (BTN_X, "Refresh"),
+            ("L1/R1", "Page"),
+            ("START", "Settings")
+        ]
+        
+        total_w = 0
+        gap = self.margin + 5
+        items_data = []
+        
+        for btn, label in controls:
+            if not label: continue
+            # Replicate _render_button_icon width logic
+            btn_str = {BTN_A: "A", BTN_B: "B", BTN_X: "X", BTN_Y: "Y"}.get(btn, str(btn))
+            itw, ith = self.ui.get_text_size(btn_str, small=True)
+            bw = itw + 4
+            if len(btn_str) == 1:
+                side = max(bw, ith + 4)
+                if (side - itw) % 2 != 0: side += 1
+                bw = side
+            
+            tw, _ = self.ui.get_text_size(label, small=True)
+            item_w = bw + 4 + tw
+            items_data.append((btn, label, bw))
+            total_w += item_w
+        
+        total_w += (len(items_data) - 1) * gap
+        cur_x = (self.width - total_w) // 2
+
+        for btn, label, bw in items_data:
+            self._render_button_icon(btn, cur_x, y + 5, size=15)
+            self.ui.draw_text(label, cur_x + bw + 4, y + 6, "white", small=True)
+            cur_x += bw + 4 + self.ui.get_text_size(label, small=True)[0] + gap
 
     def _get_system_stats(self):
         """Fetches real CPU MHz and Free RAM on Linux devices."""
@@ -433,11 +629,11 @@ class HASDL2App:
         hidden = self.config.get("hidden_domains", [])
         
         # Filter by domains we want to see and domains that are not hidden in settings
-        supported_states = [
-            s for s in all_states 
-            if (domain := entity_domain(s.get("entity_id", ""))) in VIEWABLE_DOMAINS 
-            and domain not in hidden
-        ]
+        supported_states = []
+        for s in all_states:
+            domain = entity_domain(s.get("entity_id", ""))
+            if domain in VIEWABLE_DOMAINS and domain not in hidden:
+                supported_states.append(s)
 
         # Use the grouping logic from ha_client which includes the "Favorites" domain
         self.entities_by_domain = get_domain_groups(supported_states, self.favorites)
@@ -523,7 +719,7 @@ class HASDL2App:
         for event in events:
             if event.type == sdl2.SDL_QUIT:
                 self.running = False
-                continue
+                return
             self._dispatch_event(event)
 
     def _dispatch_event(self, event):
@@ -538,12 +734,6 @@ class HASDL2App:
     def _handle_keydown(self, key):
         self.selection_start_time = time.time()
 
-        # Handle fullscreen mode inputs
-        if self.mode == "camera_fullscreen":
-            if key in {sdl2.SDLK_ESCAPE, sdl2.SDLK_b}:
-                self._go_back()
-            return
-
         # Global keys
         if key == sdl2.SDLK_r:
             self.load_data()
@@ -551,7 +741,9 @@ class HASDL2App:
             self.set_message("Refreshed")
             return
         if key == sdl2.SDLK_s:
-            self.mode = "settings"
+            self.active_list = "settings" # Wählt den Einstellungs-Eintrag in der linken Spalte aus
+            self.settings_active = True # Öffnet das Einstellungsfeld in der mittleren Spalte
+            self.settings_view = "menu" # Startet im Einstellungsmenü
             self.btn_flash_times["START"] = time.time()
             return
 
@@ -568,10 +760,7 @@ class HASDL2App:
         if key in key_map:
             self.btn_flash_times[key_map[key]] = time.time()
 
-        if self.mode == "main":
-            self._handle_main_keydown(key)
-        elif self.mode == "settings":
-            self._handle_settings_keydown(key)
+        self._handle_main_keydown(key) # Alle Tastendrücke werden jetzt im Hauptmodus behandelt
 
     def _handle_controller_button(self, btn):
 
@@ -588,7 +777,9 @@ class HASDL2App:
             self.set_message("Refreshed")
             return
         if btn == sdl2.SDL_CONTROLLER_BUTTON_START:
-            self.mode = "settings"
+            self.active_list = "settings" # Wählt den Einstellungs-Eintrag in der linken Spalte aus
+            self.settings_active = True # Öffnet das Einstellungsfeld in der mittleren Spalte
+            self.settings_view = "menu" # Startet im Einstellungsmenü
             self.btn_flash_times["START"] = time.time()
             return
 
@@ -599,10 +790,7 @@ class HASDL2App:
         }
         self.btn_flash_times[btn_map.get(btn, btn)] = time.time()
 
-        if self.mode == "main":
-            self._handle_main_controller(btn)
-        elif self.mode == "settings":
-            self._handle_settings_controller(btn)
+        self._handle_main_controller(btn) # All controller buttons are now handled in main mode
 
     def _handle_axis_motion(self, axis, value):
         """Handles trigger axis movement for log scrolling."""
@@ -621,17 +809,27 @@ class HASDL2App:
                 self.trigger_r_pressed = True
             elif value < threshold:
                 self.trigger_r_pressed = False
+        elif axis == sdl2.SDL_CONTROLLER_AXIS_RIGHTY:
+            # Use Right Stick for Details scrolling
+            if abs(value) > threshold:
+                if not self.axis_r_y_pressed:
+                    step = 1 if value > 0 else -1
+                    self.details_scroll_row = max(0, self.details_scroll_row + step)
+                    # Cap is handled dynamically in render, but we can do a rough check here
+                    self.axis_r_y_pressed = True
+            else:
+                self.axis_r_y_pressed = False
 
     def _go_back(self):
         """Smart back navigation logic for menus and sub-menus."""
         if self.mode == "camera_fullscreen":
             self.mode = "main"
         elif self.mode == "settings":
-            self.mode = "main"
+            self.mode = "main" # Dieser Modus ist effektiv entfernt, aber zur Sicherheit beibehalten
         elif self.settings_active:
             if self.settings_view != "menu":
                 self.settings_view = "menu"
-                self.settings_index = 0
+                self.settings_index = 0 # Reset selection in settings menu
             else:
                 self.settings_active = False
                 self.active_list = "settings"
@@ -641,9 +839,7 @@ class HASDL2App:
             self.running = False
 
     def _handle_main_keydown(self, key):
-        if key == sdl2.SDLK_ESCAPE:
-            self._go_back()
-        elif key == sdl2.SDLK_b:
+        if key == sdl2.SDLK_ESCAPE or key == sdl2.SDLK_b:
             self._go_back()
         elif key == sdl2.SDLK_LEFT:
             if self.active_list == "entities":
@@ -654,7 +850,7 @@ class HASDL2App:
                         self._go_back()
                 else:
                     self.active_list = "domains"
-        elif key == sdl2.SDLK_RIGHT:
+        elif key == sdl2.SDLK_RIGHT: # D-Pad Right
             if self.active_list == "entities":
                 if self.settings_active:
                     if self.settings_view == "brightness":
@@ -675,6 +871,10 @@ class HASDL2App:
             self._handle_confirm()
         elif key == sdl2.SDLK_f:
             self._handle_reorder_toggle()
+        elif key == sdl2.SDLK_i:
+            self.details_scroll_row = max(0, self.details_scroll_row - 1)
+        elif key == sdl2.SDLK_k:
+            self.details_scroll_row += 1
 
     def _handle_main_controller(self, btn):
         if btn == self.controls["cancel"]:
@@ -688,7 +888,7 @@ class HASDL2App:
                         self._go_back()
                 else:
                     self.active_list = "domains"
-        elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+        elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT: # D-Pad Right
             if self.active_list == "entities":
                 if self.settings_active:
                     if self.settings_view == "brightness":
@@ -696,20 +896,19 @@ class HASDL2App:
                     elif self.settings_view == "menu":
                         self._handle_confirm()
             else:
-                self._enter_entities()
-        elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP:
+                self._enter_entities() # Switch from domains to entities/settings panel
+        elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP: # D-Pad Up
             self._nav_up()
-        elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+        elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN: # D-Pad Down
             self._nav_down()
-        elif btn == sdl2.SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
+        elif btn == sdl2.SDL_CONTROLLER_BUTTON_LEFTSHOULDER: # L1
             self._page_up()
-        elif btn == sdl2.SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
+        elif btn == sdl2.SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: # R1
             self._page_down()
-        elif btn == self.controls["confirm"]:
+        elif btn == self.controls["confirm"]: # Confirm button
             self._handle_confirm()
         elif btn == BTN_Y:
             self._handle_reorder_toggle()
-
     def _handle_brightness_adjust(self, delta):
         """Adjusts the system brightness by a given delta."""
         new_val = max(0, min(100, self.current_brightness + delta))
@@ -742,7 +941,7 @@ class HASDL2App:
 
     def _enter_entities(self):
         if self.active_list in ["domains", "settings"]:
-            if self.active_list == "settings":
+            if self.active_list == "settings": # If the "SETTINGS" entry is selected in the left column
                 self.settings_active = True
                 self.settings_view = "menu"
             self.active_list = "entities"
@@ -787,7 +986,7 @@ class HASDL2App:
             self.entity_scroll_row = 0
             self._update_selection_context()
         elif self.active_list == "settings":
-            self.active_list = "domains"
+            self.active_list = "domains" # Back to category list
             self.settings_active = False
             self.nav_index = len(self.domain_list) - 1
             visible_cats = 7
@@ -876,15 +1075,15 @@ class HASDL2App:
     def _handle_confirm(self):
         if self.settings_active and self.active_list == "entities":
             if self.settings_view == "menu":
-                if self.settings_index == 0:
+                if self.settings_index == 0: # "Sichtbare Kategorien"
                     self.settings_view = "categories"
                     self.settings_index = 0
                     self.settings_scroll_row = 0
                 elif self.settings_index == 1:
                     self.settings_view = "brightness"
                     self.current_brightness = self._get_brightness()
-            else:
-                self._handle_reorder_toggle() # Reusing toggle logic for settings checkbox
+            else: # If in "categories" or "brightness"
+                self._handle_settings_toggle() # Toggle category visibility
         elif self.active_list == "entities":
             current_domain = self.domain_list[self.nav_index]
             entities = self.entities_by_domain.get(current_domain, [])
@@ -899,10 +1098,9 @@ class HASDL2App:
             self._execute_entity_action()
         else:
             self._enter_entities()
-
     def _handle_reorder_toggle(self):
         """Logic to switch between regular favorite toggle and reordering."""
-        if self.mode != "main" or not self.domain_list:
+        if not self.domain_list:
             return
             
         # Handle settings category toggle if settings panel is active
@@ -949,12 +1147,14 @@ class HASDL2App:
         else:
             hidden.append(domain)
         self.config["hidden_domains"] = hidden
+        self.set_message(f"Category '{domain}' visibility toggled.")
         self.save_config()
         self.load_entities()
 
     def _update_selection_context(self):
         """Updates contextual logic (marquee timer, camera previews) when selection changes."""
         self.selection_start_time = time.time()
+        self.details_scroll_row = 0 # Reset scroll whenever a new entity is selected
         
         # Clear camera preview if not focused on an entity
         if self.active_list != "entities" or not self.domain_list or self.settings_active:
@@ -1031,9 +1231,9 @@ class HASDL2App:
         
         # Draw the double-bar separator across the entire physical width (real_w).
         # This ensures it is drawn to the very edge on 16:9 devices.
-        sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 163, 255, 255)
-        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, int(95 * scale_y), real_w.value, 1))
-        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, int(98 * scale_y), real_w.value, 1))
+        sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_CYAN.r, COLOR_CYAN.g, COLOR_CYAN.b, COLOR_CYAN.a)
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, int((self.header_h - 3) * scale_y), real_w.value, 1))
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, int(self.header_h * scale_y), real_w.value, 1))
         
         # Restore logical 4:3 scaling
         sdl2.SDL_RenderSetLogicalSize(self.renderer, self.width, self.height)
@@ -1078,319 +1278,191 @@ class HASDL2App:
         sdl2.SDL_RenderCopy(self.renderer, self.camera_tex, None, dst_rect)
 
     def render_layout(self):
-        """Divides the screen into 5 zones (Header, Nav, Main, Info, Log)."""
-        # Double-Bar Separator (Industrial Style)
-        sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 163, 255, 255)
-        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 95, 640, 1)) # Primary Bar
-        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 98, 640, 1)) # Secondary Accented Bar
-
-        # Logo and title
+        """Divides the screen into Header, Main Area (3 columns), Console, and Controls Bar with optimized spacing."""
+        # 1. Header (46 px)
         logo_tex = self.domain_icons.get("ha_logo")
         line1 = "HOME ASSISTANT"
-        line2 = "for retro consoles"
         
-        # Calculate width of both lines for centering
+        # Neue Logo-Dimensionen (50% kleiner)
+        new_logo_w = 32
+        new_logo_h = 32
+        spacing = 30 # Abstand zwischen Logo und Text
+
         tw1, _ = self.ui.get_text_size(line1, xl=True)
-        tw2, _ = self.ui.get_text_size(line2, large=True)
-        text_block_width = max(tw1, tw2)
         
-        logo_w = 65 if logo_tex else 0
-        spacing = 30 if logo_tex else 0
-        total_width = logo_w + spacing + text_block_width
-        start_x = (640 - total_width) // 2
+        # Gesamtbreite für die Zentrierung des Blocks (Logo + Text) neu berechnen
+        total_width = (new_logo_w if logo_tex else 0) + (spacing if logo_tex else 0) + tw1
+        block_start_x = (self.width - total_width) // 2
 
+        # Logo rendern
         if logo_tex:
-            sdl2.SDL_RenderCopy(self.renderer, logo_tex, None, sdl2.SDL_Rect(start_x, 15, 65, 65))
-            start_x += logo_w + spacing
-
-        self.ui.draw_text(line1, start_x, 8, "white", xl=True)
-        self.ui.draw_text(line2, start_x, 52, "cyan", large=True)
-
-        # 2. Left column (Navigation) - Categories at top, Settings at bottom
-        cat_box_h = 210
-        self.ui.draw_retro_box(self.margin, self.header_h, self.col1_w, cat_box_h, "CATEGORIES")
-        self.draw_menu(self.margin + 15, self.header_h + 13)
-
-        set_box_y = self.header_h + cat_box_h + 5
-        self.ui.draw_retro_box(self.margin, set_box_y, self.col1_w, 50, "SETTINGS")
-        self._render_settings_entry(self.margin + 15, set_box_y + 13)
-
-        # 3. Main area (Middle) - Start at Y=105
-        box_title = "SETTINGS" if self.settings_active else "ENTITIES"
-        self.ui.draw_retro_box(self.col2_x, self.header_h, self.col2_w, 265, box_title)
-        
-        if self.settings_active:
-            self._render_settings_panel(self.col2_x + 15, self.header_h + 13)
+            logo_y = (self.header_h - new_logo_h) // 2 # Vertikal im neuen Header zentrieren
+            sdl2.SDL_RenderCopy(self.renderer, logo_tex, None, sdl2.SDL_Rect(block_start_x, logo_y, new_logo_w, new_logo_h))
+            text_start_x = block_start_x + new_logo_w + spacing
         else:
-            self._render_entities_list(self.col2_x + 15, self.header_h + 13)
+            text_start_x = block_start_x # Wenn kein Logo, beginnt der Text am Block-Start
 
-        # 4. Right column (Controls box) - Height increased to 192 (uniform distribution)
-        self.ui.draw_retro_box(self.col3_x, self.header_h, self.col3_w, 192, "CONTROLS")
+        # Text rendern (8px nach oben verschoben)
+        self.ui.draw_text(line1, text_start_x, 0, "white", xl=True)
+
+        # 2. Left column (152 px): Categories + Settings
+        cat_box_h = self.main_area_h - 50 - self.v_gap
+        self.ui.draw_retro_box(self.col1_x, self.main_y, self.col1_w, cat_box_h, "CATEGORIES")
+        self.draw_menu(self.col1_x + self.margin, self.main_y + 13, cat_box_h)
         
-        # Control shortcuts
-        y_info = self.header_h + 16
+        set_box_y = self.main_y + cat_box_h + self.v_gap
+        self.ui.draw_retro_box(self.col1_x, set_box_y, self.col1_w, 50, "SETTINGS")
+        self._render_settings_entry(self.col1_x + self.margin, set_box_y + 13)
+
+        # 3. Middle column (228 px): Entities
+        title = "SETTINGS" if self.settings_active else "ENTITIES"
+        self.ui.draw_retro_box(self.col2_x, self.main_y, self.col2_w, self.main_area_h, title)
+        if self.settings_active:
+            self._render_settings_panel(self.col2_x + self.margin, self.main_y + 13, self.main_area_h)
+        else:
+            self._render_entities_list(self.col2_x + self.margin, self.main_y + 13, self.main_area_h)
+
+        # 4. Right column (260 px): Details + System-Infos
+        info_h = 85 # Verkleinert von 110 für die 4 kompakten Zeilen
+        details_h = self.main_area_h - info_h - self.v_gap
+        self.ui.draw_retro_box(self.col3_x, self.main_y, self.col3_w, details_h, "DETAILS")
+        self._render_details_box(self.col3_x + self.margin, self.main_y + 13, self.col3_w - 2 * self.margin, details_h - 20)
         
-        # Determine Y button label contextually
-        btn_y_label = "Favorite"
-        if self.active_list == "domains":
-            btn_y_label = "Sort Item"
-        elif self.active_list == "entities" and self.domain_list:
-            current_domain = self.domain_list[self.nav_index]
-            if current_domain == "favorites":
-                btn_y_label = "Confirm" if self.reorder_mode else "Sort Item"
-        elif self.active_list == "settings":
-            btn_y_label = ""
-            
-        btn_x = self.col3_x + 10
-        text_x = btn_x + 22
+        info_y = self.main_y + details_h + self.v_gap
+        self.ui.draw_retro_box(self.col3_x, info_y, self.col3_w, info_h, "SYSTEM")
+        self._render_system_infos_box(self.col3_x + self.margin, info_y + 13)
 
-        # Confirm & Back
-        self._render_button_icon(self.controls["confirm"], btn_x, y_info, size=15)
-        self.ui.draw_text("Confirm", text_x, y_info + 1, "white", small=True)
-        self._render_button_icon(self.controls["cancel"], btn_x, y_info + 22, size=15)
-        self.ui.draw_text("Back", text_x, y_info + 23, "white", small=True)
+        # 5. Console (48 px)
+        self.ui.draw_retro_box(self.h_gap, self.console_y, self.width - 2 * self.h_gap, self.console_h, "CONSOLE")
+        self._render_console_log(self.h_gap + self.margin, self.console_y + 8)
 
-        # Detect label change (for Sort Item flash) and trigger flash
-        if btn_y_label != self.prev_btn_y_label:
-            self.btn_y_flash_time = time.time()
-            self.prev_btn_y_label = btn_y_label
-
-        is_flashing = (time.time() - self.btn_y_flash_time < 0.4)
-        btn_y_color = "yellow" if is_flashing else "white"
-        if btn_y_label:
-            self._render_button_icon(BTN_Y, btn_x, y_info + 44, size=15, color=btn_y_color)
-            self.ui.draw_text(btn_y_label, text_x, y_info + 45, btn_y_color, small=True)
-
-        # Refresh
-        self._render_button_icon(BTN_X, btn_x, y_info + 66, size=15)
-        self.ui.draw_text("Refresh", text_x, y_info + 67, "white", small=True)
-
-        # Page Up/Down (L1/R1)
-        self._render_button_icon("L1", btn_x, y_info + 88, size=15)
-        self._render_button_icon("R1", btn_x + 22, y_info + 88, size=15)
-        self.ui.draw_text("Page Up/Down", btn_x + 45, y_info + 89, "white", small=True)
-
-        # Log Up/Down (L2/R2)
-        self._render_button_icon("L2", btn_x, y_info + 110, size=15)
-        self._render_button_icon("R2", btn_x + 22, y_info + 110, size=15)
-        self.ui.draw_text("Log Up/Down", btn_x + 45, y_info + 111, "white", small=True)
-
-        # Exit (START)
-        icon_w = self._render_button_icon("START", btn_x, y_info + 134, size=15)
-        self.ui.draw_text("Exit", btn_x + icon_w + 5, y_info + 135, "white", small=True)
-
-        # Infos Box (formerly Status)
-        self.ui.draw_retro_box(self.col3_x, 302, self.col3_w, 173, "INFOS")
-        
-        cpu_mhz, free_ram = self._get_system_stats()
-        server_status = "Connected" if self.states else "Disconnected"
-        current_time = time.strftime("%H:%M:%S")
-
-        # Render Status Details
-        y_status = 302 + 13
-        for label, val in [
-            ("Time: ", current_time),
-            ("IP: ", self.ip_address),
-            ("Server: ", server_status),
-            ("CPU: ", cpu_mhz),
-            ("RAM: ", free_ram),
-            ("Ver: ", VERSION)
-        ]:
-            tw, _ = self.ui.draw_text(label, btn_x, y_status, "cyan", small=True)
-            self.ui.draw_text(str(val), btn_x + tw, y_status, "white", small=True)
-            y_status += 18
-
-        # 5. Bottom row (Console & Status)
-        # Console - Horizontally shortened
-        self.ui.draw_retro_box(self.margin, self.footer_y, 320, 95, "Console")
-
-        # New Status box at the bottom
-        status_x = 340 # Starts roughly in the middle of the entities box
-        self.ui.draw_retro_box(status_x, self.footer_y, 130, 95, "Status")
-
-        # Display selected entity status in the new Status box
-        selected_entity = None
-        if self.domain_list and self.nav_index < len(self.domain_list):
-            curr_dom = self.domain_list[self.nav_index]
-            ents = self.entities_by_domain.get(curr_dom, [])
-            if self.entity_index < len(ents):
-                selected_entity = ents[self.entity_index]
-
-        if selected_entity and not self.settings_active:
-            eid = selected_entity.get("entity_id", "")
-            dom = entity_domain(eid)
-            
-            # Determine icon
-            icon_tex = self.domain_icons.get(dom) or self.domain_icons.get(f"{dom}_on")
-            
-            # Determine state text with custom formatting
-            if dom == "binary_sensor":
-                st_text = selected_entity.get("state", "unknown").upper()
-            elif dom == "sensor":
-                st_text = get_state_with_unit(selected_entity)
-            else:
-                st_text = selected_entity.get("state", "unknown").capitalize()
-
-            # Center icon and text
-            box_center_x = status_x + 65
-            if dom == "camera" and self.camera_tex:
-                # Render camera snapshot centered in the status box (approx 16:9)
-                dst = sdl2.SDL_Rect(box_center_x - 50, self.footer_y + 12, 100, 56)
-                sdl2.SDL_RenderCopy(self.renderer, self.camera_tex, None, dst)
-            elif icon_tex:
-                is_on = selected_entity.get("state") == "on"
-                icon_color = COLOR_YELLOW if is_on else COLOR_GREY
-                sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
-                # 48x48 centered icon (+50% size increase)
-                dst = sdl2.SDL_Rect(box_center_x - 24, self.footer_y + 12, 48, 48)
-                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
-                sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
-
-            # Split text into max 2 lines of 15 chars each
-            status_lines = []
-            if len(st_text) <= 15:
-                status_lines.append(st_text)
-            else:
-                status_lines.append(st_text[:15])
-                if len(st_text) <= 30:
-                    status_lines.append(st_text[15:])
-                else:
-                    status_lines.append(st_text[15:27] + "...")
-
-            # Render text lines centered below the icon
-            y_text = self.footer_y + 62
-            for line in status_lines:
-                lw, _ = self.ui.get_text_size(line, small=True)
-                self.ui.draw_text(line, box_center_x - (lw // 2), y_text, "white", small=True)
-                y_text += 15
-        
-        # Render log entries
-        log_y = 390 # Start position for the first log line
-        visible_logs = 5 # Number of log lines to display
-        start = self.log_scroll
-        end = min(len(self.log_entries), start + visible_logs)
-        
-        for i in range(start, end):
-            ts, txt, col = self.log_entries[i]
-            # Draw timestamp in dim color, text in its color
-            tw, _ = self.ui.draw_text(f"[{ts}] ", 25, log_y, COLOR_TEXT_DIM, small=True)
-            self.ui.draw_text(txt, 25 + tw, log_y, col, small=True)
-            log_y += 15
+        # 6. Controls Bar (26 px)
+        self._render_controls_bar(self.h_gap, self.controls_bar_y)
 
     def _render_settings_entry(self, x, y_pos):
         """Renders the settings icon and text in its separate box."""
         icon_tex = self.domain_icons.get("settings")
         icon_w = 24
         if icon_tex:
-            dst = sdl2.SDL_Rect(x, y_pos + 1, icon_w, icon_w)
+            dst = sdl2.SDL_Rect(int(x), int(y_pos + 1), icon_w, icon_w)
             sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
             icon_w += 10
         
-        if self.active_list == "settings":
+        if self.active_list == "settings": # If the settings entry itself is selected in the left column
             # Selection logic for settings box
-            highlight_w = self.col1_w - 20
-            self.ui.draw_selection_highlight(x - 10, y_pos - 3, highlight_w, 30, color="cyan")
-            self.ui.draw_rounded_rect(x - 10, y_pos - 3, highlight_w, 30, "cyan")
-            self.ui.draw_pointer(x - 21, y_pos + 3, width=15, height=18, color="cyan")
+            highlight_w = self.col1_w - self.margin
+            self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y_pos - 3), highlight_w, 30, color="cyan")
+            self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y_pos - 3), highlight_w, 30, "cyan")
+            self.ui.draw_pointer(int(self.col1_x + (self.margin - 10) // 2), y_pos + 6, width=10, height=16, color="cyan")
             self.ui.draw_text("Settings", x + icon_w, y_pos + 2, "white")
         else:
             self.ui.draw_text("Settings", x + icon_w, y_pos + 2, "cyan")
 
-    def _render_settings_panel(self, x, y):
-        """Renders the domain visibility settings."""
-        highlight_w = self.col2_w - 30
+    def _render_settings_panel(self, x, y, box_h):
+        """Renders the settings options in the middle column."""
+        highlight_w = self.col2_w - self.margin
+        
+        # Verfügbare Höhe für Listenelemente berechnen
+        list_start_y = y + 30
+        available_h = box_h - (list_start_y - y) - 10 # 10 für untere Polsterung
+        item_h = 28
+        visible_items = available_h // item_h
 
         if self.settings_view == "menu":
             menu_items = [("Visible Categories", "categories"), ("Display Brightness", "brightness")]
             for i, (label, icon_key) in enumerate(menu_items):
-                color = "white"
-                is_selected = (self.active_list == "entities" and self.settings_index == i)
+                is_selected = (self.settings_active and self.active_list == "entities" and self.settings_index == i)
                 
                 icon_tex = self.domain_icons.get(icon_key)
                 if icon_tex:
-                    dst = sdl2.SDL_Rect(x, y + (i * 28) + 2, 24, 24)
+                    dst = sdl2.SDL_Rect(int(x), int(y + (i * item_h) + 2), 24, 24)
                     sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
 
                 if is_selected:
                     color = "cyan"
-                    self.ui.draw_selection_highlight(x - 10, y + (i * 28) - 3, highlight_w, 28, color="cyan")
-                    self.ui.draw_rounded_rect(x - 10, y + (i * 28) - 3, highlight_w, 28, "cyan")
-                    self.ui.draw_pointer(x - 21, y + (i * 28) + 2, width=15, height=18, color="cyan")
+                    self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y + (i * item_h) - 3), highlight_w, item_h, color="cyan")
+                    self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y + (i * item_h) - 3), highlight_w, item_h, "cyan")
+                    self.ui.draw_pointer(int(self.col2_x + (self.margin - 10) // 2), y + (i * item_h) + 5, width=10, height=16, color="cyan")
+                else:
+                    color = "white"
                 
-                self.ui.draw_text(label, x + 34, y + (i * 28) + 2, color)
+                self.ui.draw_text(label, x + 34, y + (i * item_h) + 2, color)
 
         elif self.settings_view == "categories":
             self.ui.draw_text("Visible Categories:", x, y, "cyan")
             y_list_start = y + 30
             hidden = self.config.get("hidden_domains", [])
             
-            visible_settings = 8
             start = self.settings_scroll_row
-            end = min(len(VIEWABLE_DOMAINS), start + visible_settings)
+            end = min(len(VIEWABLE_DOMAINS), start + visible_items)
 
             for i in range(start, end):
                 domain = VIEWABLE_DOMAINS[i]
-                y_list = y_list_start + ((i - start) * 28)
+                y_list = y_list_start + ((i - start) * item_h)
                 is_hidden = domain in hidden
                 
-                is_selected = (self.active_list == "entities" and i == self.settings_index)
-                color = "white"
+                is_selected = (self.settings_active and self.active_list == "entities" and i == self.settings_index)
                 if is_selected:
                     color = "cyan"
-                    self.ui.draw_selection_highlight(x - 10, y_list - 3, highlight_w, 28, color="cyan")
-                    self.ui.draw_rounded_rect(x - 10, y_list - 3, highlight_w, 28, "cyan")
-                    self.ui.draw_pointer(x - 21, y_list + 2, width=15, height=18, color="cyan")
+                    self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y_list - 3), highlight_w, item_h, color="cyan")
+                    self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y_list - 3), highlight_w, item_h, "cyan")
+                    self.ui.draw_pointer(int(x - self.margin - self.SCROLLBAR_WIDTH), y_list + 8, color="cyan")
+                else:
+                    color = "white"
 
                 # Render status icon (on/off checkbox style)
                 status_icon_name = "binary_sensor_off" if is_hidden else "binary_sensor_on"
                 status_tex = self.domain_icons.get(status_icon_name)
                 icon_size = 20
-                
+
                 if status_tex:
                     # Apply color: Yellow for active/on, Grey for inactive/off
                     icon_color = COLOR_YELLOW if not is_hidden else COLOR_GREY
                     sdl2.SDL_SetTextureColorMod(status_tex, icon_color.r, icon_color.g, icon_color.b)
                     
-                    dst = sdl2.SDL_Rect(x, y_list + 2, icon_size, icon_size)
+                    dst = sdl2.SDL_Rect(int(x), int(y_list + 2), icon_size, icon_size)
                     sdl2.SDL_RenderCopy(self.renderer, status_tex, None, dst)
-                    sdl2.SDL_SetTextureColorMod(status_tex, 255, 255, 255) # Reset
+                    sdl2.SDL_SetTextureColorMod(status_tex, 255, 255, 255) # Zurücksetzen
                 
                 self.ui.draw_text(domain.replace("_", "-").capitalize(), x + icon_size + 8, y_list + 2, color, small=True)
             
-            # Scrollbar for the settings list
-            if len(VIEWABLE_DOMAINS) > visible_settings:
+            # Scrollbar for settings list
+            if len(VIEWABLE_DOMAINS) > visible_items:
                 self.ui.draw_scrollbar(
-                    x + highlight_w + 5, self.header_h + 5, 255,
-                    self.settings_scroll_row, len(VIEWABLE_DOMAINS), visible_settings
+                    int(self.col2_x + self.col2_w - self.SCROLLBAR_WIDTH - 4), y_list_start, box_h - 48,
+                    self.settings_scroll_row, len(VIEWABLE_DOMAINS), visible_items
                 )
         
-        elif self.settings_view == "brightness":
+        elif self.settings_view == "brightness": # Brightness settings
             self.ui.draw_text("Display Brightness:", x, y, "cyan")
             y_bar = y + 50
             # Draw a simple bar
             bar_w = highlight_w - 40
-            self.ui.draw_rounded_rect(x, y_bar, bar_w, 20, "white")
+            self.ui.draw_rounded_rect(int(x), int(y_bar), bar_w, 20, "white")
             # Fill bar based on brightness
             fill_w = int((self.current_brightness / 100.0) * (bar_w - 6))
             sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 163, 255, 255)
+            sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_CYAN.r, COLOR_CYAN.g, COLOR_CYAN.b, COLOR_CYAN.a)
             sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(x + 3, y_bar + 3, fill_w, 14))
             
             self.ui.draw_text(f"{self.current_brightness}%", x + bar_w + 10, y_bar, "white")
             self.ui.draw_text("Use D-Pad Left/Right", x, y_bar + 40, "gray", small=True)
 
-    def draw_menu(self, x, y_start):
+    def draw_menu(self, x, y_start, box_h):
         """Draws the navigation menu with pointer and highlight."""
         if not self.domain_list:
             self.ui.draw_text("Loading...", x, y_start, "cyan")
             return
 
-        visible_cats = 7
+        item_h = 28
+        # Balanced buffer to keep elements and scrollbar track inside box
+        visible_cats = (box_h - 15) // item_h 
         start = self.cat_scroll_row
         end = min(len(self.domain_list), start + visible_cats)
 
         for i in range(start, end):
             domain = self.domain_list[i]
-            y_pos = y_start + ((i - start) * 28)
+            y_pos = y_start + ((i - start) * item_h)
             label = domain.replace("_", "-").capitalize()
             
             # Search for icon in self.domain_icons
@@ -1399,38 +1471,38 @@ class HASDL2App:
             if icon_tex:
                 icon_w = 24
                 # Render icon slightly vertically offset
-                dst = sdl2.SDL_Rect(x, y_pos + 1, icon_w, icon_w) # Icon 1 pixel higher
-                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                dst = sdl2.SDL_Rect(int(x), int(y_pos + 1), icon_w, icon_w) # Icon 1 pixel higher
+                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst) # Render icon
                 icon_w += 10 # Spacing to text
             
             if self.active_list == "domains" and i == self.nav_index:
                 # 1. Highlight background
-                highlight_w = self.col1_w - 20
+                highlight_w = self.col1_w - self.margin
                 highlight_color = "red" if (self.reorder_mode and self.active_list == "domains") else "cyan"
                 
-                self.ui.draw_selection_highlight(x - 10, y_pos, highlight_w, 28, color=highlight_color)
+                self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y_pos), highlight_w, item_h, color=highlight_color)
                 
-                # 1.1 Border around selection (1px rounded, same color as pointer)
-                self.ui.draw_rounded_rect(x - 10, y_pos, highlight_w, 28, highlight_color)
+                # 1.1 Rahmen um die Auswahl (1px abgerundet, gleiche Farbe wie Zeiger)
+                self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y_pos), highlight_w, item_h, highlight_color)
                 
-                # 2. Selection triangle (pointer) - Only if domains list is active
+                # 2. Auswahl-Dreieck (Zeiger) - Nur wenn die Domänenliste aktiv ist
                 if self.active_list == "domains":
-                    self.ui.draw_pointer(x - 21, y_pos + 6, width=15, height=18, color=highlight_color)
+                    self.ui.draw_pointer(int(self.col1_x + (self.margin - 10) // 2), y_pos + 5, width=10, height=16, color=highlight_color)
                 
-                # 3. Active text
-                self.ui.draw_text(label, x + icon_w, y_pos + 2, "white") # Text 2 pixels lower
+                # 3. Aktiver Text
+                self.ui.draw_text(label, x + icon_w, y_pos + 2, "white") # Text 2 Pixel tiefer
             else:
-                # Normal text
-                self.ui.draw_text(label, x + icon_w, y_pos + 2, "cyan") # Text 2 pixels lower
+                # Normaler Text
+                self.ui.draw_text(label, x + icon_w, y_pos + 2, "cyan") # Text 2 Pixel tiefer
 
         # Scrollbar for the categories list
         if len(self.domain_list) > visible_cats:
             self.ui.draw_scrollbar(
-                self.margin + self.col1_w - 6, self.header_h + 5, 200,
+                int(self.col1_x + self.col1_w - self.SCROLLBAR_WIDTH - 4), y_start, box_h - 18,
                 self.cat_scroll_row, len(self.domain_list), visible_cats
             )
 
-    def _render_entities_list(self, x, y_start):
+    def _render_entities_list(self, x, y_start, box_h):
         """Renders the list of entities for the currently selected domain."""
         if not self.domain_list or self.nav_index >= len(self.domain_list):
             self.ui.draw_text("Waiting for data...", x, y_start, "gray", small=True)
@@ -1438,16 +1510,18 @@ class HASDL2App:
             
         current_domain = self.domain_list[self.nav_index]
         entities = self.entities_by_domain.get(current_domain, [])
-        visible_entities = 9
+        item_h = 28
+        # Balanced buffer to keep elements and scrollbar track inside box
+        visible_entities = (box_h - 15) // item_h 
         start = self.entity_scroll_row
         end = min(len(entities), start + visible_entities)
         
         for i in range(start, end):
             entity = entities[i]
-            y = y_start + ((i - start) * 28)
+            y = y_start + ((i - start) * item_h)
             
             # Selection visuals
-            highlight_w = self.col2_w - 30
+            highlight_w = self.col2_w - self.margin
             is_selected = (self.active_list == "entities" and i == self.entity_index)
             if is_selected:
                 if self.reorder_mode:
@@ -1458,9 +1532,9 @@ class HASDL2App:
                     is_flashing = (time.time() - self.fav_flash_time < 0.15)
                     flash_color = "white" if is_flashing else "cyan"
                 
-                self.ui.draw_selection_highlight(x - 10, y - 3, highlight_w, 28, color=flash_color)
-                self.ui.draw_rounded_rect(x - 10, y - 3, highlight_w, 28, flash_color)
-                self.ui.draw_pointer(x - 21, y + 2, width=15, height=18, color=flash_color)
+                self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y - 3), highlight_w, item_h, color=flash_color)
+                self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y - 3), highlight_w, item_h, flash_color)
+                self.ui.draw_pointer(int(self.col2_x + (self.margin - 10) // 2), y + 5, width=10, height=16, color=flash_color)
             
             # Icon
             entity_id = entity.get("entity_id", "")
@@ -1480,7 +1554,7 @@ class HASDL2App:
                 icon_color = COLOR_YELLOW if is_on else COLOR_GREY
                 sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
 
-                dst = sdl2.SDL_Rect(x, y + 2, icon_offset, icon_offset)
+                dst = sdl2.SDL_Rect(int(x), int(y + 2), icon_offset, icon_offset)
                 sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
                 
                 sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255) # Reset to standard white
@@ -1496,7 +1570,7 @@ class HASDL2App:
                 color = "white"
             
             label = display_name(entity_id, entity)
-            max_chars = 18
+            max_chars = 20
             display_label = label
             
             # Auto-scroll logic if selected and name is too long
@@ -1517,36 +1591,9 @@ class HASDL2App:
         # Scrollbar for the entities list
         if len(entities) > visible_entities:
             self.ui.draw_scrollbar(
-                x + highlight_w + 5, self.header_h + 5, 255, 
+                int(self.col2_x + self.col2_w - self.SCROLLBAR_WIDTH - 4), y_start, box_h - 18,
                 self.entity_scroll_row, len(entities), visible_entities
             )
-
-    def render_settings(self):
-        y_offset = 80
-        if self.settings_selected_index == 0:
-            self.render_selection_bar(10, y_offset - 2, self.width - 20, 40)
-        
-        # Render Layout Option Piece by Piece
-        color = COLOR_HIGHLIGHT if self.settings_selected_index == 0 else COLOR_TEXT
-        text = f"Button Layout: {self.layout_type.upper()} ("
-        self.ui.draw_text(text, 30, y_offset, color)
-        
-        text_w, _ = self.ui.get_text_size(text)
-        icon_x = 30 + text_w
-        icon_w = self._render_button_icon(self.controls["confirm"], icon_x, y_offset + 4, size=24)
-        
-        self.ui.draw_text(" = Confirm)", icon_x + icon_w, y_offset, color)
-        
-        # Back Option
-        y_offset += 40
-        if self.settings_selected_index == 1:
-            self.render_selection_bar(10, y_offset - 2, self.width - 20, 40)
-        color = COLOR_HIGHLIGHT if self.settings_selected_index == 1 else COLOR_TEXT
-        self.ui.draw_text("Back to Main Menu", 30, y_offset, color)
-
-        self.ui.draw_text("D-Pad: Select | Start: Apply/Back", 20, self.height - 20, COLOR_TEXT, small=True)
-        self.ui.draw_text(f"v.{VERSION}", self.width - 60, self.height - 20, COLOR_TEXT_DIM, small=True)
-
 
     def run(self):
         self.init_sdl()
@@ -1637,7 +1684,9 @@ if __name__ == "__main__":
     print("Y / F-Key           : Sort Items / Toggle Favorite")
     print("L1, R1 / PageUp, Dn : Page Up/Down (Entities)")
     print("L2, R2              : Scroll Console Log")
+    print("I, K / R-Stick      : Scroll Details (PC / Handheld)")
     print("Start / S-Key       : Open App Settings")
     print("-" * 50 + "\n")
 
+    app.run()
     app.run()

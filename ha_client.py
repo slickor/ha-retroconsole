@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Union, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-VERSION = "0.11.0"
+VERSION = "0.11.5"
 
 
 SUPPORTED_ACTIONS = {
@@ -30,7 +30,7 @@ class HAClientError(Exception):
     pass
 
 
-def normalize_favorite(item: Any) -> dict[str, str]:
+def normalize_favorite(item: Any) -> Dict[str, str]:
     if isinstance(item, str):
         entity_id = item.strip()
         if not entity_id:
@@ -48,7 +48,7 @@ def normalize_favorite(item: Any) -> dict[str, str]:
     return {"entity_id": entity_id, "label": label, "action": action}
 
 
-def load_config(path: Path, require_favorites: bool = False) -> dict[str, Any]:
+def load_config(path: Path, require_favorites: bool = False) -> Dict[str, Any]:
     try:
         with path.open("r", encoding="utf-8") as handle:
             config = json.load(handle)
@@ -79,7 +79,7 @@ def load_config(path: Path, require_favorites: bool = False) -> dict[str, Any]:
     return config
 
 
-def save_config(path: Path, config: dict[str, Any]) -> None:
+def save_config(path: Path, config: Dict[str, Any]) -> None:
     try:
         with path.open("w", encoding="utf-8") as handle:
             json.dump(config, handle, indent=2, ensure_ascii=False)
@@ -94,7 +94,7 @@ def request_json(
     path: str,
     timeout: float,
     method: str = "GET",
-    body: dict[str, Any] | None = None,
+    body: Optional[Dict[str, Any]] = None,
 ) -> Any:
     data = json.dumps(body).encode("utf-8") if body is not None else None
     request = Request(
@@ -128,31 +128,36 @@ def request_json(
         return payload
 
 
-def fetch_states_list(base_url: str, token: str, timeout: float) -> list[dict[str, Any]]:
+def fetch_states_list(base_url: str, token: str, timeout: float) -> List[Dict[str, Any]]:
     states = request_json(base_url, token, "/api/states", timeout)
     if not isinstance(states, list):
         raise HAClientError("Unexpected Home Assistant response: expected a list.")
     return states
 
 
-def fetch_states_map(base_url: str, token: str, timeout: float) -> dict[str, dict[str, Any]]:
+def fetch_states_map(base_url: str, token: str, timeout: float) -> Dict[str, Dict[str, Any]]:
     return {str(item.get("entity_id", "")): item for item in fetch_states_list(base_url, token, timeout)}
 
 
-def get_domain_groups(states: list[dict[str, Any]], favorites: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+def get_domain_groups(states: List[Dict[str, Any]], favorites: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     """Groups entities by domain and adds a virtual 'Favorites' domain at the top."""
-    groups: dict[str, list[dict[str, Any]]] = {}
+    groups: Dict[str, List[Dict[str, Any]]] = {}
     
     # Map for quick lookup
     states_map = {s.get("entity_id"): s for s in states if s.get("entity_id")}
     
     # 1. Create Favorites group first so it appears at the top of the list
-    fav_list = [states_map[eid] for fav in favorites if (eid := favorite_entity_id(fav)) in states_map]
+    fav_list = []
+    for fav in favorites:
+        eid = favorite_entity_id(fav)
+        if eid in states_map:
+            fav_list.append(states_map[eid])
+
     if fav_list:
         groups["favorites"] = fav_list
 
     # 2. Collect all other entities and group them by domain
-    other_groups: dict[str, list[dict[str, Any]]] = {}
+    other_groups: Dict[str, List[Dict[str, Any]]] = {}
     for state in states:
         eid = str(state.get("entity_id", ""))
         domain = entity_domain(eid)
@@ -175,7 +180,7 @@ def entity_domain(entity_id: str) -> str:
     return entity_id.split(".", 1)[0] if "." in entity_id else ""
 
 
-def display_name(entity_id: str, state: dict[str, Any] | None) -> str:
+def display_name(entity_id: str, state: Optional[Dict[str, Any]]) -> str:
     if state is None:
         return entity_id
     attributes = state.get("attributes")
@@ -184,7 +189,7 @@ def display_name(entity_id: str, state: dict[str, Any] | None) -> str:
     return entity_id
 
 
-def get_state_with_unit(state_obj: dict[str, Any]) -> str:
+def get_state_with_unit(state_obj: Dict[str, Any]) -> str:
     """Returns the state string appended with its unit of measurement if available."""
     state = str(state_obj.get("state", "unknown"))
     attributes = state_obj.get("attributes", {})
@@ -194,26 +199,26 @@ def get_state_with_unit(state_obj: dict[str, Any]) -> str:
     return state
 
 
-def favorite_entity_id(favorite: str | dict[str, str]) -> str:
+def favorite_entity_id(favorite: Union[str, Dict[str, str]]) -> str:
     if isinstance(favorite, dict):
         return favorite["entity_id"]
     return str(favorite)
 
 
-def favorite_label(favorite: str | dict[str, str], state: dict[str, Any] | None) -> str:
+def favorite_label(favorite: Union[str, Dict[str, str]], state: Optional[Dict[str, Any]]) -> str:
     entity_id = favorite_entity_id(favorite)
     if isinstance(favorite, dict) and favorite.get("label"):
         return favorite["label"]
     return display_name(entity_id, state)
 
 
-def favorite_action(favorite: str | dict[str, str]) -> str:
+def favorite_action(favorite: Union[str, Dict[str, str]]) -> str:
     if isinstance(favorite, dict):
         return favorite.get("action", "auto")
     return "auto"
 
 
-def resolve_action(entity_id: str, action: str = "auto") -> tuple[str, str] | None:
+def resolve_action(entity_id: str, action: str = "auto") -> Optional[Tuple]:
     domain = entity_domain(entity_id)
     if domain not in SUPPORTED_ACTIONS:
         return None
@@ -263,8 +268,8 @@ def refresh_after_action(
     token: str,
     timeout: float,
     entity_id: str,
-    previous_state: str | None,
-) -> dict[str, dict[str, Any]]:
+    previous_state: Optional[str],
+) -> Dict[str, Dict[str, Any]]:
     latest_states = fetch_states_map(base_url, token, timeout)
     if previous_state not in {"on", "off"}:
         return latest_states
@@ -280,10 +285,10 @@ def refresh_after_action(
 
 
 def changed_favorites(
-    favorites: list[str | dict[str, str]],
-    before: dict[str, dict[str, Any]],
-    after: dict[str, dict[str, Any]],
-) -> list[str]:
+    favorites: List[Union[str, Dict[str, str]]],
+    before: Dict[str, Dict[str, Any]],
+    after: Dict[str, Dict[str, Any]],
+) -> List[str]:
     changes = []
     for favorite in favorites:
         entity_id = favorite_entity_id(favorite)

@@ -2,9 +2,10 @@ import sdl2
 import sdl2.ext
 import sdl2.sdlttf as ttf
 import ctypes
+from typing import Any, Dict, Tuple
 
 class RetroUI:
-    def __init__(self, renderer, font_path, font_size=24):
+    def __init__(self, renderer: Any, font_path: str, font_size: int = 24):
         self.renderer = renderer
         # Load font sizes for flexibility
         self.font = ttf.TTF_OpenFont(font_path.encode('utf-8'), font_size)
@@ -20,13 +21,14 @@ class RetroUI:
             "cyan":   sdl2.SDL_Color(0, 163, 255, 255),
             "yellow": sdl2.SDL_Color(238, 176, 0, 255),
             "gray":   sdl2.SDL_Color(85, 85, 85, 255),
+            "grey":   sdl2.SDL_Color(85, 85, 85, 255),
             "red":    sdl2.SDL_Color(255, 0, 0, 255),
             "white":  sdl2.SDL_Color(255, 255, 255, 255),
             "box_bg": sdl2.SDL_Color(0, 19, 41, 180) # Semi-transparent blue
         }
-        self._text_cache = {}
+        self._text_cache: Dict[str, Tuple[Any, int, int]] = {}
 
-    def get_text_size(self, text, small=False, large=False, xl=False):
+    def get_text_size(self, text: str, small: bool = False, large: bool = False, xl: bool = False) -> Tuple[int, int]:
         """Returns the width and height of the text."""
         if xl:
             font = self.font_xl
@@ -40,7 +42,31 @@ class RetroUI:
         ttf.TTF_SizeUTF8(font, text.encode('utf-8'), ctypes.byref(tw), ctypes.byref(th))
         return tw.value, th.value
 
-    def draw_text(self, text, x, y, color="cyan", small=False, large=False, xl=False):
+    def truncate_text(self, text: str, max_width: int, small: bool = False, large: bool = False, xl: bool = False) -> str:
+        """Truncates text to fit within max_width, adding '...' if truncated."""
+        if not text:
+            return ""
+        
+        font = self._get_font(small, large, xl)
+        tw, _ = self.get_text_size(text, small, large, xl)
+        
+        if tw <= max_width:
+            return text
+        
+        # Binary search for the longest substring that fits
+        low, high = 0, len(text)
+        best_fit_len = 0
+        
+        while low <= high:
+            mid = (low + high) // 2
+            if mid == 0: low = mid + 1; continue # Avoid empty string check
+            test_text = text[:mid]
+            test_tw, _ = self.get_text_size(test_text + "...", small, large, xl) # Check with ellipsis
+            if test_tw <= max_width: best_fit_len = mid; low = mid + 1
+            else: high = mid - 1
+        return text[:best_fit_len] + "..." if best_fit_len > 0 else "..."
+
+    def draw_text(self, text: str, x: int, y: int, color: Any = "cyan", small: bool = False, large: bool = False, xl: bool = False) -> Tuple[int, int]:
         """Renders text (supports strings or SDL_Color objects)."""
         # Resolve color
         if isinstance(color, str):
@@ -86,8 +112,14 @@ class RetroUI:
         dst = sdl2.SDL_Rect(int(x), int(y), w, h)
         sdl2.SDL_RenderCopy(self.renderer, tex, None, dst)
         return w, h
+    
+    def _get_font(self, small: bool, large: bool, xl: bool):
+        if xl: return self.font_xl
+        if large: return self.font_large
+        if small: return self.font_small
+        return self.font
 
-    def draw_selection_highlight(self, x, y, w, h, color="cyan"):
+    def draw_selection_highlight(self, x: int, y: int, w: int, h: int, color: Any = "cyan"):
         """Draws a semi-transparent rectangle for highlighting."""
         sdl_color = self.colors.get(color.lower(), self.colors["cyan"]) if isinstance(color, str) else color
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
@@ -98,7 +130,7 @@ class RetroUI:
         sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(x, y + 1, w, h - 2))
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
 
-    def draw_scanlines(self, x, y, w, h, spacing=3):
+    def draw_scanlines(self, x: int, y: int, w: int, h: int, spacing: int = 3):
         """Draws a retro scanline pattern over a specific area."""
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
         # Very subtle cyan with high transparency for CRT look
@@ -108,7 +140,7 @@ class RetroUI:
             sdl2.SDL_RenderDrawLine(self.renderer, x, line_y, x + w, line_y)
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
 
-    def draw_pointer(self, x, y, width=12, height=18, color="cyan"):
+    def draw_pointer(self, x: int, y: int, width: int = 10, height: int = 16, color: Any = "cyan"):
         """Draws a sturdy selection triangle (pointer) with a 2px white border."""
         # 1. Draw white border (2px larger in all directions)
         border_color = self.colors["white"]
@@ -126,7 +158,7 @@ class RetroUI:
             offset = int(i * (height / 2.0) / width)
             sdl2.SDL_RenderDrawLine(self.renderer, x + i, y + offset, x + i, y + height - 1 - offset)
 
-    def draw_rounded_rect(self, x, y, w, h, color="cyan"):
+    def draw_rounded_rect(self, x: int, y: int, w: int, h: int, color: Any = "cyan"):
         """Helper function for rounded frames in retro pixel style."""
         sdl_color = self.colors.get(color, self.colors["cyan"]) if isinstance(color, str) else color
         sdl2.SDL_SetRenderDrawColor(self.renderer, sdl_color.r, sdl_color.g, sdl_color.b, 255)
@@ -147,7 +179,7 @@ class RetroUI:
         # BR corner
         sdl2.SDL_RenderDrawPoint(self.renderer, x + w - 3, y + h - 2); sdl2.SDL_RenderDrawPoint(self.renderer, x + w - 2, y + h - 3)
 
-    def draw_retro_box(self, x, y, w, h, title="", color="cyan"):
+    def draw_retro_box(self, x: int, y: int, w: int, h: int, title: str = "", color: Any = "cyan"):
         """Draws a frame box with a title break."""
         # Semi-transparent background fill
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
@@ -175,7 +207,7 @@ class RetroUI:
         sdl2.SDL_SetRenderDrawColor(self.renderer, bg.r, bg.g, bg.b, 255)
         sdl2.SDL_RenderClear(self.renderer)
 
-    def draw_scrollbar(self, x, y, h, current_start, total_count, visible_count):
+    def draw_scrollbar(self, x: int, y: int, h: int, current_start: int, total_count: int, visible_count: int):
         """Draws a vertical scrollbar proportional to the list state."""
         if total_count <= visible_count:
             return

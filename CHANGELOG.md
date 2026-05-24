@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.5] - 2026-05-24
+### Added
+- **UI:** Implemented a new multi-column layout for 640x480 resolution with improved spacing.
+- **Details:** Added attribute scrolling using keyboard (I/K) and Right Stick (Handhelds).
+- **System Info:** Redesigned compact system info box with a dedicated IP display line.
+### Changed
+- **UI:** Standardized 12px gaps between all UI boxes for a cleaner look.
+- **Localization:** Completed full audit and transition to English for all code comments and UI strings.
+- **Controls:** Updated startup console output with detailed PC mapping including new scrolling keys.
+### Fixed
+- **Scrollbars:** Corrected track length calculations to ensure scrollbars stay strictly within box boundaries.
+
+## [0.11.1] - 2026-05-24
+### Fixed
+- **Compatibility:** Removed Walrus operator (`:=`) and updated type annotations to support Python 3.7 (specifically for R36S devices).
+- **Navigation:** Fixed a syntax error and redundant logic in D-Pad navigation that caused crashes on some platforms.
+### Changed
+- **Localization:** Unified all remaining code comments and internal documentation to English.
+
 ## [0.11.0] - 2026-05-24
 ### Added
 - **Navigation:** Introduced column-based navigation; switching between categories and entities is now possible directly via D-Pad (Left/Right).

@@ -12,5 +12,5 @@ build/
 *.zip
 *.ps1
 scripts/
-release/
+releases/
 Test/
