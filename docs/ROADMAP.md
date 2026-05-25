@@ -86,10 +86,16 @@ Goal: Stable operation on real devices.
 - [x] Check logs.
 - [x] Write installation and configuration documentation.
 
-## Phase 6: Refinement & Advanced Features (v0.21.0)
-
+## Phase 6: Refinement & Advanced Features (v0.26.2)
 - [x] Refine UI button layout and padding for better visual balance.
 - [x] Implement robust exit confirmation overlay.
+- [x] Implement 30 FPS power saving mode for handhelds.
+- [x] Ensure periodic background synchronization of entity states.
+- [x] Add visual synchronization timestamp in System UI.
+- [x] Enhance Sync indicator with blinking animation and clean console logs.
+- [x] Improve button flash feedback (longer duration, yellow color).
+- [x] Fix button label visibility (white text).
+- [x] Implement configurable UI theme elements (Flash Color).
 - [ ] Implement custom theme support (colors, fonts).
 - [ ] Add support for more complex entity types (climate presets, media controls).
 - [ ] Enhance synchronization for multi-device setups.

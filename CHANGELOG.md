@@ -2,6 +2,65 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.2] - 2026-05-25
+### Fixed
+- **UI:** Reverted button label color to white for better legibility against dark backgrounds in the footer bar.
+### Changed
+- **Release:** Version bump to 0.26.2.
+
+## [0.26.1] - 2026-05-25
+### Fixed
+- **UI:** Added missing color definitions (Green, Magenta, Black) to the RetroUI framework to resolve incorrect fallback rendering.
+- **UI:** Renamed "Cyan" to "Blue" in the Flash Color settings for better alignment with Home Assistant branding.
+### Changed
+- **Release:** Version bump to 0.26.1.
+
+## [0.26.0] - 2026-05-25
+### Added
+- **UI:** Introduced configurable "Flash Color" in Settings. Users can now choose between Yellow, Cyan, White, Green, Red, and Magenta for interaction feedback.
+- **Release:** Version bump to 0.26.0 (Customization).
+### Changed
+- **UI:** Refined settings navigation to accommodate a third menu entry.
+
+## [0.25.0] - 2026-05-25
+### Changed
+- **UI:** Enhanced visual feedback for button presses. Flash duration increased to 0.3s and color changed to yellow for better visibility in the footer and entity list.
+- **Release:** Version bump to 0.25.0 (UI Polish).
+
+## [0.24.0] - 2026-05-25
+### Added
+- **UI:** Implemented a blinking visual effect for the "Sync" indicator while a background update is in progress.
+- **Release:** Version bump to 0.24.0 (UX Improvement).
+### Changed
+- **UI:** Removed the repetitive "Connected" console message to keep the log clean during periodic synchronization.
+
+## [0.23.0] - 2026-05-25
+### Added
+- **UI:** Added a "Sync" indicator in the System Box showing the timestamp of the last successful state update.
+- **Release:** Version bump to 0.23.0 (Sync Visibility).
+### Changed
+- **Documentation:** Added security guidelines for `config.json` in README.
+
+## [0.22.1] - 2026-05-25
+### Added
+- **Sync:** Re-implemented periodic background synchronization (1.5s interval) to keep entity states updated across multiple devices.
+- **Release:** Version bump to 0.22.1.
+### Fixed
+- **Sync:** Resolved issue where background state updates were not being triggered automatically.
+
+## [0.22.0] - 2026-05-25
+### Added
+- **Performance:** Capped framerate to 30 FPS to improve battery life and reduce CPU load on handheld devices.
+- **Release:** Version bump to 0.22.0.
+### Changed
+- **UI:** Optimized render loop delay for better thermal performance on R36S.
+
+## [0.21.1] - 2026-05-25
+### Fixed
+- **UI:** Resolved severe screen flickering on handheld devices (R36S) caused by redundant double `SDL_RenderPresent` calls.
+### Changed
+- **Release:** Version bump to 0.21.1.
+
 ## [0.21.0] - 2026-05-25
 ### Added
 - **Release:** Version bump to 0.21.0 (UI Polish).

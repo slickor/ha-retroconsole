@@ -164,7 +164,10 @@ class HASDL2App:
         self.current_task_thread = None
         self.game_controllers = []
         self.prev_btn_y_label = ""
+        self.last_sync_time = "Never" # Tracking for the sync indicator
+        self.flash_colors = ["yellow", "blue", "white", "green", "red", "magenta"]
         self.camera_tex = None
+        self.last_auto_refresh_time = time.time() # For periodic background refresh
         self.last_camera_eid = None
         self.btn_y_flash_time = 0
 
@@ -254,7 +257,8 @@ class HASDL2App:
             ("CPU:", cpu_mhz),
             ("RAM:", free_ram),
             ("Ver:", VERSION),
-            ("Srv:", "Online" if self.states else "Offline")
+            ("Srv:", "Online" if self.states else "Offline"),
+            ("Sync:", self.last_sync_time)
         ]
         
         for i in range(0, len(items), 2):
@@ -1125,9 +1129,10 @@ class HASDL2App:
 
         if self.active_list == "entities" and self.settings_active:
             if self.settings_view == "menu":
-                self.settings_index = min(1, self.settings_index + 1) # 1 = limit for 2 menu items
+                self.settings_index = min(2, self.settings_index + 1) # limit for 3 menu items
             else:
-                self.settings_index = min(len(VIEWABLE_DOMAINS) - 1, self.settings_index + 1)
+                limit = len(VIEWABLE_DOMAINS) - 1 if self.settings_view == "categories" else len(self.flash_colors) - 1
+                self.settings_index = min(limit, self.settings_index + 1)
                 if self.settings_view == "categories":
                     visible_settings = 8
                     if self.settings_index >= self.settings_scroll_row + visible_settings:
@@ -1206,6 +1211,10 @@ class HASDL2App:
                 elif self.settings_index == 1:
                     self.settings_view = "brightness"
                     self.current_brightness = self._get_brightness()
+                elif self.settings_index == 2: # "Flash Color"
+                    self.settings_view = "flash_color"
+                    self.settings_index = 0
+                    self.settings_scroll_row = 0
             else: # If in "categories" or "brightness"
                 self._handle_settings_toggle() # Toggle category visibility
         elif self.active_list == "entities":
@@ -1263,15 +1272,21 @@ class HASDL2App:
             self._handle_settings_toggle()
 
     def _handle_settings_toggle(self):
-        """Toggle domain visibility in settings."""
-        hidden = self.config.get("hidden_domains", [])
-        domain = VIEWABLE_DOMAINS[self.settings_index]
-        if domain in hidden:
-            hidden.remove(domain)
-        else:
-            hidden.append(domain)
-        self.config["hidden_domains"] = hidden
-        self.set_message(f"Category '{domain}' visibility toggled.")
+        """Toggle domain visibility or select color in settings."""
+        if self.settings_view == "categories":
+            hidden = self.config.get("hidden_domains", [])
+            domain = VIEWABLE_DOMAINS[self.settings_index]
+            if domain in hidden:
+                hidden.remove(domain)
+            else:
+                hidden.append(domain)
+            self.config["hidden_domains"] = hidden
+            self.set_message(f"Category '{domain}' visibility toggled.")
+        elif self.settings_view == "flash_color":
+            new_color = self.flash_colors[self.settings_index]
+            self.config["flash_color"] = new_color
+            self.set_message(f"Flash color set to {new_color.capitalize()}.")
+
         self.save_config()
         self.load_entities()
 
@@ -1312,15 +1327,15 @@ class HASDL2App:
                 self.camera_tex = None
 
     def _render_button_icon(self, btn_val, x, y, size=15, color="white"):
-        """Renders a procedural button icon (white circle/box with black text)."""
+        """Renders a procedural button icon (white circle/box with white text)."""
         if isinstance(btn_val, int):
             label = {BTN_A: "A", BTN_B: "B", BTN_X: "X", BTN_Y: "Y"}.get(btn_val, "?")
         else:
             label = str(btn_val)
 
         # Check if button should flash due to recent input
-        is_flashing = (time.time() - self.btn_flash_times.get(btn_val, 0) < 0.12)
-        box_color = "cyan" if is_flashing else color
+        is_flashing = (time.time() - self.btn_flash_times.get(btn_val, 0) < 0.3)
+        box_color = self.config.get("flash_color", "yellow") if is_flashing else color
 
         tw, th = self.ui.get_text_size(label, small=True)
 
@@ -1335,7 +1350,7 @@ class HASDL2App:
 
         self.ui.draw_rounded_rect(x, y, width, height, box_color)
         # Shift text 1px to the right to ensure the extra pixel is at the front
-        self.ui.draw_text(label, x + (width - tw) // 2 + 1, y + (height - th) // 2, "black", small=True)
+        self.ui.draw_text(label, x + (width - tw) // 2 + 1, y + (height - th) // 2, "white", small=True)
         return width
 
     def _draw_global_scanlines(self):
@@ -1373,8 +1388,6 @@ class HASDL2App:
                 self.render_layout()
             elif self.mode == "settings":
                 self.render_settings()
-
-        sdl2.SDL_RenderPresent(self.renderer)
 
         # Render exit confirmation overlay on top of everything else
         self._render_exit_overlay()
@@ -1544,7 +1557,11 @@ class HASDL2App:
         visible_items = available_h // item_h
 
         if self.settings_view == "menu":
-            menu_items = [("Visible Categories", "categories"), ("Display Brightness", "brightness")]
+            menu_items = [
+                ("Visible Categories", "categories"), 
+                ("Display Brightness", "brightness"),
+                ("Flash Color", "favorites")
+            ]
             for i, (label, icon_key) in enumerate(menu_items):
                 is_selected = (self.settings_active and self.active_list == "entities" and self.settings_index == i) # Check if this item is selected
                 
@@ -1637,6 +1654,33 @@ class HASDL2App:
             self.ui.draw_text(f"{self.current_brightness}%", x + bar_w + 10, y_bar, "white")
             self.ui.draw_text("Use D-Pad Left/Right", x, y_bar + 40, "gray", small=True)
 
+        elif self.settings_view == "flash_color":
+            self.ui.draw_text("Select Flash Color:", x, y, "cyan")
+            y_list_start = y + 30
+            current_color = self.config.get("flash_color", "yellow")
+            
+            for i, col in enumerate(self.flash_colors):
+                y_list = y_list_start + (i * item_h)
+                is_selected = (self.settings_active and self.active_list == "entities" and i == self.settings_index)
+                is_active = (col == current_color)
+                
+                if is_selected:
+                    color = "cyan"
+                    self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y_list - 3), highlight_w, item_h, color="cyan")
+                    self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y_list - 3), highlight_w, item_h, "cyan")
+                    self.ui.draw_pointer(int(x - self.margin - self.SCROLLBAR_WIDTH - 5), y_list + 8, color="cyan")
+                else:
+                    color = "white"
+                
+                # Draw indicator for currently active color
+                if is_active:
+                    self.ui.draw_text(">", x, y_list + 2, "yellow", small=True)
+                
+                # Render color name with the actual color for preview
+                self.ui.draw_text(col.capitalize(), x + 20, y_list + 2, color, small=True)
+                # Draw a small preview box of the color
+                self.ui.draw_rounded_rect(int(x + highlight_w - 40), int(y_list + 2), 20, 16, col)
+
     def draw_menu(self, x, y_start, box_h):
         """Draws the navigation menu with pointer and highlight."""
         if not self.domain_list:
@@ -1717,9 +1761,9 @@ class HASDL2App:
                     # Red highlight for reorder mode
                     flash_color = "red"
                 else:
-                    # Visual feedback flash (0.15 seconds in white)
-                    is_flashing = (time.time() - self.fav_flash_time < 0.15)
-                    flash_color = "white" if is_flashing else "cyan"
+                    # Visual feedback flash (0.3 seconds in configurable color)
+                    is_flashing = (time.time() - self.fav_flash_time < 0.3)
+                    flash_color = self.config.get("flash_color", "yellow") if is_flashing else "cyan"
                 
                 self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y - 3), highlight_w, item_h, color=flash_color)
                 self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y - 3), highlight_w, item_h, flash_color)
@@ -1801,8 +1845,15 @@ class HASDL2App:
                 except queue.Empty:
                     pass  # No task results yet
 
+                # Periodic background refresh of states (every 1.5 seconds)
+                if time.time() - self.last_auto_refresh_time > 1.5:
+                    if not self.current_task_thread or not self.current_task_thread.is_alive():
+                        self._start_background_task("load_data", self._fetch_states_background)
+                        self.last_auto_refresh_time = time.time()
+
                 self.render()
-                sdl2.SDL_Delay(16)
+                # Cap to ~30 FPS to save battery and reduce CPU load on handhelds
+                sdl2.SDL_Delay(33)
         except KeyboardInterrupt:
             pass # Clean exit on Ctrl+C
         finally:
@@ -1830,8 +1881,8 @@ class HASDL2App:
         if task_result["status"] == "success":
             if task_result["type"] == "load_data":
                 self.states = task_result["result"]
-                self.set_message("Connected")
                 self.load_entities()
+                self.last_sync_time = time.strftime("%H:%M:%S")
                 self._update_selection_context()
             elif task_result["type"] == "fetch_camera":
                 img_data = task_result["result"]
@@ -1849,6 +1900,7 @@ class HASDL2App:
                 before_states = self.states  # Capture states before update
                 self.states = new_states
                 self.load_entities() # Refresh the grouped entities with new states
+                self.last_sync_time = time.strftime("%H:%M:%S")
                 if favorite:
                     changes = changed_favorites([favorite], before_states, self.states)
                     self.set_message(f"Executed: {changes[0]}" if changes else "Executed")

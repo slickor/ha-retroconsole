@@ -18,12 +18,16 @@ class RetroUI:
         
         self.colors = {
             "bg":     sdl2.SDL_Color(10, 10, 15, 255),
+            "blue":   sdl2.SDL_Color(0, 163, 255, 255),
             "cyan":   sdl2.SDL_Color(0, 163, 255, 255),
             "yellow": sdl2.SDL_Color(238, 176, 0, 255),
+            "green":  sdl2.SDL_Color(0, 255, 128, 255),
             "gray":   sdl2.SDL_Color(85, 85, 85, 255),
             "grey":   sdl2.SDL_Color(85, 85, 85, 255),
             "red":    sdl2.SDL_Color(255, 0, 0, 255),
+            "magenta":sdl2.SDL_Color(255, 0, 255, 255),
             "white":  sdl2.SDL_Color(255, 255, 255, 255),
+            "black":  sdl2.SDL_Color(0, 0, 0, 255),
             "box_bg": sdl2.SDL_Color(0, 19, 41, 180) # Semi-transparent blue
         }
         self._text_cache: Dict[str, Tuple[Any, int, int]] = {}
