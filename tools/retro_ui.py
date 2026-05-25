@@ -179,7 +179,7 @@ class RetroUI:
         # BR corner
         sdl2.SDL_RenderDrawPoint(self.renderer, x + w - 3, y + h - 2); sdl2.SDL_RenderDrawPoint(self.renderer, x + w - 2, y + h - 3)
 
-    def draw_retro_box(self, x: int, y: int, w: int, h: int, title: str = "", color: Any = "cyan"):
+    def draw_retro_box(self, x: int, y: int, w: int, h: int, title: str = "", color: Any = "cyan", title_color: Any = None):
         """Draws a frame box with a title break."""
         # Semi-transparent background fill
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
@@ -192,6 +192,7 @@ class RetroUI:
         self.draw_rounded_rect(x, y, w, h, color)
         
         if title:
+            t_color = title_color if title_color else color
             tw, th = self.get_text_size(title) # Use normal font size for box titles
             # Break line
             clear_rect = sdl2.SDL_Rect(x + 15, y, tw + 10, 2) # Clear 2px for a cleaner break
@@ -199,7 +200,7 @@ class RetroUI:
             sdl2.SDL_SetRenderDrawColor(self.renderer, bg.r, bg.g, bg.b, 255)
             sdl2.SDL_RenderFillRect(self.renderer, clear_rect)
             # Draw title
-            self.draw_text(title, x + 20, y - (th // 2), color=color)
+            self.draw_text(title, x + 20, y - (th // 2), color=t_color)
 
     def clear_screen(self):
         """Clears the screen with the cyberpunk background color."""

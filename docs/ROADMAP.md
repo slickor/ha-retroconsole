@@ -85,3 +85,11 @@ Goal: Stable operation on real devices.
 - [x] Test on TrimUI Smart Pro (Initial boot and UI functional).
 - [x] Check logs.
 - [x] Write installation and configuration documentation.
+
+## Phase 6: Refinement & Advanced Features (v0.2.1)
+
+- [x] Refine UI button layout and padding for better visual balance.
+- [x] Implement robust exit confirmation overlay.
+- [ ] Implement custom theme support (colors, fonts).
+- [ ] Add support for more complex entity types (climate presets, media controls).
+- [ ] Enhance synchronization for multi-device setups.

@@ -318,12 +318,13 @@ class HASDL2App:
         
         for btn, label in controls:
             if not label: continue
-            # Replicate _render_button_icon width logic (updated for +1px front padding)
+            # Replicate _render_button_icon width logic
             btn_str = {BTN_A: "A", BTN_B: "B", BTN_X: "X", BTN_Y: "Y"}.get(btn, str(btn))
             itw, ith = self.ui.get_text_size(btn_str, small=True)
-            bw = itw + 5
+            bw = itw + 4
             if len(btn_str) == 1:
                 side = max(bw, ith + 4)
+                if (side - itw) % 2 != 0: side += 1
                 bw = side
             
             tw, _ = self.ui.get_text_size(label, small=True)
@@ -1324,18 +1325,20 @@ class HASDL2App:
 
         tw, th = self.ui.get_text_size(label, small=True)
 
-        # Increased horizontal size by 1px to accommodate extra front padding
-        width = tw + 5
+        # To achieve a consistent 2px padding on all sides, the box dimensions 
+        # must be exactly text size + 4px (2px on each side).
+        width = tw + 4
         height = th + 4
 
         # For single characters, maintain a square appearance.
         if len(label) == 1:
             side = max(width, height)
+            # Ensure the difference is even for pixel-perfect centering
+            if (side - tw) % 2 != 0: side += 1
             width = height = side
 
         self.ui.draw_rounded_rect(x, y, width, height, box_color)
-        # Shift text 1px to the right to ensure the extra pixel is at the front
-        self.ui.draw_text(label, x + (width - tw) // 2 + 1, y + (height - th) // 2, "black", small=True)
+        self.ui.draw_text(label, x + (width - tw) // 2, y + (height - th) // 2, "black", small=True)
         return width
 
     def _draw_global_scanlines(self):
@@ -1378,8 +1381,6 @@ class HASDL2App:
 
         # Render exit confirmation overlay on top of everything else
         self._render_exit_overlay()
-
-        sdl2.SDL_RenderPresent(self.renderer)
 
     def _render_exit_overlay(self):
         """Renders the exit confirmation overlay in the center of the screen."""
@@ -1880,4 +1881,163 @@ if __name__ == "__main__":
     print("I, K / R-Stick      : Scroll Details (PC / Handheld)")
     print("Start / S-Key       : Open App Settings")
     print("-" * 50 + "\n")
+
+    app.run()lf.ui:
+            self.ui.cleanup()
+        if self.renderer:
+            sdl2.SDL_DestroyRenderer(self.renderer)
+        if self.camera_tex:
+            sdl2.SDL_DestroyTexture(self.camera_tex)
+        for tex in self.domain_icons.values():
+            sdl2.SDL_DestroyTexture(tex)
+        for controller in self.game_controllers:
+            sdl2.SDL_GameControllerClose(controller)
+        if self.window:
+            sdl2.SDL_DestroyWindow(self.window)
+        ttf.TTF_Quit()
+        sdlimage.IMG_Quit()
+        sdl2.SDL_Quit()
+
+    def _process_task_result(self, task_result):
+        """Handles the result of a completed background task."""
+        if task_result["status"] == "success":
+            if task_result["type"] == "load_data":
+                self.states = task_result["result"]
+                self.set_message("Connected")
+                self.load_entities()
+                self._update_selection_context()
+            elif task_result["type"] == "fetch_camera":
+                img_data = task_result["result"]
+                if img_data:
+                    # Convert raw bytes to SDL texture
+                    rw = sdl2.SDL_RWFromMem(img_data, len(img_data))
+                    # IMG_Load_RW with 1 as second param closes the RW automatically
+                    surface = sdlimage.IMG_Load_RW(rw, 1)
+                    if surface:
+                        self.camera_tex = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
+                        sdl2.SDL_FreeSurface(surface)
+            elif task_result["type"] == "execute_action":
+                new_states = task_result["result"]["new_states"]
+                favorite = task_result["result"]["favorite"]
+                before_states = self.states  # Capture states before update
+                self.states = new_states
+                self.load_entities() # Refresh the grouped entities with new states
+                if favorite:
+                    changes = changed_favorites([favorite], before_states, self.states)
+                    self.set_message(f"Executed: {changes[0]}" if changes else "Executed")
+                else:
+                    self.set_message("Executed")
+        else:  # status == "error"
+            self.set_message(f"Error: {task_result['error']}")
+
+if __name__ == "__main__":
+    import argparse
+    from pathlib import Path
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", default="config.json")
+    args = parser.parse_args()
+    
+    config_path = Path(args.config)
+    app = HASDL2App(config_path)
+
+    print(f"\n[HA RetroConsole v{VERSION}]")
+    print("-" * 50)
+    print("CONTROLS (Handheld / PC):")
+    print("D-Pad / Arrows      : Navigate")
+    print("A / Enter           : Execute Action / Select")
+    print("B / Esc / B-Key     : Back / Exit")
+    print("X / R-Key           : Refresh States")
+    print("Y / F-Key           : Sort Items / Toggle Favorite")
+    print("L1, R1 / PageUp, Dn : Page Up/Down (Entities)")
+    print("L2, R2              : Scroll Console Log")
+    print("I, K / R-Stick      : Scroll Details (PC / Handheld)")
+    print("Start / S-Key       : Open App Settings")
+    print("-" * 50 + "\n")
+
+    app.run()       self.current_task_thread = None  # Task finished
+                    self.pending_task_type = None
+                    self._process_task_result(task_result)
+                except queue.Empty:
+                    pass  # No task results yet
+
+                self.render()
+                sdl2.SDL_Delay(16)
+        except KeyboardInterrupt:
+            pass # Clean exit on Ctrl+C
+        finally:
+            self.cleanup()
+
+    def cleanup(self):
+        if self.ui:
+            self.ui.cleanup()
+        if self.renderer:
+            sdl2.SDL_DestroyRenderer(self.renderer)
+        if self.camera_tex:
+            sdl2.SDL_DestroyTexture(self.camera_tex)
+        for tex in self.domain_icons.values():
+            sdl2.SDL_DestroyTexture(tex)
+        for controller in self.game_controllers:
+            sdl2.SDL_GameControllerClose(controller)
+        if self.window:
+            sdl2.SDL_DestroyWindow(self.window)
+        ttf.TTF_Quit()
+        sdlimage.IMG_Quit()
+        sdl2.SDL_Quit()
+
+    def _process_task_result(self, task_result):
+        """Handles the result of a completed background task."""
+        if task_result["status"] == "success":
+            if task_result["type"] == "load_data":
+                self.states = task_result["result"]
+                self.set_message("Connected")
+                self.load_entities()
+                self._update_selection_context()
+            elif task_result["type"] == "fetch_camera":
+                img_data = task_result["result"]
+                if img_data:
+                    # Convert raw bytes to SDL texture
+                    rw = sdl2.SDL_RWFromMem(img_data, len(img_data))
+                    # IMG_Load_RW with 1 as second param closes the RW automatically
+                    surface = sdlimage.IMG_Load_RW(rw, 1)
+                    if surface:
+                        self.camera_tex = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
+                        sdl2.SDL_FreeSurface(surface)
+            elif task_result["type"] == "execute_action":
+                new_states = task_result["result"]["new_states"]
+                favorite = task_result["result"]["favorite"]
+                before_states = self.states  # Capture states before update
+                self.states = new_states
+                self.load_entities() # Refresh the grouped entities with new states
+                if favorite:
+                    changes = changed_favorites([favorite], before_states, self.states)
+                    self.set_message(f"Executed: {changes[0]}" if changes else "Executed")
+                else:
+                    self.set_message("Executed")
+        else:  # status == "error"
+            self.set_message(f"Error: {task_result['error']}")
+
+if __name__ == "__main__":
+    import argparse
+    from pathlib import Path
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", default="config.json")
+    args = parser.parse_args()
+    
+    config_path = Path(args.config)
+    app = HASDL2App(config_path)
+
+    print(f"\n[HA RetroConsole v{VERSION}]")
+    print("-" * 50)
+    print("CONTROLS (Handheld / PC):")
+    print("D-Pad / Arrows      : Navigate")
+    print("A / Enter           : Execute Action / Select")
+    print("B / Esc / B-Key     : Back / Exit")
+    print("X / R-Key           : Refresh States")
+    print("Y / F-Key           : Sort Items / Toggle Favorite")
+    print("L1, R1 / PageUp, Dn : Page Up/Down (Entities)")
+    print("L2, R2              : Scroll Console Log")
+    print("I, K / R-Stick      : Scroll Details (PC / Handheld)")
+    print("Start / S-Key       : Open App Settings")
+    print("-" * 50 + "\n")
+
     app.run()

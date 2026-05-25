@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2026-05-25
+### Added
+- **Release:** Version bump to 0.2.1 (UI Polish).
+### Fixed
+- **UI:** Corrected exit confirmation overlay visibility by ensuring it is drawn after the last render present call.
+- **UI:** Improved button icon horizontal alignment by adding 1px front padding for better visual balance.
+
+## [0.2.0] - 2026-05-25
+### Added
+- **Release:** Major version update to 0.2.0 (Stable UI Baseline).
+- **UI:** Improved exit confirmation overlay rendering logic (correct Z-order).
+- **UI:** Adjusted button horizontal padding for better visual balance (added 1px front padding).
+### Changed
+- **Documentation:** Updated Roadmap and README to reflect the new versioning.
+- **Maintenance:** Internal version string consolidated.
+
 ## [0.11.6] - 2026-05-24
 ### Added
 - **Sync:** Implemented periodic background synchronization (1s interval) to keep entity states updated across multiple devices.
