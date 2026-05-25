@@ -2,9 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.2.1] - 2026-05-25
+## [0.21.0] - 2026-05-25
 ### Added
-- **Release:** Version bump to 0.2.1 (UI Polish).
+- **Release:** Version bump to 0.21.0 (UI Polish).
 ### Fixed
 - **UI:** Corrected exit confirmation overlay visibility by ensuring it is drawn after the last render present call.
 - **UI:** Improved button icon horizontal alignment by adding 1px front padding for better visual balance.

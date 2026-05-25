@@ -86,7 +86,7 @@ Goal: Stable operation on real devices.
 - [x] Check logs.
 - [x] Write installation and configuration documentation.
 
-## Phase 6: Refinement & Advanced Features (v0.2.1)
+## Phase 6: Refinement & Advanced Features (v0.21.0)
 
 - [x] Refine UI button layout and padding for better visual balance.
 - [x] Implement robust exit confirmation overlay.
