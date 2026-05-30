@@ -1,17 +1,33 @@
 # Home Assistant - for retroconsoles
 
+<p align="center">
+  <img src="docs/img/logo_350x350.png" width="350" alt="HA RetroConsole Logo">
+</p>
+
 This project is an independent community application and is not affiliated with or endorsed by Home Assistant or the Open Home Foundation.
 
 **A lightweight, controller-driven Home Assistant client for Linux-based retro handhelds. Optimized for PortMaster devices (R36S, TrimUI Smart Pro) with a native SDL2 retro UI.**
 
 Turn your retro handheld into a smart home command center. HA RetroConsole provides a fast, tactile, and native interface to control your Home Assistant environment without needing a browser or mobile app. It focuses on immediate control of favorites, sensors, switches, lights, scenes, and scripts via the Home Assistant REST API.
 
+<p align="center">
+  <img src="docs/img/screenshot.png" width="600" alt="HA RetroConsole UI Screenshot">
+</p>
+
+## Core Features
+
+- **Native SDL2 UI:** Lean, controller-optimized interface with stable 30 FPS for maximum battery life.
+- **Real-time Monitoring:** Live status for sensors, WiFi signal strength (0-4 bars), and system statistics.
+- **Visual Retro Charm:** CRT scanline effects, automatic marquee scrolling for long names, and color-coded icons.
+- **Handheld Integration:** Seamless D-Pad navigation, display brightness control, and full-screen camera snapshots.
+- **PortMaster Ready:** Verified on muOS, Spruce, and Knulli (for R36S, TrimUI Smart Pro, and others).
+
 ## Current Status
 
 Key milestones reached:
 - **Phase 4 (Deployable App):** Successfully completed with automated build scripts for PortMaster.
 - **Phase 5 (Device Testing):** Completed. Successfully verified on muOS, Spruce, and Knulli distributions for the TrimUI Smart Pro.
-- **v0.28.1 Update:** Added URL failover, native On-Screen Keyboard, and Server Connection settings.
+- **v0.28.2 Update:** Added URL failover, native On-Screen Keyboard, and Server Connection settings.
 
 
  
@@ -29,95 +45,14 @@ It is highly recommended to use the **IP address** of your Home Assistant server
 1. Copy `config.example.json` to `config.json`.
 2. Enter your Home Assistant URL and a Long-Lived Access Token.
    - Create the token in Home Assistant under your user profile: `Profile -> Security -> Long-lived access tokens`.
-3. Run the connectivity test:
-
-```powershell
-python tools/ha_check.py --config config.json
-```
-
-You can filter entities specifically:
-
-```powershell
-python tools/ha_check.py --config config.json --domain light --limit 30
-```
-
-You can dry-run a service first:
-
-```powershell
-python tools/ha_action.py light.licht_garage_schalter_1
-```
-
-Use `--yes` to execute the service:
-
-```powershell
-python tools/ha_action.py light.licht_garage_schalter_1 --yes
-```
-
-Start an interactive favorites list with:
-
-```powershell
-python tools/ha_favorites.py --config config.json
-```
-
-Start a keyboard-driven console UI with:
-
-```powershell
-python tools/ha_tui.py --config config.json
-```
-
-The first pygame prototype runs with:
-
-```powershell
-pip install pygame
-python tools/ha_pygame.py --config config.json
-```
-
-Inside the prototype, press `Y` (or `F` on PC) to open the favorites editor. Use the arrow keys to move, `A`/Enter to toggle favorites, and `R` to refresh.
-
-The SDL2 test app runs with:
-
-```powershell
-pip install pysdl2 pysdl2-dll # v.0.6.7
-python tools/ha_sdl2.py --config config.json
-```
-
-Use `F` to open the favorites editor, then `Enter` to toggle a favorite. This app uses the same config and favorites logic while testing native SDL2 rendering and keyboard input.
-
-Favorites can be either simple entity IDs or objects with label and action:
-
-```json
-"favorites": [
-  "light.licht_garage_schalter_1",
-  {
-    "entity_id": "script.announce_show_5",
-    "label": "Announcement",
-    "action": "turn_on"
-  }
-]
-```
-
-If `python` is not found on Windows, try:
-
-```powershell
-py tools/ha_check.py --config config.json
-```
-
-The token is created in Home Assistant from your user profile under:
-
-`Profile -> Security -> Long-lived access tokens`
+3. Transfer the `ha-retroconsole` folder and the `.sh` launcher to your device's `/roms/ports/` directory as described in the Installation Guide.
 
 ## Roadmap
+The development is structured in several phases. We have reached a stable release candidate.
+* **Phase 0-5:** Core development, connectivity, and device stability (Completed).
+* **Phase 6:** Refinement & Advanced UI Features (Completed).
 
-- Phase 0: Test Home Assistant connectivity via REST (Completed).
-- Phase 1: Load and group entities (Completed).
-- Phase 2: First controller-friendly desktop UI (Completed).
-- Phase 3: SDL2 app for handheld resolutions (Completed).
-- Phase 4: Build a deployable App (Completed).
-- Phase 5: Test on R36S and TrimUI Smart Pro (Completed).
-
-Detailed progress can be tracked in `docs/ROADMAP.md` and `CHANGELOG.md`.
-
-See also docs/ROADMAP.md and CHANGELOG.md.
+Detailed progress and future plans can be tracked in docs/ROADMAP.md and CHANGELOG.md.
 
 ## Special Thanks
 

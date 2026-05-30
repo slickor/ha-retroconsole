@@ -86,7 +86,7 @@ Goal: Stable operation on real devices.
 - [x] Check logs.
 - [x] Write installation and configuration documentation.
 
-## Phase 6: Refinement & Advanced Features (v0.26.2)
+## Phase 6: Refinement & Advanced Features (v0.28.2)
 - [x] Refine UI button layout and padding for better visual balance.
 - [x] Implement robust exit confirmation overlay.
 - [x] Implement 30 FPS power saving mode for handhelds.

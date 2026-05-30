@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.28.2] - 2026-05-31
+### Changed
+- Internal maintenance and version bump to 0.28.2.
+
 ## [0.28.1] - 2026-05-30
 ### Added
 - **Connectivity:** Implemented automatic server URL failover. The app now attempts to connect via `base_url` (local) and falls back to `alternative_url` (VPN/Remote) if the primary is unreachable.
