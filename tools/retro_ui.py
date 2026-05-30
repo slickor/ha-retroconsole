@@ -144,23 +144,27 @@ class RetroUI:
             sdl2.SDL_RenderDrawLine(self.renderer, x, line_y, x + w, line_y)
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
 
-    def draw_pointer(self, x: int, y: int, width: int = 10, height: int = 16, color: Any = "cyan"):
-        """Draws a sturdy selection triangle (pointer) with a 2px white border."""
+    def draw_pointer(self, x: int, y: int, width: int = 10, height: int = 16, color: Any = "cyan", alpha: int = 255):
+        """Draws a sturdy selection triangle (pointer) with a 2px white border and optional alpha pulsing."""
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
+
         # 1. Draw white border (2px larger in all directions)
         border_color = self.colors["white"]
-        sdl2.SDL_SetRenderDrawColor(self.renderer, border_color.r, border_color.g, border_color.b, 255)
+        sdl2.SDL_SetRenderDrawColor(self.renderer, border_color.r, border_color.g, border_color.b, alpha)
         for i in range(width + 4):
             # Proportional height scaling for the border
             offset = int(i * ((height + 4) / 2.0) / (width + 4))
             sdl2.SDL_RenderDrawLine(self.renderer, x - 2 + i, y - 2 + offset, x - 2 + i, y - 2 + (height + 4) - 1 - offset)
 
         # 2. Draw the main pointer inside
-        sdl_color = self.colors.get(color, self.colors["cyan"])
-        sdl2.SDL_SetRenderDrawColor(self.renderer, sdl_color.r, sdl_color.g, sdl_color.b, 255)
+        sdl_color = self.colors.get(color.lower(), self.colors["cyan"]) if isinstance(color, str) else color
+        sdl2.SDL_SetRenderDrawColor(self.renderer, sdl_color.r, sdl_color.g, sdl_color.b, alpha)
         
         for i in range(width):
             offset = int(i * (height / 2.0) / width)
             sdl2.SDL_RenderDrawLine(self.renderer, x + i, y + offset, x + i, y + height - 1 - offset)
+
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
 
     def draw_rounded_rect(self, x: int, y: int, w: int, h: int, color: Any = "cyan"):
         """Helper function for rounded frames in retro pixel style."""

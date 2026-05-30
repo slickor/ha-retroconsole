@@ -2,6 +2,69 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.28.1] - 2026-05-30
+### Added
+- **Connectivity:** Implemented automatic server URL failover. The app now attempts to connect via `base_url` (local) and falls back to `alternative_url` (VPN/Remote) if the primary is unreachable.
+- **UI:** Added a full On-Screen Keyboard (OSK) with QWERTZ layout and Shift-layer for special characters to edit URLs directly on the device.
+- **Settings:** New "Server Connection" info screen displaying the currently active URL and connection type (Primary vs. Alternative).
+### Fixed
+- **UI Alignment:** Fine-tuned vertical offsets for selection highlights and icons in the settings and category lists (+2px correction) to prevent "clipping" at the box edges.
+- **Navigation:** Improved "Smart-Back" logic when exiting the URL editor.
+
+## [0.27.8] - 2026-05-26
+### Fixed
+- **System Info:** Added support for Realtek-specific WiFi signal paths (`/proc/net/rtl8723ds/`), specifically to fix signal display on TrimUI Smart Pro.
+### Changed
+- **Release:** Version bump to 0.27.8.
+
+## [0.27.7] - 2026-05-26
+### Fixed
+- **System Info:** Expanded WiFi signal detection to check for `wireless/level` and `signal` nodes in sysfs, improving compatibility with TrimUI Smart Pro.
+### Changed
+- **Release:** Version bump to 0.27.7.
+
+## [0.27.6] - 2026-05-26
+### Fixed
+- **WiFi Debug:** Resolved `TypeError` in `_collect_wifi_debug_info` when appending multiple arguments to a list.
+### Changed
+- **Release:** Version bump to 0.27.6.
+
+## [0.27.5] - 2026-05-26
+### Added
+- **Settings:** New "WiFi Debug" sub-menu to help diagnose connection issues by displaying network interfaces and raw system file contents.
+### Changed
+- **Release:** Version bump to 0.27.5.
+
+## [0.27.4] - 2026-05-26
+### Fixed
+- **System Info:** Implemented a more robust WiFi strength detection using multiple methods (procfs and sysfs) to support TrimUI Smart Pro and various Linux kernels.
+### Changed
+- **Release:** Version bump to 0.27.4.
+
+## [0.27.3] - 2026-05-26
+### Fixed
+- **System Info:** Further improved WiFi strength parsing to handle variations in `/proc/net/wireless` formatting specifically for the TrimUI Smart Pro.
+### Changed
+- **Release:** Version bump to 0.27.3.
+
+## [0.27.2] - 2026-05-26
+### Fixed
+- **System Info:** Made WiFi signal detection more robust to support various interface names and formatting differences on TrimUI Smart Pro.
+### Changed
+- **Release:** Version bump to 0.27.2.
+
+## [0.27.1] - 2026-05-26
+### Added
+- **System Info:** Added dynamic WiFi signal strength icons (0-4 bars) to the System Box.
+### Changed
+- **Release:** Version bump to 0.27.1.
+
+## [0.27.0] - 2026-05-26
+### Added
+- **UI:** Introduced a dedicated Error Overlay that appears if the Home Assistant API is unreachable during background sync.
+### Changed
+- **Release:** Version bump to 0.27.0.
+
 ## [0.26.2] - 2026-05-25
 ### Fixed
 - **UI:** Reverted button label color to white for better legibility against dark backgrounds in the footer bar.

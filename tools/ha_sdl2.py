@@ -1,10 +1,29 @@
 import sys
 import os
 import time
+import math
 import threading
 import socket
 import queue
 import ctypes
+
+# Wrapper to add timestamps to all console output
+class TimestampLogger:
+    def __init__(self, stream):
+        self.stream = stream
+        self.at_start_of_line = True
+    def write(self, data):
+        for line in data.splitlines(keepends=True):
+            if self.at_start_of_line and line.strip():
+                self.stream.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ")
+            self.stream.write(line)
+            self.at_start_of_line = line.endswith('\n')
+    def flush(self):
+        self.stream.flush()
+
+sys.stdout = TimestampLogger(sys.stdout)
+sys.stderr = TimestampLogger(sys.stderr)
+
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 
 import sdl2
@@ -31,6 +50,7 @@ from ha_client import (
     save_config,
     resolve_action,
     fetch_camera_snapshot,
+    resolve_active_url,
 )
 
 # Controller Button Mapping Aliases (SDL Constants)
@@ -89,13 +109,46 @@ ICON_MAP = {
     "fan": "fan-line",
     "lock": "lock-line",
     "input_boolean": "input-cursor-move",
-    "camera": "video-on-line"
+    "camera": "video-on-line",
+    "wifi_0": "signal-wifi-line",
+    "wifi_1": "signal-wifi-1-line",
+    "wifi_2": "signal-wifi-2-line",
+    "wifi_3": "signal-wifi-3-line",
+    "wifi_4": "wifi-line",
+    "wifi_err": "signal-wifi-error-line"
 }
 
 class HASDL2App:
     def __init__(self, config_path):
         self.config_path = config_path
         self.config = load_config(config_path)
+        self.edit_buffer = ""
+        self.edit_cursor = 0
+        self.edit_target_key = None # "base_url" or "alternative_url"
+        self.kb_row = 0
+        self.kb_col = 0
+        self.kb_shift = False
+        self.kb_layouts = [
+            [ # Layout 0: Lowercase & Numbers
+                "1234567890",
+                "qwertzuiop",
+                "asdfghjkl:",
+                "yxcvbnm,;.",
+                "/-=_&?#@+~",
+                ["Shift", "Space", "BS", "Save", "Cancel"]
+            ],
+            [ # Layout 1: Uppercase & Symbols
+                '!"§$%&/()=',
+                "QWERTZUIOP",
+                "ASDFGHJKL;",
+                "YXCVBNM<>|",
+                "{}[]\*' `^",
+                ["Shift", "Space", "BS", "Save", "Cancel"]
+            ]
+        ]
+        self.kb_layout = self.kb_layouts[0]
+        self.active_url = self.config.get("base_url", "")
+        self.url_type = "primary"
         self.states = {}
         self.favorites = self.config.get("favorites", [])
         self.nav_index = 0 # Index for the left navigation column
@@ -110,6 +163,8 @@ class HASDL2App:
         self.details_scroll_row = 0 # Scroll position for details box
         self.mode = "main" # "main", "favorites", or "settings"
         self.settings_selected_index = 0
+        self.api_error_active = False # New: Controls visibility of the API error overlay
+        self.api_error_message = ""   # New: Error message to display
         self.entity_scroll_row = 0 # Scroll position for main entity list
         self.setup_controls()
         self.ip_address = self._get_ip_address()
@@ -249,7 +304,7 @@ class HASDL2App:
         half_content_width = content_width // 2
         current_y = y
 
-        cpu_mhz, free_ram = self._get_system_stats()
+        cpu_mhz, free_ram, wifi = self._get_system_stats()
         current_time = time.strftime("%H:%M:%S")
         
         items = [
@@ -284,10 +339,35 @@ class HASDL2App:
         # IP address on its own line
         ip_label_text = "IP:"
         ip_label_tw, _ = self.ui.get_text_size(ip_label_text, small=True)
-        ip_value_max_width = content_width - ip_label_tw - small_gap
-        display_ip = self.ui.truncate_text(self.ip_address, ip_value_max_width, small=True)
+
+        # Determine WiFi icon based on strength percentage
+        wifi_icon_key = "wifi_err"
+        if wifi != "N/A":
+            try:
+                val = int(wifi.replace("%", ""))
+                if val >= 76: wifi_icon_key = "wifi_4"
+                elif val >= 51: wifi_icon_key = "wifi_3"
+                elif val >= 26: wifi_icon_key = "wifi_2"
+                elif val >= 1: wifi_icon_key = "wifi_1"
+                else: wifi_icon_key = "wifi_0"
+            except:
+                pass
+
+        wifi_info = f" ({wifi})" if wifi != "N/A" else ""
+        ip_full_val = f"{self.ip_address}{wifi_info}"
+        
+        icon_size = 16
+        ip_value_max_width = content_width - ip_label_tw - small_gap - icon_size - 4
+        display_ip = self.ui.truncate_text(ip_full_val, ip_value_max_width, small=True)
+
         self.ui.draw_text(ip_label_text, x, current_y, "cyan", small=True)
-        self.ui.draw_text(display_ip, x + ip_label_tw + small_gap, current_y, "white", small=True)
+        tw_val, _ = self.ui.draw_text(display_ip, x + ip_label_tw + small_gap, current_y, "white", small=True)
+
+        # Render the WiFi icon next to the IP/Strength text
+        wifi_tex = self.domain_icons.get(wifi_icon_key)
+        if wifi_tex:
+            dst = sdl2.SDL_Rect(int(x + ip_label_tw + small_gap + tw_val + 4), int(current_y), icon_size, icon_size)
+            sdl2.SDL_RenderCopy(self.renderer, wifi_tex, None, dst)
 
     def _render_console_log(self, x, y):
         """Renders the last two entries of the log."""
@@ -383,9 +463,10 @@ class HASDL2App:
             sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255) # Reset
 
     def _get_system_stats(self):
-        """Fetches real CPU MHz and Free RAM on Linux devices."""
+        """Fetches real CPU MHz, Free RAM and WiFi strength on Linux devices."""
         cpu_mhz = "N/A"
         free_mem = "N/A"
+        wifi_strength = "N/A"
         
         # Get CPU Frequency (Linux)
         freq_path = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
@@ -401,7 +482,53 @@ class HASDL2App:
                         # Convert kB to MB
                         free_mem = f"{int(line.split()[1]) // 1024} MB"
                         break
-        return cpu_mhz, free_mem
+
+        # Get WiFi Strength (Linux)
+        # Method 1: Parse /proc/net/wireless (Standard)
+        if os.path.exists("/proc/net/wireless"):
+            try:
+                with open("/proc/net/wireless", "r") as f:
+                    for line in f:
+                        if ":" in line and not line.strip().startswith("Inter"):
+                            parts = line.split(":")[1].split()
+                            if len(parts) >= 2:
+                                # Skip status (parts[0]) and take quality (parts[1])
+                                q = parts[1].rstrip('.')
+                                if q.isdigit():
+                                    wifi_strength = f"{q}%"
+                                    break
+                        if wifi_strength != "N/A": break
+            except: pass
+
+        # Method 2: Fallback to /sys/class/net/ and /proc/net/ (Modern & Realtek BSP)
+        if wifi_strength == "N/A":
+            try:
+                for iface in os.listdir("/sys/class/net/"):
+                    if iface == "lo": continue
+                    # Check multiple common nodes for signal strength
+                    for node in ["wireless/link", "wireless/level", "signal"]:
+                        p = f"/sys/class/net/{iface}/{node}"
+                        if os.path.exists(p):
+                            with open(p, "r") as f:
+                                val = f.read().strip()
+                                if val.lstrip('-').isdigit():
+                                    # Use absolute value (handles dBm and quality %)
+                                    wifi_strength = f"{abs(int(val))}%"
+                                    break
+                    
+                    # Realtek specific proc paths (common on TrimUI RTL8723DS)
+                    for proc_node in [f"/proc/net/rtl8723ds/{iface}/signal", f"/proc/net/rtl8188fu/{iface}/signal"]:
+                        if os.path.exists(proc_node):
+                            with open(proc_node, "r") as f:
+                                val = f.read().strip()
+                                if val.isdigit():
+                                    wifi_strength = f"{val}%"
+                                    break
+
+                    if wifi_strength != "N/A": break
+            except: pass
+
+        return cpu_mhz, free_mem, wifi_strength
 
     def _get_ip_address(self):
         """Dynamically retrieves the local IP address."""
@@ -583,7 +710,7 @@ class HASDL2App:
         self._start_background_task(
             "execute_action",
             self._execute_service_and_refresh_background,
-            domain, service, entity_id, previous_state, None
+            self.active_url, domain, service, entity_id, previous_state, None
         )
 
     def _run_task_wrapper(self, target_func, args, kwargs):
@@ -602,25 +729,28 @@ class HASDL2App:
 
     def _fetch_states_background(self):
         """Fetches states in a background thread."""
-        return fetch_states_map(
-            self.config["base_url"],
+        # Automatically resolve if we should use primary or alternative URL
+        url, utype = resolve_active_url(self.config, timeout=5.0)
+        states = fetch_states_map(
+            url,
             self.config["token"],
             timeout=10.0
         )
+        return {"states": states, "url": url, "url_type": utype}
 
     def _fetch_camera_snapshot_background(self, entity_id):
         """Fetches camera snapshot in a background thread."""
         return fetch_camera_snapshot(
-            self.config["base_url"],
+            self.active_url,
             self.config["token"],
             entity_id,
             timeout=5.0
         )
 
-    def _execute_service_and_refresh_background(self, domain, service, entity_id, previous_state, favorite):
+    def _execute_service_and_refresh_background(self, base_url, domain, service, entity_id, previous_state, favorite):
         """Executes a service call and refreshes states in a background thread."""
         call_service(
-            self.config["base_url"],
+            base_url,
             self.config["token"],
             domain,
             service,
@@ -628,7 +758,7 @@ class HASDL2App:
             timeout=10.0,
         )
         new_states = refresh_after_action(
-            self.config["base_url"],
+            base_url,
             self.config["token"],
             10.0,
             entity_id,
@@ -666,6 +796,7 @@ class HASDL2App:
         # Filter by domains we want to see and domains that are not hidden in settings
         supported_states = []
         for s in all_states:
+            if s is None: continue
             domain = entity_domain(s.get("entity_id", ""))
             if domain in VIEWABLE_DOMAINS and domain not in hidden:
                 supported_states.append(s)
@@ -746,7 +877,7 @@ class HASDL2App:
         self._start_background_task(
             "execute_action",
             self._execute_service_and_refresh_background,
-            domain, service, entity_id, previous_state, favorite
+            self.active_url, domain, service, entity_id, previous_state, favorite
         )
 
     def handle_input(self):
@@ -770,6 +901,10 @@ class HASDL2App:
         self.selection_start_time = time.time()
 
         # Handle exit confirmation first
+        if self.api_error_active:
+            self.api_error_active = False
+            return # Any key dismisses the error
+
         if self.confirm_exit:
             if key == sdl2.SDLK_ESCAPE or key == sdl2.SDLK_b:
                 self.running = False # Confirmed exit
@@ -819,6 +954,10 @@ class HASDL2App:
     def _handle_controller_button(self, btn):
 
         # Handle exit confirmation first
+        if self.api_error_active:
+            self.api_error_active = False
+            return # Any button dismisses the error
+
         if self.confirm_exit:
             if btn == self.controls["cancel"]:
                 self.running = False # Confirmed exit
@@ -896,6 +1035,11 @@ class HASDL2App:
 
     def _go_back(self):
         """Smart back navigation logic for menus and sub-menus."""
+        if self.settings_view == "edit_url":
+            self.settings_view = "connection"
+            self.settings_index = 0
+            return
+
         if self.mode == "camera_fullscreen":
             self.mode = "main"
             self.confirm_exit = False
@@ -938,6 +1082,9 @@ class HASDL2App:
                 if self.settings_active:
                     if self.settings_view == "brightness":
                         self._handle_brightness_adjust(-10)
+                    elif self.settings_view == "edit_url":
+                        row_len = len(self.kb_layout[self.kb_row])
+                        self.kb_col = (self.kb_col - 1) % row_len
                     else:
                         self._go_back()
                 else:
@@ -947,6 +1094,9 @@ class HASDL2App:
                 if self.settings_active:
                     if self.settings_view == "brightness":
                         self._handle_brightness_adjust(10)
+                    elif self.settings_view == "edit_url":
+                        row_len = len(self.kb_layout[self.kb_row])
+                        self.kb_col = (self.kb_col + 1) % row_len
                     elif self.settings_view == "menu":
                         self._handle_confirm()
                 else:
@@ -957,6 +1107,8 @@ class HASDL2App:
             self._nav_up()
         elif key == sdl2.SDLK_DOWN:
             self._nav_down()
+        elif key == sdl2.SDLK_x and self.settings_view == "edit_url":
+            self.edit_buffer = self.edit_buffer[:-1]
         elif key == sdl2.SDLK_PAGEUP:
             self._page_up()
         elif key == sdl2.SDLK_PAGEDOWN:
@@ -980,6 +1132,9 @@ class HASDL2App:
                 if self.settings_active:
                     if self.settings_view == "brightness":
                         self._handle_brightness_adjust(-10)
+                    elif self.settings_view == "edit_url":
+                        row_len = len(self.kb_layout[self.kb_row])
+                        self.kb_col = (self.kb_col - 1) % row_len
                     else:
                         self._go_back()
                 else:
@@ -989,6 +1144,9 @@ class HASDL2App:
                 if self.settings_active:
                     if self.settings_view == "brightness":
                         self._handle_brightness_adjust(10)
+                    elif self.settings_view == "edit_url":
+                        row_len = len(self.kb_layout[self.kb_row])
+                        self.kb_col = (self.kb_col + 1) % row_len
                     elif self.settings_view == "menu":
                         self._handle_confirm()
                 else:
@@ -999,6 +1157,8 @@ class HASDL2App:
             self._nav_up()
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN: # D-Pad Down
             self._nav_down()
+        elif btn == BTN_X and self.settings_view == "edit_url":
+            self.edit_buffer = self.edit_buffer[:-1]
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_LEFTSHOULDER: # L1
             self._page_up()
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: # R1
@@ -1007,6 +1167,7 @@ class HASDL2App:
             self._handle_confirm()
         elif btn == BTN_Y:
             self._handle_reorder_toggle()
+
     def _handle_brightness_adjust(self, delta):
         """Adjusts the system brightness by a given delta."""
         new_val = max(0, min(100, self.current_brightness + delta))
@@ -1074,9 +1235,15 @@ class HASDL2App:
         if self.active_list == "entities" and self.settings_active:
             if self.settings_view == "menu":
                 self.settings_index = max(0, self.settings_index - 1)
+            elif self.settings_view == "connection":
+                self.settings_index = max(0, self.settings_index - 1)
+            elif self.settings_view == "edit_url":
+                self.kb_row = (self.kb_row - 1) % len(self.kb_layout)
+                row_len = len(self.kb_layout[self.kb_row])
+                self.kb_col = min(self.kb_col, row_len - 1)
             else:
                 self.settings_index = max(0, self.settings_index - 1)
-                if self.settings_view == "categories" and self.settings_index < self.settings_scroll_row:
+                if self.settings_index < self.settings_scroll_row:
                     self.settings_scroll_row = self.settings_index
             return
 
@@ -1129,14 +1296,23 @@ class HASDL2App:
 
         if self.active_list == "entities" and self.settings_active:
             if self.settings_view == "menu":
-                self.settings_index = min(2, self.settings_index + 1) # limit for 3 menu items
+                self.settings_index = min(4, self.settings_index + 1) # limit for 5 menu items
+            elif self.settings_view == "connection":
+                self.settings_index = min(1, self.settings_index + 1) # 0: Primary, 1: Alternative
+            elif self.settings_view == "edit_url":
+                self.kb_row = (self.kb_row + 1) % len(self.kb_layout)
+                row_len = len(self.kb_layout[self.kb_row])
+                self.kb_col = min(self.kb_col, row_len - 1)
             else:
-                limit = len(VIEWABLE_DOMAINS) - 1 if self.settings_view == "categories" else len(self.flash_colors) - 1
+                if self.settings_view == "categories": limit = len(VIEWABLE_DOMAINS) - 1
+                elif self.settings_view == "flash_color": limit = len(self.flash_colors) - 1
+                elif self.settings_view == "wifidebug": limit = len(self._collect_wifi_debug_info()) - 1
+                else: limit = 0
+
                 self.settings_index = min(limit, self.settings_index + 1)
-                if self.settings_view == "categories":
-                    visible_settings = 8
-                    if self.settings_index >= self.settings_scroll_row + visible_settings:
-                        self.settings_scroll_row = self.settings_index - visible_settings + 1
+                visible_settings = 8 if self.settings_view != "wifidebug" else 18
+                if self.settings_index >= self.settings_scroll_row + visible_settings:
+                    self.settings_scroll_row = self.settings_index - visible_settings + 1
             return
 
         if self.active_list == "domains":
@@ -1215,6 +1391,41 @@ class HASDL2App:
                     self.settings_view = "flash_color"
                     self.settings_index = 0
                     self.settings_scroll_row = 0
+                elif self.settings_index == 3: # "WiFi Debug"
+                    self.settings_view = "wifidebug"
+                    self.settings_index = 0
+                    self.settings_scroll_row = 0
+                elif self.settings_index == 4: # "Connection Info"
+                    self.settings_view = "connection"
+                    self.settings_index = 0
+                    self.settings_scroll_row = 0
+            elif self.settings_view == "connection":
+                # Enter Edit Mode
+                self.edit_target_key = "base_url" if self.settings_index == 0 else "alternative_url"
+                self.edit_buffer = self.config.get(self.edit_target_key, "http://")
+                if not self.edit_buffer: self.edit_buffer = "http://"
+                self.kb_row = 0
+                self.kb_col = 0
+                self.settings_view = "edit_url"
+            elif self.settings_view == "edit_url":
+                key = self.kb_layout[self.kb_row][self.kb_col]
+                if key == "Save":
+                    self.config[self.edit_target_key] = self.edit_buffer
+                    self.save_config()
+                    self.set_message(f"URL updated")
+                    self.settings_view = "connection"
+                    self.load_data()
+                elif key == "Cancel":
+                    self.settings_view = "connection"
+                elif key == "Shift":
+                    self.kb_shift = not self.kb_shift
+                    self.kb_layout = self.kb_layouts[1 if self.kb_shift else 0]
+                elif key == "BS":
+                    self.edit_buffer = self.edit_buffer[:-1]
+                elif key == "Space":
+                    self.edit_buffer += " "
+                else:
+                    self.edit_buffer += key
             else: # If in "categories" or "brightness"
                 self._handle_settings_toggle() # Toggle category visibility
         elif self.active_list == "entities":
@@ -1377,6 +1588,13 @@ class HASDL2App:
 
     def render(self):
         self.ui.clear_screen()
+
+        # Calculate global pulse values for the selection pointer
+        self.pulse_x = int(math.sin(time.time() * 10) * 3)
+        self.pulse_alpha = int(170 + 85 * math.sin(time.time() * 10))
+        # Calculate global pulse values for the selection pointer (slower breathing, 1px bob)
+        self.pulse_x = int(math.sin(time.time() * 5) * 1)
+        self.pulse_alpha = int(170 + 85 * math.sin(time.time() * 5))
         
         if self.mode == "camera_fullscreen":
             self.render_camera_fullscreen()
@@ -1391,6 +1609,7 @@ class HASDL2App:
 
         # Render exit confirmation overlay on top of everything else
         self._render_exit_overlay()
+        self._render_error_overlay()
 
         sdl2.SDL_RenderPresent(self.renderer)
 
@@ -1432,6 +1651,37 @@ class HASDL2App:
         hint_text = f"[{cancel_label_str}] Exit / [{confirm_label_str}] Cancel"
         hint_tw, hint_th = self.ui.get_text_size(hint_text, small=True)
         self.ui.draw_text(hint_text, overlay_x + (overlay_w - hint_tw) // 2, overlay_y + overlay_h - hint_th - 5, "gray", small=True)
+
+    def _render_error_overlay(self):
+        """Renders a fullscreen error overlay if the API is unreachable."""
+        if not self.api_error_active:
+            return
+
+        overlay_w = 480
+        overlay_h = 160
+        overlay_x = (self.width - overlay_w) // 2
+        overlay_y = (self.height - overlay_h) // 2
+
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
+        sdl2.SDL_SetRenderDrawColor(self.renderer, 30, 0, 0, 230) # Dark red background
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(overlay_x, overlay_y, overlay_w, overlay_h))
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
+
+        self.ui.draw_rounded_rect(overlay_x, overlay_y, overlay_w, overlay_h, "red")
+        
+        title = "CONNECTION ERROR"
+        tw, _ = self.ui.get_text_size(title, large=True)
+        self.ui.draw_text(title, overlay_x + (overlay_w - tw) // 2, overlay_y + 20, "red", large=True)
+        
+        # Show truncated error message
+        msg = self.api_error_message
+        display_msg = self.ui.truncate_text(msg, overlay_w - 40, small=True)
+        tw2, _ = self.ui.get_text_size(display_msg, small=True)
+        self.ui.draw_text(display_msg, overlay_x + (overlay_w - tw2) // 2, overlay_y + 75, "white", small=True)
+        
+        hint = "Press any button to dismiss and retry."
+        tw3, th3 = self.ui.get_text_size(hint, small=True)
+        self.ui.draw_text(hint, overlay_x + (overlay_w - tw3) // 2, overlay_y + overlay_h - th3 - 15, "gray", small=True)
 
     def render_camera_fullscreen(self):
         """Renders the selected camera snapshot in fullscreen."""
@@ -1538,9 +1788,9 @@ class HASDL2App:
         if self.active_list == "settings": # If the settings entry itself is selected in the left column
             # Selection logic for settings box
             highlight_w = self.col1_w - self.margin
-            self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y_pos - 3), highlight_w, 30, color="cyan")
-            self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y_pos - 3), highlight_w, 30, "cyan")
-            self.ui.draw_pointer(int(self.col1_x + (self.margin - 10) // 2 - 5), y_pos + 2, width=10, height=16, color="cyan")
+            self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y_pos - 5), highlight_w, 30, color="cyan")
+            self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y_pos - 5), highlight_w, 30, "cyan")
+            self.ui.draw_pointer(int(self.col1_x + (self.margin - 10) // 2 - 5 + self.pulse_x), y_pos + 2, width=10, height=16, color="cyan", alpha=self.pulse_alpha)
             self.ui.draw_text("Settings", x + icon_w, y_pos - 2, "white")
         else:
             self.ui.draw_text("Settings", x + icon_w, y_pos - 2, "cyan")
@@ -1560,7 +1810,9 @@ class HASDL2App:
             menu_items = [
                 ("Visible Categories", "categories"), 
                 ("Display Brightness", "brightness"),
-                ("Flash Color", "favorites")
+                ("Flash Color", "favorites"),
+                ("WiFi Debug", "wifi_err"),
+                ("Server Connection", "wifi_0")
             ]
             for i, (label, icon_key) in enumerate(menu_items):
                 is_selected = (self.settings_active and self.active_list == "entities" and self.settings_index == i) # Check if this item is selected
@@ -1580,12 +1832,12 @@ class HASDL2App:
                 if is_selected:
                     color = "cyan"
                     # Highlight and rounded rect should cover the entire item height
-                    self.ui.draw_selection_highlight(int(x - self.margin // 2), int(current_item_y - 3), highlight_w, item_h, color="cyan")
-                    self.ui.draw_rounded_rect(int(x - self.margin // 2), int(current_item_y - 3), highlight_w, item_h, "cyan")
+                    self.ui.draw_selection_highlight(int(x - self.margin // 2), int(current_item_y - 1), highlight_w, item_h, color="cyan")
+                    self.ui.draw_rounded_rect(int(x - self.margin // 2), int(current_item_y - 1), highlight_w, item_h, "cyan")
                     
                     # Pointer should be vertically centered with the item
                     pointer_y = int(current_item_y + (item_h - 16) // 2) # 16 is pointer height
-                    self.ui.draw_pointer(int(self.col2_x + (self.margin - 10) // 2 - 5), pointer_y, width=10, height=16, color="cyan")
+                    self.ui.draw_pointer(int(self.col2_x + (self.margin - 10) // 2 - 5 + self.pulse_x), pointer_y, width=10, height=16, color="cyan", alpha=self.pulse_alpha)
                 else:
                     color = "white"
                 
@@ -1610,9 +1862,9 @@ class HASDL2App:
                 is_selected = (self.settings_active and self.active_list == "entities" and i == self.settings_index)
                 if is_selected:
                     color = "cyan"
-                    self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y_list - 3), highlight_w, item_h, color="cyan")
-                    self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y_list - 3), highlight_w, item_h, "cyan")
-                    self.ui.draw_pointer(int(x - self.margin - self.SCROLLBAR_WIDTH - 5), y_list + 8, color="cyan")
+                    self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y_list - 1), highlight_w, item_h, color="cyan")
+                    self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y_list - 1), highlight_w, item_h, "cyan")
+                    self.ui.draw_pointer(int(x - self.margin - self.SCROLLBAR_WIDTH - 5 + self.pulse_x), y_list + 10, color="cyan", alpha=self.pulse_alpha)
                 else:
                     color = "white"
 
@@ -1666,9 +1918,9 @@ class HASDL2App:
                 
                 if is_selected:
                     color = "cyan"
-                    self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y_list - 3), highlight_w, item_h, color="cyan")
-                    self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y_list - 3), highlight_w, item_h, "cyan")
-                    self.ui.draw_pointer(int(x - self.margin - self.SCROLLBAR_WIDTH - 5), y_list + 8, color="cyan")
+                    self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y_list - 1), highlight_w, item_h, color="cyan")
+                    self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y_list - 1), highlight_w, item_h, "cyan")
+                    self.ui.draw_pointer(int(x - self.margin - self.SCROLLBAR_WIDTH - 5 + self.pulse_x), y_list + 10, color="cyan", alpha=self.pulse_alpha)
                 else:
                     color = "white"
                 
@@ -1680,6 +1932,13 @@ class HASDL2App:
                 self.ui.draw_text(col.capitalize(), x + 20, y_list + 2, color, small=True)
                 # Draw a small preview box of the color
                 self.ui.draw_rounded_rect(int(x + highlight_w - 40), int(y_list + 2), 20, 16, col)
+
+        elif self.settings_view == "wifidebug":
+            self._render_wifi_debug_view(x, y, box_h)
+        elif self.settings_view == "edit_url":
+            self._render_edit_url_view(x, y)
+        elif self.settings_view == "connection":
+            self._render_connection_view(x, y)
 
     def draw_menu(self, x, y_start, box_h):
         """Draws the navigation menu with pointer and highlight."""
@@ -1720,7 +1979,7 @@ class HASDL2App:
                 
                 # 2. Auswahl-Dreieck (Zeiger) - Nur wenn die Domänenliste aktiv ist
                 if self.active_list == "domains":
-                    self.ui.draw_pointer(int(self.col1_x + (self.margin - 10) // 2 - 5), y_pos + 5, width=10, height=16, color=highlight_color)
+                    self.ui.draw_pointer(int(self.col1_x + (self.margin - 10) // 2 - 5 + self.pulse_x), y_pos + 5, width=10, height=16, color=highlight_color, alpha=self.pulse_alpha)
                 
                 # 3. Aktiver Text
                 self.ui.draw_text(label, x + icon_w, y_pos + 2, "white") # Text 2 Pixel tiefer
@@ -1765,9 +2024,9 @@ class HASDL2App:
                     is_flashing = (time.time() - self.fav_flash_time < 0.3)
                     flash_color = self.config.get("flash_color", "yellow") if is_flashing else "cyan"
                 
-                self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y - 3), highlight_w, item_h, color=flash_color)
-                self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y - 3), highlight_w, item_h, flash_color)
-                self.ui.draw_pointer(int(self.col2_x + (self.margin - 10) // 2 - 5), y + 5, width=10, height=16, color=flash_color)
+                self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y - 1), highlight_w, item_h, color=flash_color)
+                self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y - 1), highlight_w, item_h, flash_color)
+                self.ui.draw_pointer(int(self.col2_x + (self.margin - 10) // 2 - 5 + self.pulse_x), y + 7, width=10, height=16, color=flash_color, alpha=self.pulse_alpha)
             
             # Icon
             entity_id = entity.get("entity_id", "")
@@ -1880,7 +2139,10 @@ class HASDL2App:
         """Handles the result of a completed background task."""
         if task_result["status"] == "success":
             if task_result["type"] == "load_data":
-                self.states = task_result["result"]
+                res = task_result["result"]
+                self.states = res["states"]
+                self.active_url = res["url"]
+                self.url_type = res["url_type"]
                 self.load_entities()
                 self.last_sync_time = time.strftime("%H:%M:%S")
                 self._update_selection_context()
@@ -1907,7 +2169,135 @@ class HASDL2App:
                 else:
                     self.set_message("Executed")
         else:  # status == "error"
-            self.set_message(f"Error: {task_result['error']}")
+            err_msg = str(task_result['error'])
+            self.set_message(f"Error: {err_msg}")
+            if task_result["type"] == "load_data":
+                self.api_error_active = True
+                self.api_error_message = f"HA API unreachable: {err_msg}"
+
+    def _collect_wifi_debug_info(self):
+        """Gathers detailed WiFi information for debugging."""
+        info = [f"IP Address: {self.ip_address}", ""]
+        
+        # 1. Check sysfs interfaces
+        try:
+            if os.path.exists("/sys/class/net"):
+                ifaces = os.listdir("/sys/class/net")
+                info.append(f"Interfaces: {', '.join(ifaces)}")
+                for iface in ifaces:
+                    if iface == "lo": continue
+                    info.append(f"Checking {iface}:")
+                    for node in ["wireless/link", "wireless/level", "signal"]:
+                        p = f"/sys/class/net/{iface}/{node}"
+                        if os.path.exists(p):
+                            with open(p, 'r') as f:
+                                info.append(f"  - {node}: {f.read().strip()}")
+                    for proc_node in [f"/proc/net/rtl8723ds/{iface}/signal", f"/proc/net/rtl8188fu/{iface}/signal"]:
+                        if os.path.exists(proc_node):
+                            with open(proc_node, 'r') as f:
+                                info.append(f"  - Realtek signal: {f.read().strip()}")
+                    oper_p = f"/sys/class/net/{iface}/operstate"
+                    if os.path.exists(oper_p):
+                        with open(oper_p, 'r') as f:
+                            info.append(f"  - operstate: {f.read().strip()}")
+        except Exception as e:
+            info.append(f"Sysfs Error: {str(e)}")
+
+        # 2. Check proc/net/wireless (Fixed: append separately)
+        info.append("") 
+        info.append("Raw /proc/net/wireless content:")
+        try:
+            if os.path.exists("/proc/net/wireless"):
+                with open("/proc/net/wireless", 'r') as f:
+                    for line in f:
+                        info.append(f"  {line.strip()}")
+            else:
+                info.append("  [File missing]")
+        except Exception as e:
+            info.append(f"  [Read Error: {str(e)}]")
+            
+        return info
+
+    def _render_wifi_debug_view(self, x, y, box_h):
+        """Renders the scrollable WiFi debug console."""
+        self.ui.draw_text("WiFi Debug (Use D-Pad to scroll):", x, y, "cyan")
+        y_start = y + 30
+        debug_info = self._collect_wifi_debug_info()
+        item_h = 15
+        visible_lines = (box_h - 45) // item_h
+        start = self.settings_scroll_row
+        end = min(len(debug_info), start + visible_lines)
+        for i in range(start, end):
+            line_y = y_start + (i - start) * item_h
+            self.ui.draw_text(debug_info[i], x, line_y, "white", small=True)
+
+    def _render_connection_view(self, x, y):
+        """Renders the current server connection details."""
+        self.ui.draw_text("Server Connection:", x, y, "cyan")
+        y += 35
+        
+        urls = [
+            ("Primary URL", self.config.get("base_url", "")),
+            ("Alternative URL", self.config.get("alternative_url", ""))
+        ]
+
+        for i, (label, val) in enumerate(urls):
+            is_sel = (self.settings_index == i)
+            highlight_w = self.col2_w - self.margin
+            
+            if is_sel:
+                self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y - 1), highlight_w, 45, color="cyan")
+                self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y - 1), highlight_w, 45, "cyan")
+
+            self.ui.draw_text(label + ":", x, y, "cyan" if not is_sel else "white", small=True)
+            y += 15
+            display_val = self.ui.truncate_text(val if val else "[Not Set]", self.col2_w - 30, small=True)
+            self.ui.draw_text(display_val, x, y, "white" if val else "gray", small=True)
+            y += 35
+
+        self.ui.draw_text("Press Confirm to Edit", x, y + 20, "gray", small=True)
+
+    def _render_edit_url_view(self, x, y):
+        """Renders the character-by-character URL editor."""
+        label = "Primary URL" if self.edit_target_key == "base_url" else "Alternative URL"
+        self.ui.draw_text(f"Edit {label}:", x, y, "cyan", small=True)
+        y += 20
+
+        # Display current buffer
+        display_text = self.ui.truncate_text(self.edit_buffer + "_", self.col2_w - 20, small=True)
+        self.ui.draw_text(display_text, x, y, "white", small=True)
+        y += 30
+
+        # Render Keyboard Grid
+        kb_x_start = x
+        key_w = 18
+        key_h = 22
+        
+        for r_idx, row in enumerate(self.kb_layout):
+            cur_x = kb_x_start
+            for c_idx, key in enumerate(row):
+                is_sel = (self.kb_row == r_idx and self.kb_col == c_idx)
+                
+                # Special width for command buttons in the last row
+                actual_key_w = key_w
+                if isinstance(row, list):
+                    tw, _ = self.ui.get_text_size(key, small=True)
+                    actual_key_w = tw + 8
+                
+                text_color = "white" if not is_sel else "black"
+                if key == "Shift" and self.kb_shift:
+                    text_color = "yellow" if not is_sel else "black"
+
+                if is_sel:
+                    self.ui.draw_selection_highlight(int(cur_x - 2), int(y - 2), actual_key_w, key_h, color="cyan")
+                    self.ui.draw_rounded_rect(int(cur_x - 2), int(y - 2), actual_key_w, key_h, "cyan")
+                
+                self.ui.draw_text(key, cur_x, y, text_color, small=True)
+                cur_x += actual_key_w + 4
+            y += key_h + 4
+            
+        y += 10
+        self.ui.draw_text("X: Backspace | Confirm: Type", x, y, "gray", small=True)
 
 if __name__ == "__main__":
     import argparse

@@ -1,5 +1,6 @@
 {
   "base_url": "http://homeassistant.local:8123",
+  "alternative_url": "https://your-ha.myfritz.net:PORT",
   "token": "PASTE_LONG_LIVED_ACCESS_TOKEN_HERE",
   "favorites": [
     "light.your_light_id",

@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Union, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-VERSION = "0.26.2"
+VERSION = "0.28.1"
 
 
 SUPPORTED_ACTIONS = {
@@ -58,6 +58,7 @@ def load_config(path: Path, require_favorites: bool = False) -> Dict[str, Any]:
         raise HAClientError(f"Config is not valid JSON: {exc}")
 
     base_url = str(config.get("base_url", "")).strip().rstrip("/")
+    alternative_url = str(config.get("alternative_url", "")).strip().rstrip("/")
     token = str(config.get("token", "")).strip()
     favorites = config.get("favorites", [])
 
@@ -71,6 +72,7 @@ def load_config(path: Path, require_favorites: bool = False) -> Dict[str, Any]:
         raise HAClientError("Config value 'favorites' must be a list.")
 
     config["base_url"] = base_url
+    config["alternative_url"] = alternative_url
     config["token"] = token
     if isinstance(favorites, list):
         config["favorites"] = [normalize_favorite(item) for item in favorites]
@@ -86,6 +88,42 @@ def save_config(path: Path, config: Dict[str, Any]) -> None:
             handle.write("\n")
     except OSError as exc:
         raise HAClientError(f"Could not save config: {exc}")
+
+
+def check_connectivity(base_url: str, token: str, timeout: float = 5.0) -> bool:
+    """Returns True if the given Home Assistant URL is reachable and responds."""
+    try:
+        request = Request(
+            f"{base_url}/api/",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        with urlopen(request, timeout=timeout) as response:
+            return response.status == 200
+    except Exception:
+        return False
+
+
+def resolve_active_url(config: Dict[str, Any], timeout: float = 5.0) -> Tuple[str, str]:
+    """Resolves the best available server URL.
+
+    Tries the primary base_url first. If it is unreachable and an
+    alternative_url is configured, falls back to that instead.
+
+    Returns a tuple of (active_url, url_type) where url_type is
+    one of 'primary' or 'alternative'.
+    """
+    base_url = config.get("base_url", "")
+    alternative_url = config.get("alternative_url", "")
+    token = config.get("token", "")
+
+    if check_connectivity(base_url, token, timeout):
+        return base_url, "primary"
+
+    if alternative_url and check_connectivity(alternative_url, token, timeout):
+        return alternative_url, "alternative"
+
+    # Neither URL worked – return primary anyway so caller can handle the error
+    return base_url, "primary"
 
 
 def request_json(

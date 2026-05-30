@@ -96,6 +96,9 @@ Goal: Stable operation on real devices.
 - [x] Improve button flash feedback (longer duration, yellow color).
 - [x] Fix button label visibility (white text).
 - [x] Implement configurable UI theme elements (Flash Color).
+- [x] Implement server URL failover (Local vs. Remote/VPN).
+- [x] Add On-Screen Keyboard for device-side configuration.
+- [x] Refine UI alignment and icon positioning for settings panels.
 - [ ] Implement custom theme support (colors, fonts).
 - [ ] Add support for more complex entity types (climate presets, media controls).
 - [ ] Enhance synchronization for multi-device setups.

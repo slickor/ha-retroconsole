@@ -11,7 +11,7 @@ Turn your retro handheld into a smart home command center. HA RetroConsole provi
 Key milestones reached:
 - **Phase 4 (Deployable App):** Successfully completed with automated build scripts for PortMaster.
 - **Phase 5 (Device Testing):** Completed. Successfully verified on muOS, Spruce, and Knulli distributions for the TrimUI Smart Pro.
-- **v0.26.2 UI Fix:** Improved button label visibility and expanded theme customization.
+- **v0.28.1 Update:** Added URL failover, native On-Screen Keyboard, and Server Connection settings.
 
 
  
