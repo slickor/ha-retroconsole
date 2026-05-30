@@ -949,7 +949,7 @@ class HASDL2App:
         if key in key_map:
             self.btn_flash_times[key_map[key]] = time.time()
 
-        self._handle_main_keydown(key) # Alle Tastendrücke werden jetzt im Hauptmodus behandelt
+        self._handle_main_keydown(key) # All key presses are now handled in main mode
 
     def _handle_controller_button(self, btn):
 
@@ -1380,7 +1380,7 @@ class HASDL2App:
             return
         elif self.settings_active and self.active_list == "entities":
             if self.settings_view == "menu":
-                if self.settings_index == 0: # "Sichtbare Kategorien"
+                if self.settings_index == 0: # "Visible Categories"
                     self.settings_view = "categories"
                     self.settings_index = 0
                     self.settings_scroll_row = 0
