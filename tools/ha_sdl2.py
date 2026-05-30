@@ -142,7 +142,7 @@ class HASDL2App:
                 "QWERTZUIOP",
                 "ASDFGHJKL;",
                 "YXCVBNM<>|",
-                r"{}[]\*' `^", # Re-added space for better symbol alignment
+                r"{}[]\\*' `^", # Use double backslash for literal display to avoid syntax warnings
                 ["Shift", "Space", "BS", "Save", "Cancel"]
             ]
         ]
