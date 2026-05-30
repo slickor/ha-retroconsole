@@ -134,7 +134,7 @@ class HASDL2App:
                 "qwertzuiop",
                 "asdfghjkl:",
                 "yxcvbnm,;.",
-                "/-=_&?#@+~",
+                "/-_&?#@+~", # Removed = from here as it's in Shift+0
                 ["Shift", "Space", "BS", "Save", "Cancel"]
             ],
             [ # Layout 1: Uppercase & Symbols
@@ -142,7 +142,7 @@ class HASDL2App:
                 "QWERTZUIOP",
                 "ASDFGHJKL;",
                 "YXCVBNM<>|",
-                "{}[]\*' `^",
+                r"{}[]\*' `^", # Re-added space for better symbol alignment
                 ["Shift", "Space", "BS", "Save", "Cancel"]
             ]
         ]
@@ -266,7 +266,7 @@ class HASDL2App:
             self.ui.draw_text("Attributes:", x, y, "cyan", small=True)
             y += 15
             
-            list_top = y # Startpunkt der Liste für den Scrollbalken speichern
+            list_top = y # save list starting point for the scrollbar
             
             start = self.details_scroll_row
             end = min(len(filtered_attrs), start + visible_attrs)
@@ -930,9 +930,9 @@ class HASDL2App:
             self.set_message("Refreshed")
             return
         if key == sdl2.SDLK_s:
-            self.active_list = "settings" # Wählt den Einstellungs-Eintrag in der linken Spalte aus
-            self.settings_active = True # Öffnet das Einstellungsfeld in der mittleren Spalte
-            self.settings_view = "menu" # Startet im Einstellungsmenü
+            self.active_list = "settings" # Select settings entry in the left column
+            self.settings_active = True # Open settings panel in the middle column
+            self.settings_view = "menu" # Start in settings menu
             self.btn_flash_times["START"] = time.time()
             return
 
@@ -990,9 +990,9 @@ class HASDL2App:
             self.set_message("Refreshed")
             return
         if btn == sdl2.SDL_CONTROLLER_BUTTON_START:
-            self.active_list = "settings" # Wählt den Einstellungs-Eintrag in der linken Spalte aus
-            self.settings_active = True # Öffnet das Einstellungsfeld in der mittleren Spalte
-            self.settings_view = "menu" # Startet im Einstellungsmenü
+            self.active_list = "settings" # Select settings entry in the left column
+            self.settings_active = True # Open settings panel in the middle column
+            self.settings_view = "menu" # Start in settings menu
             self.btn_flash_times["START"] = time.time()
             return
 
@@ -1045,7 +1045,7 @@ class HASDL2App:
             self.confirm_exit = False
             self.exit_overlay_active = False # Reset if navigating away from potential exit
         elif self.mode == "settings":
-            self.mode = "main" # Dieser Modus ist effektiv entfernt, aber zur Sicherheit beibehalten
+            self.mode = "main" # This mode is effectively removed, but kept for safety
             self.confirm_exit = False
             self.exit_overlay_active = False # Reset
         elif self.settings_active:
@@ -1799,7 +1799,6 @@ class HASDL2App:
         """Renders the settings options in the middle column."""
         highlight_w = self.col2_w - self.margin
         
-        # Verfügbare Höhe für Listenelemente berechnen
         # Calculate available height for list items
         list_start_y = y + 30 # Start Y for the list content
         available_h = box_h - (list_start_y - y) - 10 # Total box height - (padding above list) - (padding below list)
@@ -1880,7 +1879,7 @@ class HASDL2App:
                     
                     dst = sdl2.SDL_Rect(int(x), int(y_list + 2), icon_size, icon_size)
                     sdl2.SDL_RenderCopy(self.renderer, status_tex, None, dst)
-                    sdl2.SDL_SetTextureColorMod(status_tex, 255, 255, 255) # Zurücksetzen
+                    sdl2.SDL_SetTextureColorMod(status_tex, 255, 255, 255) # Reset
                 
                 self.ui.draw_text(domain.replace("_", "-").capitalize(), x + icon_size + 8, y_list + 2, color, small=True)
             
@@ -1974,18 +1973,18 @@ class HASDL2App:
                 
                 self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y_pos), highlight_w, item_h, color=highlight_color)
                 
-                # 1.1 Rahmen um die Auswahl (1px abgerundet, gleiche Farbe wie Zeiger)
+                # 1.1 Border around selection (1px rounded, same color as pointer)
                 self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y_pos), highlight_w, item_h, highlight_color)
                 
-                # 2. Auswahl-Dreieck (Zeiger) - Nur wenn die Domänenliste aktiv ist
+                # 2. Selection triangle (pointer) - only when domain list is active
                 if self.active_list == "domains":
                     self.ui.draw_pointer(int(self.col1_x + (self.margin - 10) // 2 - 5 + self.pulse_x), y_pos + 5, width=10, height=16, color=highlight_color, alpha=self.pulse_alpha)
                 
-                # 3. Aktiver Text
-                self.ui.draw_text(label, x + icon_w, y_pos + 2, "white") # Text 2 Pixel tiefer
+                # 3. Active text
+                self.ui.draw_text(label, x + icon_w, y_pos + 2, "white") # Text 2 pixels lower
             else:
-                # Normaler Text
-                self.ui.draw_text(label, x + icon_w, y_pos + 2, "cyan") # Text 2 Pixel tiefer
+                # Normal text
+                self.ui.draw_text(label, x + icon_w, y_pos + 2, "cyan") # Text 2 pixels lower
 
         # Scrollbar for the categories list
         if len(self.domain_list) > visible_cats:
