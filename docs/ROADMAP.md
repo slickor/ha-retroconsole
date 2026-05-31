@@ -103,6 +103,13 @@ Goal: Stable operation on real devices.
 - [x] Add 5-second automatic refresh for camera snapshots.
 - [x] Finalize full English localization for UI and code.
 - [x] Optimize UI layout for Categories and Settings boxes.
-- [ ] Implement custom theme support (colors, fonts).
-- [ ] Add support for more complex entity types (climate presets, media controls).
-- [ ] Enhance synchronization for multi-device setups.
+
+## Phase 7: Advanced UI & Ecosystem
+- [ ] Implement a dynamic theme engine (switch colors and fonts via Settings UI).
+- [ ] Add specialized UI components for Climate (target temperature wheel) and Media (volume sliders).
+- [ ] Support for Home Assistant "Areas" to group devices by room.
+- [ ] Transition from REST polling to WebSocket API for instant, event-driven state updates.
+- [ ] Implement a multi-language framework (i18n) for community translations.
+- [ ] Optimize memory footprint for low-end devices (e.g., original R36S).
+- [ ] Enhance synchronization and conflict resolution for multi-device setups.
+- [ ] Add an in-app updater check for new PortMaster releases.

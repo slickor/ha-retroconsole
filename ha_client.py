@@ -337,3 +337,34 @@ def changed_favorites(
         if before_state != after_state:
             changes.append(f"{entity_id}: {before_state} -> {after_state}")
     return changes
+
+def get_websocket_url(base_url: str) -> str:
+    """Converts a standard HA base URL to a WebSocket URL."""
+    ws_url = base_url.replace("http://", "ws://").replace("https://", "wss://")
+    return f"{ws_url}/api/websocket"
+
+class HAWebSocketMessage:
+    """Helper to create standard Home Assistant WebSocket messages."""
+    
+    @staticmethod
+    def auth(token: str) -> str:
+        return json.dumps({
+            "type": "auth",
+            "access_token": token
+        })
+
+    @staticmethod
+    def subscribe_events() -> str:
+        return json.dumps({
+            "id": 1,
+            "type": "subscribe_events",
+            "event_type": "state_changed"
+        })
+
+    @staticmethod
+    def get_states(request_id: int) -> str:
+        """Initial fetch of all states via WebSocket."""
+        return json.dumps({
+            "id": request_id,
+            "type": "get_states"
+        })
