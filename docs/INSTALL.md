@@ -63,3 +63,7 @@ The app requires a `config.json` file in the `ha-retroconsole` folder. You can r
 - **L1 / R1**: Page Up / Page Down in entity lists.
 - **L2 / R2**: Scroll through the console log history.
 - **Start**: Open Settings (to change button layouts).
+
+### Context-Sensitive Controls (Settings -> Server Connection)
+- **Confirm (A or B)**: Manually switch to the selected URL and force a data refresh.
+- **Y (North)**: Open the On-Screen Keyboard to edit the highlighted URL.

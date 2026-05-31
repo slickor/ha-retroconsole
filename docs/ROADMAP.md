@@ -86,7 +86,7 @@ Goal: Stable operation on real devices.
 - [x] Check logs.
 - [x] Write installation and configuration documentation.
 
-## Phase 6: Refinement & Advanced Features (v0.28.2)
+## Phase 6: Refinement & Advanced Features (v0.28.5)
 - [x] Refine UI button layout and padding for better visual balance.
 - [x] Implement robust exit confirmation overlay.
 - [x] Implement 30 FPS power saving mode for handhelds.
@@ -99,6 +99,10 @@ Goal: Stable operation on real devices.
 - [x] Implement server URL failover (Local vs. Remote/VPN).
 - [x] Add On-Screen Keyboard for device-side configuration.
 - [x] Refine UI alignment and icon positioning for settings panels.
+- [x] Implement Camera Overlay with centered UI context.
+- [x] Add 5-second automatic refresh for camera snapshots.
+- [x] Finalize full English localization for UI and code.
+- [x] Optimize UI layout for Categories and Settings boxes.
 - [ ] Implement custom theme support (colors, fonts).
 - [ ] Add support for more complex entity types (climate presets, media controls).
 - [ ] Enhance synchronization for multi-device setups.
