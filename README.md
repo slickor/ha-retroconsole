@@ -20,7 +20,7 @@ Turn your retro handheld into a smart home command center. HA RetroConsole provi
 - **Real-time Monitoring:** Live status for sensors, WiFi signal strength (0-4 bars), and system statistics.
 - **Visual Retro Charm:** CRT scanline effects, automatic marquee scrolling for long names, and color-coded icons.
 - **Handheld Integration:** Seamless D-Pad navigation, display brightness control, and full-screen camera snapshots.
-- **PortMaster Ready:** Verified on muOS, Spruce, and Knulli (for R36S, TrimUI Smart Pro, and others).
+- **PortMaster compatible:** Verified on muOS, Spruce, and Knulli (for R36S, TrimUI Smart Pro, and others).
 
 ## Current Status
 
