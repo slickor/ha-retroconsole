@@ -27,9 +27,9 @@ fi
 
 echo "Installing Python dependencies into local libs folder..."
 # We install directly into a local directory to avoid venv path issues
-if python3 -m pip install --target="./libs" --no-cache-dir --no-compile -r requirements.txt; then
+if python3 -m pip install --target="./libs" --no-cache-dir --no-compile "websocket-client<1.4.0" "requests<2.32.0" "urllib3<2.0.0" -r requirements.txt; then
     echo "Cleaning up metadata and binaries..."
-    rm -rf ./libs/bin ./libs/Scripts ./libs/*.dist-info ./libs/*.egg-info
+    rm -rf ./libs/bin ./libs/Scripts ./libs/*.dist-info ./libs/*.egg-info ./libs/websocket/tests ./libs/websocket/test
     find . -type d -name "__pycache__" -exec rm -rf {} +
     find . -type f \( -name "*.pyc" -o -name "*.pyo" -o -name "Thumbs.db" -o -name ".DS_Store" \) -delete
     echo "Setup complete!"

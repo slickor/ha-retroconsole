@@ -86,7 +86,7 @@ Goal: Stable operation on real devices.
 - [x] Check logs.
 - [x] Write installation and configuration documentation.
 
-## Phase 6: Refinement & Advanced Features (v0.28.5)
+## Phase 6: Refinement & Advanced Features (v0.29.2)
 - [x] Refine UI button layout and padding for better visual balance.
 - [x] Implement robust exit confirmation overlay.
 - [x] Implement 30 FPS power saving mode for handhelds.
@@ -105,11 +105,16 @@ Goal: Stable operation on real devices.
 - [x] Optimize UI layout for Categories and Settings boxes.
 
 ## Phase 7: Advanced UI & Ecosystem
-- [ ] Implement a dynamic theme engine (switch colors and fonts via Settings UI).
-- [ ] Add specialized UI components for Climate (target temperature wheel) and Media (volume sliders).
-- [ ] Support for Home Assistant "Areas" to group devices by room.
+- [ ] **Dynamic Theme Engine:**
+    - [ ] Define external `themes.json` structure for custom color palettes.
+    - [ ] Implement runtime font switching (e.g., Pixel vs. Sans-Serif).
+- [ ] **Advanced Control Components:**
+    - [ ] Implement a "Control Mode" for entities: D-Pad Left/Right for 0.5° steps (Climate) or 5% volume (Media).
+    - [ ] Add visual progress bars and value wheels to the Entity list.
+- [ ] **Area & Floorplan Support:**
+    - [ ] Fetch Area/Device mapping from HA API.
+    - [ ] Option to group the Categories column by "Areas" instead of "Domains".
 - [x] Transition from REST polling to WebSocket API for instant, event-driven state updates.
-- [ ] Implement a multi-language framework (i18n) for community translations.
-- [ ] Optimize memory footprint for low-end devices (e.g., original R36S).
-- [ ] Enhance synchronization and conflict resolution for multi-device setups.
+- [ ] **Localization (i18n):** Move all UI strings to `lang/*.json` for easy community translations.
+- [ ] **Optimization:** Implement texture compression/pooling for icons to reduce memory on R36S.
 - [ ] Add an in-app updater check for new PortMaster releases.

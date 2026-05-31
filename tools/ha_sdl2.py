@@ -4,7 +4,7 @@ import time
 import math
 import threading
 import json
-import websocket
+
 import socket
 import queue
 import ctypes
@@ -27,6 +27,15 @@ sys.stdout = TimestampLogger(sys.stdout)
 sys.stderr = TimestampLogger(sys.stderr)
 
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
+
+# Import websocket after path setup and with extra safety for Python 3.7
+try:
+    import websocket
+    HAS_WEBSOCKET = True
+except Exception:
+    HAS_WEBSOCKET = False
+except SyntaxError:
+    HAS_WEBSOCKET = False
 
 import sdl2
 import sdl2.ext
@@ -194,6 +203,8 @@ class HASDL2App:
         self.trigger_r_pressed = False
         self.axis_r_y_pressed = False # For vertical scrolling in details
 
+        self.cached_system_stats = ("N/A", "N/A", "N/A")
+        self.last_stats_time = 0
         self.width = 640
         self.height = 480 # Fixed GUI size
 
@@ -401,13 +412,12 @@ class HASDL2App:
         wifi_icon_key = "wifi_4" if wifi_val != "N/A" else "wifi_err"
         wifi_tex = self.domain_icons.get(wifi_icon_key)
         if wifi_tex:
-            sdl2.SDL_RenderCopy(self.renderer, wifi_tex, None, sdl2.SDL_Rect(x + 453, y + 5, 16, 16))
+            sdl2.SDL_RenderCopy(self.renderer, wifi_tex, None, sdl2.SDL_Rect(x + 443, y + 5, 16, 16))
 
         # Controls Hint (Right aligned)
         hint = "[START] Controls Overlay"
         htw, _ = self.ui.get_text_size(hint, small=True)
-        # Selection color flash if overlay is active
-        hint_color = "yellow" if self.controls_overlay_active else "gray"
+        hint_color = "yellow"
         self.ui.draw_text(hint, self.width - htw - self.h_gap, y + 6, hint_color, small=True)
 
         # Draw a subtle top border for the bar
@@ -464,6 +474,10 @@ class HASDL2App:
 
     def _get_system_stats(self):
         """Fetches real CPU MHz, Free RAM and WiFi strength on Linux devices."""
+        # Cache results for 2 seconds to reduce disk I/O on handhelds
+        if time.time() - self.last_stats_time < 2.0:
+            return self.cached_system_stats
+
         cpu_mhz = "N/A"
         free_mem = "N/A"
         wifi_strength = "N/A"
@@ -528,6 +542,8 @@ class HASDL2App:
                     if wifi_strength != "N/A": break
             except: pass
 
+        self.cached_system_stats = (cpu_mhz, free_mem, wifi_strength)
+        self.last_stats_time = time.time()
         return cpu_mhz, free_mem, wifi_strength
 
     def _get_ip_address(self):
@@ -990,9 +1006,7 @@ class HASDL2App:
             self.set_message("Refreshed")
             return
         if key == sdl2.SDLK_s:
-            self.active_list = "settings" # Select settings entry in the left column
-            self.settings_active = True # Open settings panel in the middle column
-            self.settings_view = "menu" # Start in settings menu
+            self.controls_overlay_active = not self.controls_overlay_active
             self.btn_flash_times["START"] = time.time()
             return
 
@@ -1751,6 +1765,13 @@ class HASDL2App:
         ow, oh = 400, 300
         ox, oy = (self.width - ow) // 2, (self.height - oh) // 2
         
+        # Draw background with higher opacity for better readability
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
+        box_bg = self.ui.colors["box_bg"]
+        sdl2.SDL_SetRenderDrawColor(self.renderer, box_bg.r, box_bg.g, box_bg.b, 240) # Nearly opaque
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(ox, oy, ow, oh))
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
+
         self.ui.draw_retro_box(ox, oy, ow, oh, "CONTROL SCHEME", color="cyan")
         
         y = oy + 40
@@ -1989,7 +2010,6 @@ class HASDL2App:
                 ("About", "ha_logo")
             ]
             for i, (label, icon_key) in enumerate(menu_items):
-                is_selected = (self.settings_active and self.active_list == "entities" and self.settings_index == i) # Check if this item is selected
                 is_selected = (self.settings_active and self.active_list == "entities" and self.settings_index == i)
                 
                 # Calculate vertical position for the current item
@@ -2239,7 +2259,6 @@ class HASDL2App:
                 sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255) # Reset to standard white
                 icon_offset += 8
                 
-            color = "yellow" if (is_fav or is_selected) else "white"
             # Text color: Yellow for favorites, Cyan for selection, White for others
             if is_fav:
                 color = "yellow"
@@ -2277,7 +2296,10 @@ class HASDL2App:
     def run(self):
         self.init_sdl()
         self.load_data()
-        self._start_websocket()
+        if HAS_WEBSOCKET:
+            self._start_websocket()
+        else:
+            self.set_message("WebSocket disabled (lib missing)", color="yellow")
 
         try:
             while self.running:
@@ -2619,6 +2641,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     config_path = Path(args.config)
+
+    # Robust path resolution: If the config is not found in the current working directory,
+    # check the project root (parent of the 'tools' folder).
+    if not config_path.is_absolute() and not config_path.exists():
+        script_dir = Path(__file__).parent.absolute()
+        alternate_path = script_dir.parent / args.config
+        if alternate_path.exists():
+            config_path = alternate_path
+
     app = HASDL2App(config_path)
 
     print(f"\n[HA RetroConsole v{VERSION}]")

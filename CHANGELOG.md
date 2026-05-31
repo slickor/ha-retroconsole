@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.29.2] - 2026-05-31
+### Changed
+- **UI Layout:** Adjusted the WiFi icon position in the footer (moved 10px left) for better visual balance.
+- **UI:** Increased the opacity of the Controls Overlay background (alpha 240) to ensure high readability over list items.
+- **UI:** The "[START] Controls Overlay" hint in the footer is now permanently highlighted in yellow.
+### Fixed
+- **Controls:** Remapped the 'S' key on keyboards to toggle the Controls Overlay, removing the redundant shortcut to settings.
+
+## [0.29.1] - 2026-05-31
+### Added
+- **Performance:** Implemented 2-second caching for system statistics to reduce CPU load and disk I/O on handheld devices.
+### Fixed
+- **Stability:** Added a fallback for missing WebSocket libraries to prevent application crashes when dependencies are not yet installed.
+- **Configuration:** Improved path resolution for `config.json` to handle cases where the app is started from different working directories.
+- **Deployment:** Optimized build scripts to aggressively strip unnecessary test folders (`websocket/test`), metadata, and Windows-specific binaries.
+- **Deployment:** Switched SD-push logic to utilize release ZIPs for consistent and correct ARM64 binary deployment.
+### Changed
+- **UI Layout:** Relocated the IP address to a dedicated full-width line at the bottom of the System box for better readability.
+
 ## [0.29.0] - 2026-05-31
 ### Added
 - **Camera:** Implemented automatic 5-second refresh for the camera overlay to provide a live-like feed.
