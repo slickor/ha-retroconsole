@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 - **UI:** Fixed indentation and wrapping errors in the Error Overlay.
 - **Camera:** Improved snapshot activation logic to ensure the overlay opens immediately when a cached image is available.
 - **Deployment:** Fixed a bug in the PowerShell push script where the launcher was not correctly renamed for TrimUI devices.
+- **Deployment:** Ensured the `docs/img` folder is included in the SD push script for correct metadata display.
 
 ## [0.28.2] - 2026-05-31
 ### Changed

@@ -1705,12 +1705,7 @@ class HASDL2App:
         tw, _ = self.ui.get_text_size(title, large=True)
         self.ui.draw_text(title, overlay_x + (overlay_w - tw) // 2, overlay_y + 20, "red", large=True)
         
-        # Show truncated error message
-        # Multi-line error message wrapping
         msg = self.api_error_message
-        display_msg = self.ui.truncate_text(msg, overlay_w - 40, small=True)
-        tw2, _ = self.ui.get_text_size(display_msg, small=True)
-        self.ui.draw_text(display_msg, overlay_x + (overlay_w - tw2) // 2, overlay_y + 75, "white", small=True)
         words = msg.split()
         lines = []
         current_line = ""
@@ -1820,7 +1815,6 @@ class HASDL2App:
         self.ui.draw_text(line1, text_start_x, 0, "white", xl=True)
 
         # 2. Left column (152 px): Categories + Settings
-        cat_box_h = self.main_area_h - 40 - self.v_gap
         cat_box_h = self.main_area_h - 45 - self.v_gap
         self.ui.draw_retro_box(self.col1_x, self.main_y, self.col1_w, cat_box_h, "CATEGORIES")
         self.draw_menu(self.col1_x + self.margin, self.main_y + 13, cat_box_h)
