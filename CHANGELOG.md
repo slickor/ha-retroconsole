@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - **UI Redesign:** The camera view is now a centered 75% overlay with a dimmed background instead of a full-screen switch, maintaining UI context.
 - **UI Layout:** Fine-tuned the left column by reducing the Categories box height and increasing the Settings box height for better visual balance.
 - **Controls:** Updated Server Connection settings: **Confirm (A)** now manually switches to the selected URL/Server, while **Y** is used to enter the URL editor.
+- **Documentation:** Standardized project terminology to "PortMaster compatible" in README.
 - **Localization:** Completed full transition of all internal code comments and remaining UI strings to English.
 ### Fixed
 - **UI:** Resolved a visual "ghost line" glitch in the Settings box.

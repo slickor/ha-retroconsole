@@ -1,6 +1,6 @@
 # Installation & Configuration Guide
 
-This guide helps you set up **Home Assistant - for retroconsoles** on your handheld device (e.g., TrimUI Smart Pro, R36S) via PortMaster.
+This guide helps you set up **Home Assistant - for retroconsoles** on your handheld device (e.g., TrimUI Smart Pro, R36S). The application is **PortMaster compatible**.
 
 ---
 
@@ -58,7 +58,8 @@ The app requires a `config.json` file in the `ha-retroconsole` folder. You can r
 - **D-Pad Left/Right**: Switch focus between the Domain column and the Entity column.
 - **Confirm (A or B)**: Toggle the selected entity or activate a scene/script.
 - **Cancel (B or A)**: Back or Exit.
-- **Y (North)**: Open/Close the Favorites Editor.
+- **Y (North)**: Toggle Favorite (Entities) or Toggle Sort Mode (Categories/Favorites).
 - **X (West)**: Force refresh all states.
+- **L1 / R1**: Page Up / Page Down in entity lists.
+- **L2 / R2**: Scroll through the console log history.
 - **Start**: Open Settings (to change button layouts).
-- **Select**: Display version info.
