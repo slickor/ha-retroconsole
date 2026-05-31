@@ -27,7 +27,7 @@ Turn your retro handheld into a smart home command center. HA RetroConsole provi
 Key milestones reached:
 - **Phase 4 (Deployable App):** Successfully completed with automated build scripts for PortMaster.
 - **Phase 5 (Device Testing):** Completed. Successfully verified on muOS, Spruce, and Knulli distributions for the TrimUI Smart Pro.
-- **v0.28.5 Update:** Added Camera Overlays, Auto-Refresh, and improved UI Layout.
+- **v0.29.0 Update:** Added WebSocket Service, Controls Overlay, and major Footer/Status UI redesign.
 
 
  
@@ -57,7 +57,7 @@ Detailed progress and future plans can be tracked in docs/ROADMAP.md and CHANGEL
 ## Special Thanks
 
 A big thank you to [Remix Icon](https://remixicon.com/) for providing the excellent open-source icons under the Apache License 2.0.
-- This project bundles several open-source libraries, including [Requests](https://requests.readthedocs.io/) (Apache 2.0) and [PySDL2](https://pysdl2.readthedocs.io/).
+- This project bundles several open-source libraries, including [Requests](https://requests.readthedocs.io/) (Apache 2.0), [PySDL2](https://pysdl2.readthedocs.io/), and [websocket-client](https://github.com/websocket-client/websocket-client).
 
 
 

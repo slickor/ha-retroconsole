@@ -3,6 +3,8 @@ import os
 import time
 import math
 import threading
+import json
+import websocket
 import socket
 import queue
 import ctypes
@@ -45,6 +47,8 @@ from ha_client import (
     favorite_entity_id,
     favorite_label,
     fetch_states_map,
+    get_websocket_url,
+    HAWebSocketMessage,
     load_config,
     refresh_after_action,
     save_config,
@@ -115,7 +119,9 @@ ICON_MAP = {
     "wifi_2": "signal-wifi-2-line",
     "wifi_3": "signal-wifi-3-line",
     "wifi_4": "wifi-line",
-    "wifi_err": "signal-wifi-error-line"
+    "wifi_err": "signal-wifi-error-line",
+    "conn_on": "checkbox-circle-line",
+    "conn_off": "checkbox-blank-circle-line"
 }
 
 class HASDL2App:
@@ -150,6 +156,10 @@ class HASDL2App:
         self.active_url = self.config.get("base_url", "")
         self.url_type = "primary"
         self.states = {}
+        self.ws = None
+        self.ws_thread = None
+        self.ws_connected = False
+        self.last_ws_retry = 0
         self.camera_cache = {} # Cache for camera textures: {entity_id: texture}
         self.camera_task_thread = None
         self.favorites = self.config.get("favorites", [])
@@ -177,6 +187,7 @@ class HASDL2App:
         self.btn_flash_times = {} # Map of btn_id -> timestamp for visual feedback
         self.log_scroll = 0
         self.trigger_l_pressed = False
+        self.controls_overlay_active = False # New: Controls the help overlay
         self.confirm_exit = False # New state for exit confirmation
         self.exit_overlay_active = False # New: Controls visibility of the exit overlay
         self.exit_overlay_message = ""   # New: Message for the exit overlay
@@ -310,15 +321,25 @@ class HASDL2App:
         cpu_mhz, free_ram, wifi = self._get_system_stats()
         current_time = time.strftime("%H:%M:%S")
         
+        # Get CPU temperature
+        temp = "N/A"
+        temp_path = "/sys/class/thermal/thermal_zone0/temp"
+        if os.path.exists(temp_path):
+            try:
+                with open(temp_path, "r") as f:
+                    temp = f"{int(f.read().strip()) / 1000:.1f}C"
+            except: pass
+
         items = [
             ("Time:", current_time),
             ("CPU:", cpu_mhz),
             ("RAM:", free_ram),
+            ("Temp:", temp),
             ("Ver:", VERSION),
-            ("Srv:", "Online" if self.states else "Offline"),
-            ("Sync:", self.last_sync_time)
+            ("Disk:", self._get_disk_usage().split('/')[0].strip())
         ]
         
+        # Render the first 6 items in a 2-column grid
         for i in range(0, len(items), 2):
             # Column 1
             label1, val1 = items[i]
@@ -339,38 +360,59 @@ class HASDL2App:
             
             current_y += line_height
 
-        # IP address on its own line
-        ip_label_text = "IP:"
-        ip_label_tw, _ = self.ui.get_text_size(ip_label_text, small=True)
+        # IP address gets its own full line at the bottom
+        ip_label = "IP:"
+        ip_tw, _ = self.ui.get_text_size(ip_label, small=True)
+        self.ui.draw_text(ip_label, x, current_y, "cyan", small=True)
+        self.ui.draw_text(self.ip_address, x + ip_tw + small_gap, current_y, "white", small=True)
 
-        # Determine WiFi icon based on strength percentage
-        wifi_icon_key = "wifi_err"
-        if wifi != "N/A":
-            try:
-                val = int(wifi.replace("%", ""))
-                if val >= 76: wifi_icon_key = "wifi_4"
-                elif val >= 51: wifi_icon_key = "wifi_3"
-                elif val >= 26: wifi_icon_key = "wifi_2"
-                elif val >= 1: wifi_icon_key = "wifi_1"
-                else: wifi_icon_key = "wifi_0"
-            except:
-                pass
-
-        wifi_info = f" ({wifi})" if wifi != "N/A" else ""
-        ip_full_val = f"{self.ip_address}{wifi_info}"
+    def _render_connection_status_bar(self, x, y):
+        """Renders connection relevant information at the bottom."""
+        # WebSocket Status
+        ws_color = "green" if self.ws_connected else "red"
+        ws_icon_key = "conn_on" if self.ws_connected else "conn_off"
+        ws_icon = self.domain_icons.get(ws_icon_key)
+        self.ui.draw_text("WebSocket:", x, y + 6, "cyan", small=True)
+        if ws_icon:
+            sdl2.SDL_SetTextureColorMod(ws_icon, self.ui.colors[ws_color].r, self.ui.colors[ws_color].g, self.ui.colors[ws_color].b)
+            sdl2.SDL_RenderCopy(self.renderer, ws_icon, None, sdl2.SDL_Rect(x + 69, y + 8, 12, 12))
+            sdl2.SDL_SetTextureColorMod(ws_icon, 255, 255, 255)
         
-        icon_size = 16
-        ip_value_max_width = content_width - ip_label_tw - small_gap - icon_size - 4
-        display_ip = self.ui.truncate_text(ip_full_val, ip_value_max_width, small=True)
+        # REST API Status
+        api_color = "green" if self.states else "red"
+        api_icon_key = "conn_on" if self.states else "conn_off"
+        api_icon = self.domain_icons.get(api_icon_key)
+        self.ui.draw_text("REST API:", x + 88, y + 6, "cyan", small=True)
+        if api_icon:
+            sdl2.SDL_SetTextureColorMod(api_icon, self.ui.colors[api_color].r, self.ui.colors[api_color].g, self.ui.colors[api_color].b)
+            sdl2.SDL_RenderCopy(self.renderer, api_icon, None, sdl2.SDL_Rect(x + 150, y + 8, 12, 12))
+            sdl2.SDL_SetTextureColorMod(api_icon, 255, 255, 255)
+        
+        # Active URL
+        url_label = f"URL: {self.active_url}"
+        display_url = self.ui.truncate_text(url_label, 180, small=True)
+        self.ui.draw_text(display_url, x + 168, y + 6, "white", small=True)
 
-        self.ui.draw_text(ip_label_text, x, current_y, "cyan", small=True)
-        tw_val, _ = self.ui.draw_text(display_ip, x + ip_label_tw + small_gap, current_y, "white", small=True)
+        # Sync
+        self.ui.draw_text(f"Sync: {self.last_sync_time}", x + 355, y + 6, "cyan", small=True)
 
-        # Render the WiFi icon next to the IP/Strength text
+        # WiFi Icon only (IP moved to System Box)
+        wifi_val = self._get_system_stats()[2]
+        wifi_icon_key = "wifi_4" if wifi_val != "N/A" else "wifi_err"
         wifi_tex = self.domain_icons.get(wifi_icon_key)
         if wifi_tex:
-            dst = sdl2.SDL_Rect(int(x + ip_label_tw + small_gap + tw_val + 4), int(current_y), icon_size, icon_size)
-            sdl2.SDL_RenderCopy(self.renderer, wifi_tex, None, dst)
+            sdl2.SDL_RenderCopy(self.renderer, wifi_tex, None, sdl2.SDL_Rect(x + 453, y + 5, 16, 16))
+
+        # Controls Hint (Right aligned)
+        hint = "[START] Controls Overlay"
+        htw, _ = self.ui.get_text_size(hint, small=True)
+        # Selection color flash if overlay is active
+        hint_color = "yellow" if self.controls_overlay_active else "gray"
+        self.ui.draw_text(hint, self.width - htw - self.h_gap, y + 6, hint_color, small=True)
+
+        # Draw a subtle top border for the bar
+        sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_GREY.r, COLOR_GREY.g, COLOR_GREY.b, 100)
+        sdl2.SDL_RenderDrawLine(self.renderer, 0, y, self.width, y)
 
     def _render_console_log(self, x, y):
         """Renders the last two entries of the log."""
@@ -379,52 +421,6 @@ class HASDL2App:
             tw, _ = self.ui.draw_text(f"[{ts}] ", x, y, COLOR_TEXT_DIM, small=True)
             self.ui.draw_text(txt, x + tw, y, col, small=True)
             y += 15
-
-    def _render_controls_bar(self, x, y):
-        """Renders gamepad controls in a single horizontal row at the bottom."""
-        btn_y_label = "Favorite"
-        if self.active_list == "domains":
-            btn_y_label = "Sort Item"
-        elif self.active_list == "entities" and self.domain_list:
-            current_domain = self.domain_list[self.nav_index]
-            if current_domain == "favorites":
-                btn_y_label = "Confirm" if self.reorder_mode else "Sort Item"
-
-        controls = [
-            (self.controls["confirm"], "Confirm"),
-            (self.controls["cancel"], "Back"),
-            (BTN_Y, btn_y_label),
-            (BTN_X, "Refresh"),
-            ("L1/R1", "Page"),
-            ("START", "Settings")
-        ]
-        
-        total_w = 0
-        gap = self.margin + 5
-        items_data = []
-        
-        for btn, label in controls:
-            if not label: continue
-            # Replicate _render_button_icon width logic (updated for +1px front padding)
-            btn_str = {BTN_A: "A", BTN_B: "B", BTN_X: "X", BTN_Y: "Y"}.get(btn, str(btn))
-            itw, ith = self.ui.get_text_size(btn_str, small=True)
-            bw = itw + 5
-            if len(btn_str) == 1:
-                side = max(bw, ith + 4)
-                bw = side
-            
-            tw, _ = self.ui.get_text_size(label, small=True)
-            item_w = bw + 4 + tw
-            items_data.append((btn, label, bw))
-            total_w += item_w
-        
-        total_w += (len(items_data) - 1) * gap
-        cur_x = (self.width - total_w) // 2
-
-        for btn, label, bw in items_data:
-            self._render_button_icon(btn, cur_x, y + 5, size=15)
-            self.ui.draw_text(label, cur_x + bw + 4, y + 6, "white", small=True)
-            cur_x += bw + 4 + self.ui.get_text_size(label, small=True)[0] + gap
 
     def _render_preview_box(self, x, y, width, height):
         """Renders a visual preview (icon or camera snapshot) of the selected entity."""
@@ -787,6 +783,54 @@ class HASDL2App:
         self.ip_address = self._get_ip_address()
         self._start_background_task("load_data", self._fetch_states_background)
 
+    def _start_websocket(self):
+        """Initializes and starts the WebSocket listener thread."""
+        if self.ws_thread and self.ws_thread.is_alive():
+            return
+            
+        self.ws_thread = threading.Thread(target=self._ws_listener_run)
+        self.ws_thread.daemon = True
+        self.ws_thread.start()
+
+    def _ws_listener_run(self):
+        """The main loop for the WebSocket listener thread."""
+        ws_url = get_websocket_url(self.active_url)
+        
+        def on_message(ws, message):
+            data = json.loads(message)
+            msg_type = data.get("type")
+            
+            if msg_type == "auth_required":
+                ws.send(HAWebSocketMessage.auth(self.config["token"]))
+            elif msg_type == "auth_ok":
+                self.ws_connected = True
+                self.set_message("WebSocket connected")
+                ws.send(HAWebSocketMessage.subscribe_events())
+            elif msg_type == "event":
+                event_data = data.get("event", {})
+                if event_data.get("event_type") == "state_changed":
+                    new_state = event_data.get("data", {}).get("new_state")
+                    if new_state:
+                        eid = new_state.get("entity_id")
+                        # Push partial update to main thread queue
+                        self.task_queue.put({"status": "success", "type": "ws_update", "result": {eid: new_state}})
+
+        def on_error(ws, error):
+            self.ws_connected = False
+            print(f"WebSocket Error: {error}")
+
+        def on_close(ws, close_status_code, close_msg):
+            self.ws_connected = False
+            self.set_message("WebSocket disconnected", color="gray")
+
+        self.ws = websocket.WebSocketApp(
+            ws_url,
+            on_message=on_message,
+            on_error=on_error,
+            on_close=on_close
+        )
+        self.ws.run_forever()
+
     def set_message(self, text, color="white"):
         """Adds a message to the persistent log."""
         timestamp = time.strftime("%H:%M:%S")
@@ -1007,9 +1051,7 @@ class HASDL2App:
             self.set_message("Refreshed")
             return
         if btn == sdl2.SDL_CONTROLLER_BUTTON_START:
-            self.active_list = "settings" # Select settings entry in the left column
-            self.settings_active = True # Open settings panel in the middle column
-            self.settings_view = "menu" # Start in settings menu
+            self.controls_overlay_active = not self.controls_overlay_active
             self.btn_flash_times["START"] = time.time()
             return
 
@@ -1313,13 +1355,15 @@ class HASDL2App:
 
         if self.active_list == "entities" and self.settings_active:
             if self.settings_view == "menu":
-                self.settings_index = min(6, self.settings_index + 1) # limit for 7 menu items
+                self.settings_index = min(7, self.settings_index + 1) # Limit for 8 menu items
             elif self.settings_view == "connection":
                 self.settings_index = min(1, self.settings_index + 1) # 0: Primary, 1: Alternative
             elif self.settings_view == "edit_url":
                 self.kb_row = (self.kb_row + 1) % len(self.kb_layout)
                 row_len = len(self.kb_layout[self.kb_row])
                 self.kb_col = min(self.kb_col, row_len - 1)
+            elif self.settings_view == "websocket":
+                self.settings_index = 0 # Only one item (Restart)
             else:
                 if self.settings_view == "categories": limit = len(VIEWABLE_DOMAINS) - 1
                 elif self.settings_view == "flash_color": limit = len(self.flash_colors) - 1
@@ -1396,6 +1440,12 @@ class HASDL2App:
         if self.mode == "camera_fullscreen":
             self.mode = "main"
             return
+        if self.controls_overlay_active:
+            self.controls_overlay_active = False
+            self.active_list = "settings"
+            self.settings_active = True
+            self.settings_view = "menu"
+            return
         if self.active_list == "details":
             return
         elif self.settings_active and self.active_list == "entities":
@@ -1419,11 +1469,15 @@ class HASDL2App:
                     self.settings_view = "wifidebug"
                     self.settings_index = 0
                     self.settings_scroll_row = 0
-                elif self.settings_index == 5: # "System Details"
+                elif self.settings_index == 5: # "WebSocket Service"
+                    self.settings_view = "websocket"
+                    self.settings_index = 0
+                    self.settings_scroll_row = 0
+                elif self.settings_index == 6: # "System Details"
                     self.settings_view = "system_details"
                     self.settings_index = 0
                     self.settings_scroll_row = 0
-                elif self.settings_index == 6: # "About"
+                elif self.settings_index == 7: # "About"
                     self.settings_view = "about"
                     self.settings_index = 0
                     self.settings_scroll_row = 0
@@ -1439,6 +1493,9 @@ class HASDL2App:
                     self.load_data() # Refresh with the selected URL
                 else:
                     self.set_message("URL not configured", color="red")
+            elif self.settings_view == "websocket":
+                if self.settings_index == 0:
+                    self._restart_websocket()
             elif self.settings_view == "edit_url":
                 key = self.kb_layout[self.kb_row][self.kb_col]
                 if key == "Save":
@@ -1639,6 +1696,8 @@ class HASDL2App:
         if self.mode == "camera_fullscreen":
             self._render_camera_overlay()
 
+        # Render overlays
+        self._render_controls_overlay()
         # Render exit confirmation overlay on top of everything else
         self._render_exit_overlay()
         self._render_error_overlay()
@@ -1683,6 +1742,39 @@ class HASDL2App:
         hint_text = f"[{cancel_label_str}] Exit / [{confirm_label_str}] Cancel"
         hint_tw, hint_th = self.ui.get_text_size(hint_text, small=True)
         self.ui.draw_text(hint_text, overlay_x + (overlay_w - hint_tw) // 2, overlay_y + overlay_h - hint_th - 5, "gray", small=True)
+
+    def _render_controls_overlay(self):
+        """Renders a help overlay for controls."""
+        if not self.controls_overlay_active:
+            return
+        
+        ow, oh = 400, 300
+        ox, oy = (self.width - ow) // 2, (self.height - oh) // 2
+        
+        self.ui.draw_retro_box(ox, oy, ow, oh, "CONTROL SCHEME", color="cyan")
+        
+        y = oy + 40
+        ctrls = [
+            ("D-Pad", "Navigate Lists"),
+            ("Confirm (A/B)", "Execute / Select"),
+            ("Cancel (B/A)", "Back / Exit"),
+            ("Y (North)", "Sort / Favorite"),
+            ("X (West)", "Refresh States"),
+            ("L1 / R1", "Page Up / Down"),
+            ("L2 / R2", "Scroll Console"),
+            ("START", "Close Help"),
+            ("Confirm (now)", "Open Settings")
+        ]
+        
+        for label, desc in ctrls:
+            # Procedural icons are a bit complex here, using text labels for simplicity
+            lx, _ = self.ui.draw_text(f"{label}:", ox + 20, y, "cyan", small=True)
+            self.ui.draw_text(desc, ox + 20 + 100, y, "white", small=True)
+            y += 22
+            
+        hint = "Press START to close help"
+        htw, hth = self.ui.get_text_size(hint, small=True)
+        self.ui.draw_text(hint, ox + (ow - htw) // 2, oy + oh - hth - 10, "gray", small=True)
 
     def _render_error_overlay(self):
         """Renders a fullscreen error overlay if the API is unreachable."""
@@ -1854,7 +1946,7 @@ class HASDL2App:
         self.ui.draw_retro_box(self.col3_x, self.console_y, self.col3_w, self.console_h, "SYSTEM")
         self._render_system_infos_box(self.col3_x + self.margin, self.console_y + 9)
         
-        self._render_controls_bar(self.h_gap, self.controls_bar_y)
+        self._render_connection_status_bar(self.h_gap, self.controls_bar_y)
 
     def _render_settings_entry(self, x, y_pos):
         """Renders the settings icon and text in its separate box."""
@@ -1892,11 +1984,13 @@ class HASDL2App:
                 ("Display Brightness", "brightness"),
                 ("Flash Color", "favorites"),
                 ("WiFi Debug", "wifi_err"),
+                ("WebSocket Service", "script"),
                 ("System Details", "sensor"),
                 ("About", "ha_logo")
             ]
             for i, (label, icon_key) in enumerate(menu_items):
                 is_selected = (self.settings_active and self.active_list == "entities" and self.settings_index == i) # Check if this item is selected
+                is_selected = (self.settings_active and self.active_list == "entities" and self.settings_index == i)
                 
                 # Calculate vertical position for the current item
                 current_item_y = y + (i * item_h)
@@ -2028,6 +2122,8 @@ class HASDL2App:
             self._render_connection_view(x, y)
         elif self.settings_view == "system_details":
             self._render_system_details_view(x, y, box_h)
+        elif self.settings_view == "websocket":
+            self._render_websocket_view(x, y)
         elif self.settings_view == "about":
             self._render_about_view(x, y)
 
@@ -2181,6 +2277,7 @@ class HASDL2App:
     def run(self):
         self.init_sdl()
         self.load_data()
+        self._start_websocket()
 
         try:
             while self.running:
@@ -2194,8 +2291,17 @@ class HASDL2App:
                 except queue.Empty:
                     pass  # No task results yet
 
-                # Periodic background refresh of states (every 1.5 seconds)
-                if time.time() - self.last_auto_refresh_time > 1.5:
+                # Reconnect WebSocket if it dropped
+                if not self.ws_connected and (not self.ws_thread or not self.ws_thread.is_alive()):
+                    if time.time() - self.last_ws_retry > 5:
+                        self._start_websocket()
+                        self.last_ws_retry = time.time()
+
+                # Periodic background refresh as fallback.
+                # If WebSocket is connected, we only poll every 60s as a heartbeat.
+                # If not, we fall back to 2s polling.
+                poll_interval = 60.0 if self.ws_connected else 2.0
+                if time.time() - self.last_auto_refresh_time > poll_interval:
                     if not self.current_task_thread or not self.current_task_thread.is_alive():
                         self._start_background_task("load_data", self._fetch_states_background)
                         self.last_auto_refresh_time = time.time()
@@ -2209,6 +2315,8 @@ class HASDL2App:
             self.cleanup()
 
     def cleanup(self):
+        if self.ws:
+            self.ws.close()
         if self.ui:
             self.ui.cleanup()
         if self.renderer:
@@ -2227,6 +2335,15 @@ class HASDL2App:
         sdlimage.IMG_Quit()
         sdl2.SDL_Quit()
 
+    def _restart_websocket(self):
+        """Manually closes and restarts the WebSocket connection."""
+        if self.ws:
+            self.ws.close()
+        self.ws_connected = False
+        self.set_message("WebSocket restart initiated...")
+        self.last_ws_retry = time.time()
+        self._start_websocket()
+
     def _process_task_result(self, task_result):
         """Handles the result of a completed background task."""
         if task_result["status"] == "success":
@@ -2235,6 +2352,13 @@ class HASDL2App:
                 self.states = res["states"]
                 self.active_url = res["url"]
                 self.url_type = res["url_type"]
+                self.load_entities()
+                self.last_sync_time = time.strftime("%H:%M:%S")
+                self._update_selection_context()
+            elif task_result["type"] == "ws_update":
+                # Partial update from WebSocket event
+                update_data = task_result["result"]
+                self.states.update(update_data)
                 self.load_entities()
                 self.last_sync_time = time.strftime("%H:%M:%S")
                 self._update_selection_context()
@@ -2385,6 +2509,35 @@ class HASDL2App:
         y += 35
         self.ui.draw_text("A native Home Assistant client", x, y, "white", small=True)
         self.ui.draw_text("built for retro handhelds.", x, y + 15, "white", small=True)
+
+    def _render_websocket_view(self, x, y):
+        """Renders the WebSocket status and control view."""
+        self.ui.draw_text("WebSocket Service:", x, y, "cyan")
+        y += 40
+        
+        status_text = "CONNECTED" if self.ws_connected else "DISCONNECTED"
+        status_color = "green" if self.ws_connected else "red"
+        
+        self.ui.draw_text("Status:", x, y, "gray", small=True)
+        self.ui.draw_text(status_text, x + 80, y, status_color, small=True)
+        y += 30
+        
+        # Action button for manual restart
+        highlight_w = self.col2_w - self.margin
+        is_selected = (self.settings_index == 0)
+        
+        if is_selected:
+            self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y - 1), highlight_w, 28, color="cyan")
+            self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y - 1), highlight_w, 28, "cyan")
+            self.ui.draw_pointer(int(self.col2_x + (self.margin - 10) // 2 - 5 + self.pulse_x), y + 7, color="cyan", alpha=self.pulse_alpha)
+            
+        text_color = "white" if is_selected else "cyan"
+        self.ui.draw_text("Restart Connection", x + 30, y + 2, text_color, small=True)
+        self.ui.draw_text("Force a manual reconnect attempt.", x, y + 40, "gray", small=True)
+
+        # Connection stability hint
+        self.ui.draw_text("Note: Use IP address instead of", x, y + 75, "white", small=True)
+        self.ui.draw_text("hostnames for better stability.", x, y + 90, "white", small=True)
 
     def _render_connection_view(self, x, y):
         """Renders the current server connection details."""

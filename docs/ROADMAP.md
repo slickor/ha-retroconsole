@@ -108,7 +108,7 @@ Goal: Stable operation on real devices.
 - [ ] Implement a dynamic theme engine (switch colors and fonts via Settings UI).
 - [ ] Add specialized UI components for Climate (target temperature wheel) and Media (volume sliders).
 - [ ] Support for Home Assistant "Areas" to group devices by room.
-- [ ] Transition from REST polling to WebSocket API for instant, event-driven state updates.
+- [x] Transition from REST polling to WebSocket API for instant, event-driven state updates.
 - [ ] Implement a multi-language framework (i18n) for community translations.
 - [ ] Optimize memory footprint for low-end devices (e.g., original R36S).
 - [ ] Enhance synchronization and conflict resolution for multi-device setups.

@@ -27,7 +27,11 @@ fi
 
 echo "Installing Python dependencies into local libs folder..."
 # We install directly into a local directory to avoid venv path issues
-if python3 -m pip install --target="./libs" -r requirements.txt; then
+if python3 -m pip install --target="./libs" --no-cache-dir --no-compile -r requirements.txt; then
+    echo "Cleaning up metadata and binaries..."
+    rm -rf ./libs/bin ./libs/Scripts ./libs/*.dist-info ./libs/*.egg-info
+    find . -type d -name "__pycache__" -exec rm -rf {} +
+    find . -type f \( -name "*.pyc" -o -name "*.pyo" -o -name "Thumbs.db" -o -name ".DS_Store" \) -delete
     echo "Setup complete!"
     touch .installed
 else

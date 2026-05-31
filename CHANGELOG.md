@@ -2,21 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.28.5] - 2026-05-31
+## [0.29.0] - 2026-05-31
 ### Added
 - **Camera:** Implemented automatic 5-second refresh for the camera overlay to provide a live-like feed.
+- **WebSocket:** Shortened automatic reconnection timer to 5 seconds for faster recovery.
+- **WebSocket:** Added a dedicated "WebSocket Service" settings menu with connection status and manual restart option.
+- **UI:** Added a new "Controls Overlay" accessible via the START button to display the button mapping.
+- **UI:** New checkbox-style connection icons in the footer for WebSocket and REST API status.
 ### Changed
+- **UI Redesign:** Major layout overhaul. The footer now displays full connection status (WebSocket, REST API, URL, Sync), while the System box focuses on device stats.
 - **UI Redesign:** The camera view is now a centered 75% overlay with a dimmed background instead of a full-screen switch, maintaining UI context.
 - **UI Layout:** Fine-tuned the left column by reducing the Categories box height and increasing the Settings box height for better visual balance.
+- **UI Layout:** Moved the IP address to the bottom of the System box to allow more space for the connection footer.
 - **Controls:** Updated Server Connection settings: **Confirm (A)** now manually switches to the selected URL/Server, while **Y** is used to enter the URL editor.
 - **Documentation:** Standardized project terminology to "PortMaster compatible" in README.
 - **Localization:** Completed full transition of all internal code comments and remaining UI strings to English.
 ### Fixed
+- **UI:** Improved footer icon alignment and scaling (12px icons).
+- **UI:** Added a connectivity hint in WebSocket settings suggesting IP usage over hostnames.
 - **UI:** Resolved a visual "ghost line" glitch in the Settings box.
 - **UI:** Fixed indentation and wrapping errors in the Error Overlay.
 - **Camera:** Improved snapshot activation logic to ensure the overlay opens immediately when a cached image is available.
 - **Deployment:** Fixed a bug in the PowerShell push script where the launcher was not correctly renamed for TrimUI devices.
 - **Deployment:** Ensured the `docs/img` folder is included in the SD push script for correct metadata display.
+- **Deployment:** Optimized build size by stripping Windows/macOS junk files, metadata, and Python cache from the release package and installer.
 
 ## [0.28.2] - 2026-05-31
 ### Changed
