@@ -150,6 +150,8 @@ class HASDL2App:
         self.active_url = self.config.get("base_url", "")
         self.url_type = "primary"
         self.states = {}
+        self.camera_cache = {} # Cache for camera textures: {entity_id: texture}
+        self.camera_task_thread = None
         self.favorites = self.config.get("favorites", [])
         self.nav_index = 0 # Index for the left navigation column
         self.active_list = "domains" # Active column: "domains" or "entities"
@@ -222,6 +224,7 @@ class HASDL2App:
         self.last_sync_time = "Never" # Tracking for the sync indicator
         self.flash_colors = ["yellow", "blue", "white", "green", "red", "magenta"]
         self.camera_tex = None
+        self.last_camera_refresh_time = 0 # For automatic camera overlay refresh
         self.last_auto_refresh_time = time.time() # For periodic background refresh
         self.last_camera_eid = None
         self.btn_y_flash_time = 0
@@ -441,14 +444,15 @@ class HASDL2App:
         is_on = state == "on"
 
         # 1. Camera Snapshot
-        if dom == "camera" and self.camera_tex:
+        camera_tex = self.camera_cache.get(eid)
+        if dom == "camera" and camera_tex:
             tw, th = ctypes.c_int(), ctypes.c_int()
-            sdl2.SDL_QueryTexture(self.camera_tex, None, None, ctypes.byref(tw), ctypes.byref(th))
+            sdl2.SDL_QueryTexture(camera_tex, None, None, ctypes.byref(tw), ctypes.byref(th))
             if tw.value > 0 and th.value > 0:
                 scale = min(float(width) / tw.value, float(height) / th.value)
                 rw, rh = int(tw.value * scale), int(th.value * scale)
                 dst = sdl2.SDL_Rect(int(x + (width - rw) // 2), int(y + (height - rh) // 2), rw, rh)
-                sdl2.SDL_RenderCopy(self.renderer, self.camera_tex, None, dst)
+                sdl2.SDL_RenderCopy(self.renderer, camera_tex, None, dst)
             return
 
         # 2. Domain Icons (Status-colored)
@@ -681,11 +685,10 @@ class HASDL2App:
         """Starts a function in a background thread and puts its result/error into the task_queue."""
         if self.current_task_thread and self.current_task_thread.is_alive():
             # A task is already running, ignore new task or handle as needed
-            print(f"Warning: A background task ({self.pending_task_type}) is already running. Ignoring new task ({task_type}).")
+            print(f"Warning: A background task is already running. Ignoring new task ({task_type}).")
             return
 
-        self.pending_task_type = task_type
-        self.current_task_thread = threading.Thread(target=self._run_task_wrapper, args=(target_func, args, kwargs))
+        self.current_task_thread = threading.Thread(target=self._run_task_wrapper, args=(task_type, target_func, args, kwargs))
         self.current_task_thread.daemon = True  # Allow main program to exit even if thread is running
         self.current_task_thread.start()
 
@@ -713,13 +716,13 @@ class HASDL2App:
             self.active_url, domain, service, entity_id, previous_state, None
         )
 
-    def _run_task_wrapper(self, target_func, args, kwargs):
+    def _run_task_wrapper(self, task_type, target_func, args, kwargs):
         """Wrapper to execute target_func and put result/error into the queue."""
         try:
             result = target_func(*args, **kwargs)
-            self.task_queue.put({"status": "success", "result": result, "type": self.pending_task_type})
+            self.task_queue.put({"status": "success", "result": result, "type": task_type})
         except BaseException as e:
-            self.task_queue.put({"status": "error", "error": str(e), "type": self.pending_task_type})
+            self.task_queue.put({"status": "error", "error": str(e), "type": task_type})
 
     def _find_icon(self, icon_dir, name):
         png_path = os.path.join(icon_dir, f"{name}.png")
@@ -738,6 +741,19 @@ class HASDL2App:
         )
         return {"states": states, "url": url, "url_type": utype}
 
+    def _start_camera_task(self, eid):
+        """Starts a dedicated camera snapshot task."""
+        if self.camera_task_thread and self.camera_task_thread.is_alive():
+            return # Already fetching a camera
+            
+        self.pending_camera_eid = eid
+        self.camera_task_thread = threading.Thread(
+            target=self._run_task_wrapper, 
+            args=("fetch_camera", self._fetch_camera_snapshot_background, (eid,), {})
+        )
+        self.camera_task_thread.daemon = True
+        self.camera_task_thread.start()
+
     def _fetch_camera_snapshot_background(self, entity_id):
         """Fetches camera snapshot in a background thread."""
         return fetch_camera_snapshot(
@@ -745,7 +761,7 @@ class HASDL2App:
             self.config["token"],
             entity_id,
             timeout=5.0
-        )
+        ), entity_id
 
     def _execute_service_and_refresh_background(self, base_url, domain, service, entity_id, previous_state, favorite):
         """Executes a service call and refreshes states in a background thread."""
@@ -978,8 +994,9 @@ class HASDL2App:
             if btn in [sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP, sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN, 
                        sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT, sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT]:
                 self.mode = "main"
+                return
 
-            if btn == self.controls["cancel"]:
+            if btn == self.controls["cancel"] or btn == self.controls["confirm"]:
                 self._go_back()
             return
 
@@ -1296,7 +1313,7 @@ class HASDL2App:
 
         if self.active_list == "entities" and self.settings_active:
             if self.settings_view == "menu":
-                self.settings_index = min(4, self.settings_index + 1) # limit for 5 menu items
+                self.settings_index = min(6, self.settings_index + 1) # limit for 7 menu items
             elif self.settings_view == "connection":
                 self.settings_index = min(1, self.settings_index + 1) # 0: Primary, 1: Alternative
             elif self.settings_view == "edit_url":
@@ -1376,37 +1393,52 @@ class HASDL2App:
         return filtered_attrs
 
     def _handle_confirm(self):
+        if self.mode == "camera_fullscreen":
+            self.mode = "main"
+            return
         if self.active_list == "details":
             return
         elif self.settings_active and self.active_list == "entities":
             if self.settings_view == "menu":
-                if self.settings_index == 0: # "Visible Categories"
-                    self.settings_view = "categories"
-                    self.settings_index = 0
-                    self.settings_scroll_row = 0
-                elif self.settings_index == 1:
-                    self.settings_view = "brightness"
-                    self.current_brightness = self._get_brightness()
-                elif self.settings_index == 2: # "Flash Color"
-                    self.settings_view = "flash_color"
-                    self.settings_index = 0
-                    self.settings_scroll_row = 0
-                elif self.settings_index == 3: # "WiFi Debug"
-                    self.settings_view = "wifidebug"
-                    self.settings_index = 0
-                    self.settings_scroll_row = 0
-                elif self.settings_index == 4: # "Connection Info"
+                if self.settings_index == 0: # "Server Connection"
                     self.settings_view = "connection"
                     self.settings_index = 0
                     self.settings_scroll_row = 0
+                elif self.settings_index == 1: # "Visible Categories"
+                    self.settings_view = "categories"
+                    self.settings_index = 0
+                    self.settings_scroll_row = 0
+                elif self.settings_index == 2: # "Display Brightness"
+                    self.settings_view = "brightness"
+                    self.current_brightness = self._get_brightness()
+                elif self.settings_index == 3: # "Flash Color"
+                    self.settings_view = "flash_color"
+                    self.settings_index = 0
+                    self.settings_scroll_row = 0
+                elif self.settings_index == 4: # "WiFi Debug"
+                    self.settings_view = "wifidebug"
+                    self.settings_index = 0
+                    self.settings_scroll_row = 0
+                elif self.settings_index == 5: # "System Details"
+                    self.settings_view = "system_details"
+                    self.settings_index = 0
+                    self.settings_scroll_row = 0
+                elif self.settings_index == 6: # "About"
+                    self.settings_view = "about"
+                    self.settings_index = 0
+                    self.settings_scroll_row = 0
             elif self.settings_view == "connection":
-                # Enter Edit Mode
-                self.edit_target_key = "base_url" if self.settings_index == 0 else "alternative_url"
-                self.edit_buffer = self.config.get(self.edit_target_key, "http://")
-                if not self.edit_buffer: self.edit_buffer = "http://"
-                self.kb_row = 0
-                self.kb_col = 0
-                self.settings_view = "edit_url"
+                # Manual switch to selected server
+                target_type = "primary" if self.settings_index == 0 else "alternative"
+                target_url = self.config.get("base_url" if self.settings_index == 0 else "alternative_url", "")
+                
+                if target_url:
+                    self.active_url = target_url
+                    self.url_type = target_type
+                    self.set_message(f"Manual switch to {target_type} URL")
+                    self.load_data() # Refresh with the selected URL
+                else:
+                    self.set_message("URL not configured", color="red")
             elif self.settings_view == "edit_url":
                 key = self.kb_layout[self.kb_row][self.kb_col]
                 if key == "Save":
@@ -1434,8 +1466,12 @@ class HASDL2App:
             if entities and self.entity_index < len(entities):
                 entity = entities[self.entity_index]
                 if entity_domain(entity["entity_id"]) == "camera":
-                    if self.camera_tex:
+                    # Check if the image is already in the cache to show the overlay
+                    cached_tex = self.camera_cache.get(entity["entity_id"])
+                    if cached_tex:
+                        self.camera_tex = cached_tex
                         self.mode = "camera_fullscreen"
+                        self.last_camera_refresh_time = time.time() # Reset refresh timer for immediate refresh
                     else:
                         self.set_message("Camera snapshot loading...", color="yellow")
                     return
@@ -1449,6 +1485,15 @@ class HASDL2App:
             
         # Handle settings category toggle if settings panel is active
         if self.active_list == "entities" and self.settings_active:
+            if self.settings_view == "connection":
+                # Enter Edit Mode (moved from Confirm to Y)
+                self.edit_target_key = "base_url" if self.settings_index == 0 else "alternative_url"
+                self.edit_buffer = self.config.get(self.edit_target_key, "http://")
+                if not self.edit_buffer: self.edit_buffer = "http://"
+                self.kb_row = 0
+                self.kb_col = 0
+                self.settings_view = "edit_url"
+                return
             self._handle_settings_toggle()
             return
 
@@ -1508,9 +1553,6 @@ class HASDL2App:
         
         # Clear camera preview if not focused on an entity
         if self.active_list != "entities" or not self.domain_list or self.settings_active:
-            if self.camera_tex:
-                sdl2.SDL_DestroyTexture(self.camera_tex)
-                self.camera_tex = None
             self.last_camera_eid = None
             return
 
@@ -1523,19 +1565,13 @@ class HASDL2App:
         eid = entity.get("entity_id", "")
         
         if entity_domain(eid) == "camera":
-            # Trigger fetch only if the selected camera has changed
+            # Start fetch if not in cache or if it's a new camera
             if eid != self.last_camera_eid:
                 self.last_camera_eid = eid
-                if self.camera_tex:
-                    sdl2.SDL_DestroyTexture(self.camera_tex)
-                    self.camera_tex = None
-                self._start_background_task("fetch_camera", self._fetch_camera_snapshot_background, eid)
+                if eid not in self.camera_cache:
+                    self._start_camera_task(eid)
         else:
-            # Not a camera, cleanup any existing preview texture
             self.last_camera_eid = None
-            if self.camera_tex:
-                sdl2.SDL_DestroyTexture(self.camera_tex)
-                self.camera_tex = None
 
     def _render_button_icon(self, btn_val, x, y, size=15, color="white"):
         """Renders a procedural button icon (white circle/box with white text)."""
@@ -1589,23 +1625,19 @@ class HASDL2App:
     def render(self):
         self.ui.clear_screen()
 
-        # Calculate global pulse values for the selection pointer
-        self.pulse_x = int(math.sin(time.time() * 10) * 3)
-        self.pulse_alpha = int(170 + 85 * math.sin(time.time() * 10))
-        # Calculate global pulse values for the selection pointer (slower breathing, 1px bob)
         self.pulse_x = int(math.sin(time.time() * 5) * 1)
         self.pulse_alpha = int(170 + 85 * math.sin(time.time() * 5))
-        
-        if self.mode == "camera_fullscreen":
-            self.render_camera_fullscreen()
+
+        # Draw global background effects first (outside the 640x480 box)
+        self._draw_global_scanlines()
+
+        if self.mode == "settings":
+            self.render_settings()
         else:
-            # Draw global background effects first (outside the 640x480 box)
-            self._draw_global_scanlines()
-            
-            if self.mode == "main":
-                self.render_layout()
-            elif self.mode == "settings":
-                self.render_settings()
+            self.render_layout()
+
+        if self.mode == "camera_fullscreen":
+            self._render_camera_overlay()
 
         # Render exit confirmation overlay on top of everything else
         self._render_exit_overlay()
@@ -1658,7 +1690,7 @@ class HASDL2App:
             return
 
         overlay_w = 480
-        overlay_h = 160
+        overlay_h = 200
         overlay_x = (self.width - overlay_w) // 2
         overlay_y = (self.height - overlay_h) // 2
 
@@ -1674,37 +1706,90 @@ class HASDL2App:
         self.ui.draw_text(title, overlay_x + (overlay_w - tw) // 2, overlay_y + 20, "red", large=True)
         
         # Show truncated error message
+        # Multi-line error message wrapping
         msg = self.api_error_message
         display_msg = self.ui.truncate_text(msg, overlay_w - 40, small=True)
         tw2, _ = self.ui.get_text_size(display_msg, small=True)
         self.ui.draw_text(display_msg, overlay_x + (overlay_w - tw2) // 2, overlay_y + 75, "white", small=True)
+        words = msg.split()
+        lines = []
+        current_line = ""
+        for word in words:
+            test_line = (current_line + " " + word).strip()
+            if self.ui.get_text_size(test_line, small=True)[0] < overlay_w - 40:
+                current_line = test_line
+            else:
+                lines.append(current_line)
+                current_line = word
+        if current_line: lines.append(current_line)
+
+        # Vertical centering of the text block
+        lines = lines[:3]
+        line_h = 18
+        y_text = overlay_y + 85 - (len(lines) * line_h) // 2
+
+        for line in lines:
+            tw2, _ = self.ui.get_text_size(line, small=True)
+            self.ui.draw_text(line, overlay_x + (overlay_w - tw2) // 2, y_text, "white", small=True)
+            y_text += line_h
+
+        # Show the currently used URL for context
+        url_info = f"URL: {self.active_url}"
+        display_url = self.ui.truncate_text(url_info, overlay_w - 40, small=True)
+        tw_url, _ = self.ui.get_text_size(display_url, small=True)
+        self.ui.draw_text(display_url, overlay_x + (overlay_w - tw_url) // 2, y_text + 5, "yellow", small=True)
         
         hint = "Press any button to dismiss and retry."
         tw3, th3 = self.ui.get_text_size(hint, small=True)
         self.ui.draw_text(hint, overlay_x + (overlay_w - tw3) // 2, overlay_y + overlay_h - th3 - 15, "gray", small=True)
 
-    def render_camera_fullscreen(self):
-        """Renders the selected camera snapshot in fullscreen."""
+    def _render_camera_overlay(self):
+        """Renders the selected camera snapshot in a centered overlay (75% screen size)."""
         if not self.camera_tex:
             self.mode = "main"
             return
 
-        # Query texture dimensions to calculate aspect ratio
+        # Automatic refresh logic
+        if self.last_camera_eid and (time.time() - self.last_camera_refresh_time > 5.0): # Refresh every 5 seconds
+            self._start_camera_task(self.last_camera_eid)
+            self.last_camera_refresh_time = time.time()
+
+        overlay_w = int(self.width * 0.75)
+        overlay_h = int(self.height * 0.75)
+        overlay_x = (self.width - overlay_w) // 2
+        overlay_y = (self.height - overlay_h) // 2
+
+        # 1. Dim the background
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
+        sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 0, 0, 180)
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 0, self.width, self.height))
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
+
+        # 2. Draw Retro Box
+        self.ui.draw_retro_box(overlay_x, overlay_y, overlay_w, overlay_h, "CAMERA FEED", color="cyan")
+
+        # 3. Fit camera image inside the box (considering box margins)
+        inner_margin = 15
+        img_max_w = overlay_w - (inner_margin * 2)
+        img_max_h = overlay_h - (inner_margin * 2) - 30 # Leave room for header/footer
+
         tw, th = ctypes.c_int(), ctypes.c_int()
         sdl2.SDL_QueryTexture(self.camera_tex, None, None, ctypes.byref(tw), ctypes.byref(th))
         tex_w, tex_h = float(tw.value), float(th.value)
         
-        if tex_w <= 0 or tex_h <= 0:
-            return
+        if tex_w > 0 and tex_h > 0:
+            scale = min(img_max_w / tex_w, img_max_h / tex_h)
+            render_w, render_h = int(tex_w * scale), int(tex_h * scale)
+            dst_x = overlay_x + (overlay_w - render_w) // 2
+            dst_y = overlay_y + (overlay_h - render_h) // 2 + 5
+            
+            dst_rect = sdl2.SDL_Rect(dst_x, dst_y, render_w, render_h)
+            sdl2.SDL_RenderCopy(self.renderer, self.camera_tex, None, dst_rect)
 
-        # Calculate best fit for logical resolution while maintaining aspect ratio
-        scale = min(float(self.width) / tex_w, float(self.height) / tex_h)
-        render_w, render_h = int(tex_w * scale), int(tex_h * scale)
-        dst_x = int((self.width - render_w) / 2)
-        dst_y = int((self.height - render_h) / 2)
-
-        dst_rect = sdl2.SDL_Rect(dst_x, dst_y, render_w, render_h)
-        sdl2.SDL_RenderCopy(self.renderer, self.camera_tex, None, dst_rect)
+        # 4. Hint
+        hint = "Press Back to close | Refreshing every 5s"
+        htw, hth = self.ui.get_text_size(hint, small=True)
+        self.ui.draw_text(hint, overlay_x + (overlay_w - htw) // 2, overlay_y + overlay_h - hth - 10, "gray", small=True)
 
     def render_layout(self):
         """Divides the screen into Header, Main Area (3 columns), Console, and Controls Bar with optimized spacing."""
@@ -1736,11 +1821,12 @@ class HASDL2App:
 
         # 2. Left column (152 px): Categories + Settings
         cat_box_h = self.main_area_h - 40 - self.v_gap
+        cat_box_h = self.main_area_h - 45 - self.v_gap
         self.ui.draw_retro_box(self.col1_x, self.main_y, self.col1_w, cat_box_h, "CATEGORIES")
         self.draw_menu(self.col1_x + self.margin, self.main_y + 13, cat_box_h)
         
         set_box_y = self.main_y + cat_box_h + self.v_gap
-        self.ui.draw_retro_box(self.col1_x, set_box_y, self.col1_w, 40, "SETTINGS")
+        self.ui.draw_retro_box(self.col1_x, set_box_y, self.col1_w, 45, "SETTINGS")
         self._render_settings_entry(self.col1_x + self.margin, set_box_y + 13)
 
         # 3. Middle column (228 px): Entities
@@ -1807,11 +1893,13 @@ class HASDL2App:
 
         if self.settings_view == "menu":
             menu_items = [
+                ("Server Connection", "wifi_0"),
                 ("Visible Categories", "categories"), 
                 ("Display Brightness", "brightness"),
                 ("Flash Color", "favorites"),
                 ("WiFi Debug", "wifi_err"),
-                ("Server Connection", "wifi_0")
+                ("System Details", "sensor"),
+                ("About", "ha_logo")
             ]
             for i, (label, icon_key) in enumerate(menu_items):
                 is_selected = (self.settings_active and self.active_list == "entities" and self.settings_index == i) # Check if this item is selected
@@ -1825,6 +1913,12 @@ class HASDL2App:
                     # Center icon vertically within the item_h space
                     icon_size = 24
                     icon_draw_y = int(current_item_y + (item_h - icon_size) // 2)
+                    y_offset = 0
+                    if icon_key == "ha_logo":
+                        icon_size = 19
+                        y_offset = -2
+
+                    icon_draw_y = int(current_item_y + (item_h - icon_size) // 2 + y_offset)
                     dst = sdl2.SDL_Rect(int(x), icon_draw_y, icon_size, icon_size)
                     sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
 
@@ -1938,6 +2032,10 @@ class HASDL2App:
             self._render_edit_url_view(x, y)
         elif self.settings_view == "connection":
             self._render_connection_view(x, y)
+        elif self.settings_view == "system_details":
+            self._render_system_details_view(x, y, box_h)
+        elif self.settings_view == "about":
+            self._render_about_view(x, y)
 
     def draw_menu(self, x, y_start, box_h):
         """Draws the navigation menu with pointer and highlight."""
@@ -2098,7 +2196,6 @@ class HASDL2App:
                 try:
                     task_result = self.task_queue.get_nowait()
                     self.current_task_thread = None  # Task finished
-                    self.pending_task_type = None
                     self._process_task_result(task_result)
                 except queue.Empty:
                     pass  # No task results yet
@@ -2124,6 +2221,8 @@ class HASDL2App:
             sdl2.SDL_DestroyRenderer(self.renderer)
         if self.camera_tex:
             sdl2.SDL_DestroyTexture(self.camera_tex)
+        for tex in self.camera_cache.values():
+            sdl2.SDL_DestroyTexture(tex)
         for tex in self.domain_icons.values():
             sdl2.SDL_DestroyTexture(tex)
         for controller in self.game_controllers:
@@ -2146,15 +2245,24 @@ class HASDL2App:
                 self.last_sync_time = time.strftime("%H:%M:%S")
                 self._update_selection_context()
             elif task_result["type"] == "fetch_camera":
-                img_data = task_result["result"]
+                img_data, eid = task_result["result"]
                 if img_data:
                     # Convert raw bytes to SDL texture
                     rw = sdl2.SDL_RWFromMem(img_data, len(img_data))
                     # IMG_Load_RW with 1 as second param closes the RW automatically
                     surface = sdlimage.IMG_Load_RW(rw, 1)
                     if surface:
-                        self.camera_tex = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
+                        # Clean up old texture for this EID if it exists
+                        if eid in self.camera_cache:
+                            sdl2.SDL_DestroyTexture(self.camera_cache[eid]) # Destroy old texture in cache
+
+                        tex = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
+                        self.camera_cache[eid] = tex
                         sdl2.SDL_FreeSurface(surface)
+                        # If this is the currently selected camera and we are in fullscreen mode, update the displayed texture.
+                        if eid == self.last_camera_eid and self.mode == "camera_fullscreen":
+                            self.camera_tex = tex
+                self.camera_task_thread = None # Reset camera thread tracker
             elif task_result["type"] == "execute_action":
                 new_states = task_result["result"]["new_states"]
                 favorite = task_result["result"]["favorite"]
@@ -2172,7 +2280,7 @@ class HASDL2App:
             self.set_message(f"Error: {err_msg}")
             if task_result["type"] == "load_data":
                 self.api_error_active = True
-                self.api_error_message = f"HA API unreachable: {err_msg}"
+                self.api_error_message = f"HA API unreachable. Error details: {err_msg}"
 
     def _collect_wifi_debug_info(self):
         """Gathers detailed WiFi information for debugging."""
@@ -2230,31 +2338,89 @@ class HASDL2App:
             line_y = y_start + (i - start) * item_h
             self.ui.draw_text(debug_info[i], x, line_y, "white", small=True)
 
+    def _get_disk_usage(self):
+        """Returns string representing disk usage of the root partition."""
+        try:
+            st = os.statvfs('/')
+            total = (st.f_blocks * st.f_frsize) // (1024 * 1024)
+            free = (st.f_bavail * st.f_frsize) // (1024 * 1024)
+            used = total - free
+            return f"{used}MB / {total}MB"
+        except:
+            return "N/A"
+
+    def _render_system_details_view(self, x, y, box_h):
+        """Renders detailed system statistics."""
+        self.ui.draw_text("System Details:", x, y, "cyan")
+        y += 35
+        
+        cpu_mhz, free_ram, wifi = self._get_system_stats()
+        
+        # Try to get CPU temperature
+        temp = "N/A"
+        temp_path = "/sys/class/thermal/thermal_zone0/temp"
+        if os.path.exists(temp_path):
+            try:
+                with open(temp_path, "r") as f:
+                    temp = f"{int(f.read().strip()) / 1000:.1f} C"
+            except: pass
+
+        details = [
+            ("CPU Speed:", cpu_mhz),
+            ("CPU Temp:", temp),
+            ("Free RAM:", free_ram),
+            ("WiFi Signal:", wifi),
+            ("Storage (/):", self._get_disk_usage()),
+            ("Local IP:", self.ip_address)
+        ]
+        
+        for label, val in details:
+            self.ui.draw_text(label, x, y, "gray", small=True)
+            self.ui.draw_text(val, x + 90, y, "white", small=True)
+            y += 20
+
+    def _render_about_view(self, x, y):
+        """Renders the About screen."""
+        self.ui.draw_text("About", x, y, "cyan")
+        y += 40
+        self.ui.draw_text("HA RetroConsole", x, y, "white")
+        y += 20
+        self.ui.draw_text(f"Version: {VERSION}", x, y, "gray", small=True)
+        y += 20
+        self.ui.draw_text("Author: slickor", x, y, "gray", small=True)
+        y += 35
+        self.ui.draw_text("A native Home Assistant client", x, y, "white", small=True)
+        self.ui.draw_text("built for retro handhelds.", x, y + 15, "white", small=True)
+
     def _render_connection_view(self, x, y):
         """Renders the current server connection details."""
         self.ui.draw_text("Server Connection:", x, y, "cyan")
         y += 35
         
         urls = [
-            ("Primary URL", self.config.get("base_url", "")),
-            ("Alternative URL", self.config.get("alternative_url", ""))
+            ("Primary URL", self.config.get("base_url", ""), "primary"),
+            ("Alternative URL", self.config.get("alternative_url", ""), "alternative")
         ]
 
-        for i, (label, val) in enumerate(urls):
+        for i, (label, val, utype) in enumerate(urls):
             is_sel = (self.settings_index == i)
+            is_active = (self.url_type == utype)
             highlight_w = self.col2_w - self.margin
             
             if is_sel:
                 self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y - 1), highlight_w, 45, color="cyan")
                 self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y - 1), highlight_w, 45, "cyan")
 
-            self.ui.draw_text(label + ":", x, y, "cyan" if not is_sel else "white", small=True)
+            # Clearly mark the active connection
+            label_text = f"{label}{' [ACTIVE]' if is_active else ''}:"
+            label_color = "yellow" if is_active else ("cyan" if not is_sel else "white")
+            self.ui.draw_text(label_text, x, y, label_color, small=True)
             y += 15
             display_val = self.ui.truncate_text(val if val else "[Not Set]", self.col2_w - 30, small=True)
             self.ui.draw_text(display_val, x, y, "white" if val else "gray", small=True)
             y += 35
 
-        self.ui.draw_text("Press Confirm to Edit", x, y + 20, "gray", small=True)
+        self.ui.draw_text("Confirm: Select | Y: Edit", x, y + 20, "gray", small=True)
 
     def _render_edit_url_view(self, x, y):
         """Renders the character-by-character URL editor."""
