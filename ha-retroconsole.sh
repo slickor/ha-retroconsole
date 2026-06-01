@@ -24,10 +24,10 @@ exec > >(tee "$GAMEDIR/log.txt") 2>&1
 
 # Ensure uinput is writable for gamepads
 $ESUDO chmod 666 /dev/uinput
-
 # Check if libs exist, if not, run installer
 if [ ! -d "libs" ]; then
-    echo "First run detected, installing..."
+    echo "First run detected, installing..." # First run detected, installing...
+
     if ! bash ./install.sh; then
         echo "Installation failed. Please check your internet connection and try again."
         exit 1

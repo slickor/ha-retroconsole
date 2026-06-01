@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-
-VERSION = "0.29.2"
+ 
+VERSION = "0.30.0"
 
 
 SUPPORTED_ACTIONS = {
@@ -290,14 +290,18 @@ def call_service(
     service: str,
     entity_id: str,
     timeout: float,
+    data: Optional[Dict[str, Any]] = None,
 ) -> Any:
+    body = {"entity_id": entity_id}
+    if data:
+        body.update(data)
     return request_json(
         base_url,
         token,
         f"/api/services/{domain}/{service}",
         timeout,
         method="POST",
-        body={"entity_id": entity_id},
+        body=body,
     )
 
 

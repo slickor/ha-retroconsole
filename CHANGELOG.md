@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.30.0] - 2026-06-01
+### Added
+- **UI:** Implemented "Control Mode" for `media_player` and `climate` entities. Pressing Confirm (A/B) on these entities activates a dedicated control mode.
+- **UI:** Added a visual "Gauge" (half-circle progress bar) in the "CONTROLS" preview box for `media_player` volume and `climate` temperature.
+- **UI:** Visual indicators (`-` and `+` symbols) are displayed at the ends of the gauge for better guidance in Control Mode.
+- **UI:** The percentage/temperature value displayed on the gauge now animates smoothly, matching the visual progress bar.
+### Changed
+- **Controls:** In Control Mode, D-Pad Left/Down decreases values (volume/temperature), and D-Pad Right/Up increases them.
+- **UI:** The "Control Mode" highlight color has been changed from Magenta to Yellow for better visibility and consistency.
+- **UI:** The gauge bar is now thicker and vertically centered within the "CONTROLS" box.
+- **UI:** The "PREVIEW" box dynamically renames to "CONTROLS" when a `media_player` or `climate` entity is selected.
+- **Performance:** Increased the animation speed of the gauge to `0.30` for a more responsive feel.
+### Fixed
+- **Stability:** Resolved `AttributeError: 'HASDL2App' object has no attribute '_adjust_entity_value'` by correctly defining the method.
+- **Stability:** Fixed `IndentationError` in `_handle_confirm` and `NameError: name 'data' is not defined` in `_fetch_states_background`, ensuring proper execution and URL failover.
+- **UX:** Eliminated the "twitching" effect of the gauge bar by implementing `control_targets` to manage animated values independently of server state updates.
+
 ## [0.29.2] - 2026-05-31
 ### Changed
 - **UI Layout:** Adjusted the WiFi icon position in the footer (moved 10px left) for better visual balance.

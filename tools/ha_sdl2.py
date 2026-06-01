@@ -183,6 +183,9 @@ class HASDL2App:
         self.settings_view = "menu" # "menu", "categories", or "brightness"
         self.details_scroll_row = 0 # Scroll position for details box
         self.mode = "main" # "main", "favorites", or "settings"
+        self.anim_progress = {} # Tracks animated values for bars {entity_id: current_visual_value}
+        self.control_targets = {} # Persistent targets for manual control {entity_id: target_pct}
+        self.control_mode_active = False # True if interacting with an entity's values
         self.settings_selected_index = 0
         self.api_error_active = False # New: Controls visibility of the API error overlay
         self.api_error_message = ""   # New: Error message to display
@@ -318,6 +321,7 @@ class HASDL2App:
                     visible_attrs * item_h,
                     self.details_scroll_row, len(filtered_attrs), visible_attrs
                 )
+
         else:
             self.ui.draw_text("Select an entity to see details...", x, y, "gray", small=True)
 
@@ -420,10 +424,6 @@ class HASDL2App:
         hint_color = "yellow"
         self.ui.draw_text(hint, self.width - htw - self.h_gap, y + 6, hint_color, small=True)
 
-        # Draw a subtle top border for the bar
-        sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_GREY.r, COLOR_GREY.g, COLOR_GREY.b, 100)
-        sdl2.SDL_RenderDrawLine(self.renderer, 0, y, self.width, y)
-
     def _render_console_log(self, x, y):
         """Renders the last two entries of the log."""
         logs = self.log_entries[-4:]
@@ -461,7 +461,64 @@ class HASDL2App:
                 sdl2.SDL_RenderCopy(self.renderer, camera_tex, None, dst)
             return
 
-        # 2. Domain Icons (Status-colored)
+        # 2. Controls for Climate and Media Player (replacing icon)
+        if dom in ["media_player", "climate"]:
+            attrs = selected_entity.get("attributes", {})
+            
+            cx = int(x + width // 2)
+            radius = int(min(width // 2.4, height - 20))
+            cy = int(y + height // 2 + radius // 2) # Vertically centered within the box
+            
+            fill_pct = 0.0
+            label = ""
+            if dom == "media_player":
+                fill_pct = attrs.get("volume_level", 0.0)
+                label = f"VOL: {int(fill_pct * 100)}%"
+            elif dom == "climate":
+                temp = attrs.get("temperature") or attrs.get("current_temperature") or 21.0
+                fill_pct = max(0.0, min(1.0, (temp - 7) / (35 - 7)))
+                label = f"TEMP: {temp}°C"
+            
+            # Animation logic: use manual target if exists, otherwise follow HA state
+            target_pct = self.control_targets.get(eid, fill_pct)
+            
+            # If server state finally caught up (or nearly), clear the manual override
+            if eid in self.control_targets and abs(fill_pct - self.control_targets[eid]) < 0.005:
+                del self.control_targets[eid]
+
+            current_pct = self.anim_progress.get(eid, target_pct)
+            diff = target_pct - current_pct
+            if abs(diff) > 0.001:
+                current_pct += diff * 0.30 # Increased animation speed (from 0.15)
+            else:
+                current_pct = target_pct
+            self.anim_progress[eid] = current_pct
+
+            # Draw Gauge Background (Dark Gray Arc)
+            sdl2.SDL_SetRenderDrawColor(self.renderer, 60, 60, 60, 255)
+            for angle in range(180, -1, -1):
+                rad = math.radians(angle)
+                # Draw double thick baseline (12px)
+                for r_off in range(-10, 2):
+                    sdl2.SDL_RenderDrawPoint(self.renderer, int(cx + (radius + r_off) * math.cos(rad)), int(cy - (radius + r_off) * math.sin(rad)))
+
+            # Draw Progress Arc (Cyan or Magenta)
+            bar_color = self.ui.colors["magenta"] if self.control_mode_active else self.ui.colors["cyan"]
+            sdl2.SDL_SetRenderDrawColor(self.renderer, bar_color.r, bar_color.g, bar_color.b, 255)
+            
+            fill_angle = int(180 * current_pct)
+            for angle in range(180, 180 - fill_angle, -1):
+                rad = math.radians(angle)
+                for r_off in range(-15, 5): # Extra thick progress arc (20px)
+                    sdl2.SDL_RenderDrawPoint(self.renderer, int(cx + (radius + r_off) * math.cos(rad)), int(cy - (radius + r_off) * math.sin(rad)))
+
+            # Draw Label in center of gauge
+            tw, th = self.ui.get_text_size(label, small=True)
+            self.ui.draw_text(label, cx - (tw // 2), cy - (radius // 2) - (th // 2), bar_color, small=True)
+            
+            return
+
+        # 3. Domain Icons (Status-colored)
         icon_variant = f"{dom}_on" if is_on else f"{dom}_off"
         icon_tex = self.domain_icons.get(icon_variant) or self.domain_icons.get(dom)
         if icon_tex:
@@ -704,7 +761,7 @@ class HASDL2App:
         self.current_task_thread.daemon = True  # Allow main program to exit even if thread is running
         self.current_task_thread.start()
 
-    def _execute_entity_action(self):
+    def _execute_entity_action(self, service_data=None):
         """Executes the default action for the selected entity in the list."""
         if not self.domain_list or self.nav_index >= len(self.domain_list):
             return
@@ -725,8 +782,38 @@ class HASDL2App:
         self._start_background_task(
             "execute_action",
             self._execute_service_and_refresh_background,
-            self.active_url, domain, service, entity_id, previous_state, None
+            self.active_url, domain, service, entity_id, previous_state, None, service_data
         )
+
+    def _adjust_entity_value(self, direction):
+        """Incremental adjustment of values (Temp/Vol) based on direction."""
+        entity = self._get_selected_entity()
+        if not entity: return
+        
+        eid = entity.get("entity_id", "")
+        dom = entity_domain(eid)
+        attrs = entity.get("attributes", {})
+        
+        if dom == "climate":
+            service = "set_temperature"
+            current_temp = attrs.get("temperature") or attrs.get("current_temperature") or 21.0
+            new_val = current_temp + (direction * 0.5)
+            data = {"temperature": new_val}
+            self.control_targets[eid] = max(0.0, min(1.0, (new_val - 7) / (35 - 7)))
+            msg = f"Setting temp: {new_val}C"
+        elif dom == "media_player":
+            service = "volume_set"
+            current_vol = attrs.get("volume_level", 0.5)
+            new_val = max(0.0, min(1.0, current_vol + (direction * 0.05)))
+            data = {"volume_level": new_val}
+            self.control_targets[eid] = new_val # Set target for smooth animation
+            msg = f"Setting volume: {int(new_val * 100)}%"
+        else: return
+
+        self.set_message(msg)
+        self.fav_flash_time = time.time()
+        self._start_background_task("execute_action", self._execute_service_and_refresh_background, 
+                                   self.active_url, dom, service, eid, str(entity.get("state", "")), None, data)
 
     def _run_task_wrapper(self, task_type, target_func, args, kwargs):
         """Wrapper to execute target_func and put result/error into the queue."""
@@ -775,7 +862,7 @@ class HASDL2App:
             timeout=5.0
         ), entity_id
 
-    def _execute_service_and_refresh_background(self, base_url, domain, service, entity_id, previous_state, favorite):
+    def _execute_service_and_refresh_background(self, base_url, domain, service, entity_id, previous_state, favorite, data=None):
         """Executes a service call and refreshes states in a background thread."""
         call_service(
             base_url,
@@ -784,6 +871,7 @@ class HASDL2App:
             service,
             entity_id,
             timeout=10.0,
+            data=data
         )
         new_states = refresh_after_action(
             base_url,
@@ -999,6 +1087,15 @@ class HASDL2App:
         if self.mode == "camera_fullscreen" and key in [sdl2.SDLK_UP, sdl2.SDLK_DOWN, sdl2.SDLK_LEFT, sdl2.SDLK_RIGHT]:
             self.mode = "main"
 
+        # Handle Incremental Controls
+        if self.control_mode_active and self.active_list == "entities":
+            if key in {sdl2.SDLK_LEFT, sdl2.SDLK_DOWN}:
+                self._adjust_entity_value(-1)
+                return
+            if key in {sdl2.SDLK_RIGHT, sdl2.SDLK_UP}:
+                self._adjust_entity_value(1)
+                return
+
         # Global keys
         if key == sdl2.SDLK_r:
             self.load_data()
@@ -1058,6 +1155,17 @@ class HASDL2App:
                 self._go_back()
             return
 
+        # Handle Incremental Controls
+        if self.control_mode_active and self.active_list == "entities":
+            if btn in {sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT, sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN}:
+                self._adjust_entity_value(-1)
+                self.btn_flash_times[btn] = time.time()
+                return
+            if btn in {sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT, sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP}:
+                self._adjust_entity_value(1)
+                self.btn_flash_times[btn] = time.time()
+                return
+
         # Global buttons
         if btn == BTN_X:
             self.load_data()
@@ -1108,6 +1216,11 @@ class HASDL2App:
 
     def _go_back(self):
         """Smart back navigation logic for menus and sub-menus."""
+        if self.control_mode_active:
+            self.control_mode_active = False
+            self.set_message("Control mode deactivated.")
+            return
+
         if self.settings_view == "edit_url":
             self.settings_view = "connection"
             self.settings_index = 0
@@ -1406,6 +1519,8 @@ class HASDL2App:
         elif self.active_list == "settings":
             pass # Bottom of left column
         else:
+            if self.control_mode_active:
+                self.control_mode_active = False # Moving selection exits control mode
             current_domain = self.domain_list[self.nav_index]
             entities_count = len(self.entities_by_domain.get(current_domain, []))
             self.entity_index = min(entities_count - 1, self.entity_index + 1)
@@ -1536,17 +1651,26 @@ class HASDL2App:
             entities = self.entities_by_domain.get(current_domain, [])
             if entities and self.entity_index < len(entities):
                 entity = entities[self.entity_index]
-                if entity_domain(entity["entity_id"]) == "camera":
-                    # Check if the image is already in the cache to show the overlay
+                domain = entity_domain(entity["entity_id"])
+                    
+                if domain == "camera":
                     cached_tex = self.camera_cache.get(entity["entity_id"])
                     if cached_tex:
                         self.camera_tex = cached_tex
                         self.mode = "camera_fullscreen"
-                        self.last_camera_refresh_time = time.time() # Reset refresh timer for immediate refresh
+                        self.last_camera_refresh_time = time.time()
                     else:
                         self.set_message("Camera snapshot loading...", color="yellow")
                     return
-            self._execute_entity_action()
+
+                # Toggle Control Mode for supported domains instead of immediate action
+                if domain in ["climate", "media_player"]:
+                    self.control_mode_active = not self.control_mode_active
+                    status = "activated" if self.control_mode_active else "deactivated"
+                    self.set_message(f"Control mode {status} for {domain}")
+                    return
+
+                self._execute_entity_action()
         else:
             self._enter_entities()
     def _handle_reorder_toggle(self):
@@ -1954,7 +2078,14 @@ class HASDL2App:
         self._render_details_box(self.col3_x + self.margin, self.main_y + 13, self.col3_w - 2 * self.margin, details_h - 20)
         
         preview_y = self.main_y + details_h + self.v_gap
-        self.ui.draw_retro_box(self.col3_x, preview_y, self.col3_w, preview_h, "PREVIEW")
+        
+        preview_title = "PREVIEW"
+        sel_ent = self._get_selected_entity()
+        if sel_ent and not self.settings_active:
+            if entity_domain(sel_ent.get("entity_id", "")) in ["climate", "media_player"]:
+                preview_title = "CONTROLS"
+
+        self.ui.draw_retro_box(self.col3_x, preview_y, self.col3_w, preview_h, preview_title)
         self._render_preview_box(self.col3_x + self.margin, preview_y + 13, self.col3_w - 2 * self.margin, preview_h - 20)
 
         # 5. Bottom Row: Console (Left/Center) + System (Right)
@@ -2226,6 +2357,9 @@ class HASDL2App:
                 if self.reorder_mode:
                     # Red highlight for reorder mode
                     flash_color = "red"
+                elif self.control_mode_active:
+                    # Magenta highlight for active control mode
+                    flash_color = "magenta"
                 else:
                     # Visual feedback flash (0.3 seconds in configurable color)
                     is_flashing = (time.time() - self.fav_flash_time < 0.3)

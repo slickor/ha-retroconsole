@@ -105,12 +105,12 @@ Goal: Stable operation on real devices.
 - [x] Optimize UI layout for Categories and Settings boxes.
 
 ## Phase 7: Advanced UI & Ecosystem
+- [x] **Advanced Control Components (v0.30.0):**
+    - [x] Implement a "Control Mode" for entities: D-Pad Left/Right for 0.5° steps (Climate) or 5% volume (Media).
+    - [x] Add visual progress bars and value wheels to the Entity list.
 - [ ] **Dynamic Theme Engine:**
     - [ ] Define external `themes.json` structure for custom color palettes.
     - [ ] Implement runtime font switching (e.g., Pixel vs. Sans-Serif).
-- [ ] **Advanced Control Components:**
-    - [ ] Implement a "Control Mode" for entities: D-Pad Left/Right for 0.5° steps (Climate) or 5% volume (Media).
-    - [ ] Add visual progress bars and value wheels to the Entity list.
 - [ ] **Area & Floorplan Support:**
     - [ ] Fetch Area/Device mapping from HA API.
     - [ ] Option to group the Categories column by "Areas" instead of "Domains".

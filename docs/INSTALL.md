@@ -21,12 +21,12 @@ This guide helps you set up **Home Assistant - for retroconsoles** on your handh
 1. **Download** the latest release ZIP (`ha-retroconsole.zip`).
 2. **Access SD Card**: Connect your handheld's SD card to your computer.
 3. **Copy Files**:
-   - Extract the `ha-retroconsole` folder into the `/roms/ports/` directory on your SD card.
-   - Move the launcher script (`Home Assistant - for retroconsoles.sh`) from inside that folder directly into the `/roms/ports/` directory.
+   - Copy the launcher script (`Home Assistant - for retroconsoles.sh`) into `/roms/ports/` (or `/ports/` on R36S).
+   - Copy the `ha-retroconsole` data folder into the `/ports/` directory on your SD card.
 4. **Structure Check**: Your SD card should look like this:
-   - `/roms/ports/Home Assistant - for retroconsoles.sh`
-   - `/roms/ports/ha-retroconsole/tools/...`
-   - `/roms/ports/ha-retroconsole/assets/...`
+   - `[SD]/roms/ports/Home Assistant - for retroconsoles.sh` (Launcher)
+   - `[SD]/ports/ha-retroconsole/ha_client.py` (Data)
+   - `[SD]/ports/ha-retroconsole/assets/...`
 
 ---
 
