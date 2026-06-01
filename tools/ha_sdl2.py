@@ -494,23 +494,34 @@ class HASDL2App:
                 current_pct = target_pct
             self.anim_progress[eid] = current_pct
 
+            # Dynamic labels based on animated progress (so numbers climb smoothly)
+            if dom == "media_player":
+                label = f"VOL: {int(current_pct * 100)}%"
+            else: # climate
+                curr_temp = current_pct * (35 - 7) + 7
+                label = f"TEMP: {curr_temp:.1f}°C"
+
             # Draw Gauge Background (Dark Gray Arc)
             sdl2.SDL_SetRenderDrawColor(self.renderer, 60, 60, 60, 255)
-            for angle in range(180, -1, -1):
-                rad = math.radians(angle)
-                # Draw double thick baseline (12px)
-                for r_off in range(-10, 2):
-                    sdl2.SDL_RenderDrawPoint(self.renderer, int(cx + (radius + r_off) * math.cos(rad)), int(cy - (radius + r_off) * math.sin(rad)))
+            # Draw fanned baseline (every 2 degrees) with half width (6px thickness)
+            for angle in range(0, 181, 2):
+                rad = math.radians(180 - angle)
+                cos_v, sin_v = math.cos(rad), math.sin(rad)
+                sdl2.SDL_RenderDrawLine(self.renderer,
+                    int(cx + (radius - 5) * cos_v), int(cy - (radius - 5) * sin_v),
+                    int(cx + (radius + 1) * cos_v), int(cy - (radius + 1) * sin_v))
 
-            # Draw Progress Arc (Cyan or Magenta)
-            bar_color = self.ui.colors["magenta"] if self.control_mode_active else self.ui.colors["cyan"]
+            # Draw Progress Arc (Cyan or Yellow) - matching fanned style, half width (10px thickness)
+            bar_color = self.ui.colors["yellow"] if self.control_mode_active else self.ui.colors["cyan"]
             sdl2.SDL_SetRenderDrawColor(self.renderer, bar_color.r, bar_color.g, bar_color.b, 255)
             
             fill_angle = int(180 * current_pct)
-            for angle in range(180, 180 - fill_angle, -1):
-                rad = math.radians(angle)
-                for r_off in range(-15, 5): # Extra thick progress arc (20px)
-                    sdl2.SDL_RenderDrawPoint(self.renderer, int(cx + (radius + r_off) * math.cos(rad)), int(cy - (radius + r_off) * math.sin(rad)))
+            for angle in range(0, fill_angle + 1, 2):
+                rad = math.radians(180 - angle)
+                cos_v, sin_v = math.cos(rad), math.sin(rad)
+                sdl2.SDL_RenderDrawLine(self.renderer,
+                    int(cx + (radius - 8) * cos_v), int(cy - (radius - 8) * sin_v),
+                    int(cx + (radius + 2) * cos_v), int(cy - (radius + 2) * sin_v))
 
             # Draw Label in center of gauge
             tw, th = self.ui.get_text_size(label, small=True)
@@ -2358,8 +2369,8 @@ class HASDL2App:
                     # Red highlight for reorder mode
                     flash_color = "red"
                 elif self.control_mode_active:
-                    # Magenta highlight for active control mode
-                    flash_color = "magenta"
+                    # Yellow highlight for active control mode
+                    flash_color = "yellow"
                 else:
                     # Visual feedback flash (0.3 seconds in configurable color)
                     is_flashing = (time.time() - self.fav_flash_time < 0.3)
