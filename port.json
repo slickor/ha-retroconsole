@@ -1,5 +1,5 @@
 {
-  "version": "0.30.0",
+  "version": "0.30.2",
   "items": [
     "Home Assistant - for retroconsoles.sh",
     "ha-retroconsole/"
@@ -10,5 +10,5 @@
   "description": "A dedicated Home Assistant client for retro handhelds to control your smart home.",
   "author": "slickor",
   "source": "https://github.com/slickor/ha-retroconsole",
-  "architecture": "any"
+  "architecture": "aarch64"
 }

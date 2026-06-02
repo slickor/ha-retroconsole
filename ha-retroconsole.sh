@@ -16,6 +16,7 @@ source $controlfolder/control.txt
 [ -f $controlfolder/tasksetter ] && source $controlfolder/tasksetter
 get_controls
 
+# PortMaster standard: $directory points to the SD mount (e.g., /mnt/SDCARD)
 GAMEDIR="/$directory/ports/ha-retroconsole"
 cd $GAMEDIR
 
@@ -25,7 +26,7 @@ exec > >(tee "$GAMEDIR/log.txt") 2>&1
 # Ensure uinput is writable for gamepads
 $ESUDO chmod 666 /dev/uinput
 # Check if libs exist, if not, run installer
-if [ ! -d "libs" ]; then
+if [ ! -f ".installed" ]; then # Check for installation marker in current GAMEDIR
     echo "First run detected, installing..." # First run detected, installing...
 
     if ! bash ./install.sh; then
@@ -35,10 +36,10 @@ if [ ! -d "libs" ]; then
 fi
 
 export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
-export PYTHONUNBUFFERED=1
-export PYTHONPATH="$GAMEDIR/libs:$PYTHONPATH"
+export PYTHONUNBUFFERED=1 # Ensure Python output is not buffered
+export PYTHONPATH="$GAMEDIR/libs:$PYTHONPATH" # Point to libs in the current folder
 
 echo "Starting Home Assistant - for retroconsoles..."
-python3 tools/ha_sdl2.py --config config.json
+python3 tools/ha_sdl2.py --config config.json # ha_sdl2.py is inside the tools/ subfolder
 
 echo "Home Assistant - for retroconsoles closed."

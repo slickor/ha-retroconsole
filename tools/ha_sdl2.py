@@ -168,7 +168,7 @@ class HASDL2App:
         self.ws = None
         self.ws_thread = None
         self.ws_connected = False
-        self.last_ws_retry = 0
+        self.last_ws_retry = time.time()
         self.camera_cache = {} # Cache for camera textures: {entity_id: texture}
         self.camera_task_thread = None
         self.favorites = self.config.get("favorites", [])
@@ -932,6 +932,8 @@ class HASDL2App:
 
         def on_error(ws, error):
             self.ws_connected = False
+            err_msg = f"WS Error: {str(error)[:30]}"
+            self.set_message(err_msg, color="gray")
             print(f"WebSocket Error: {error}")
 
         def on_close(ws, close_status_code, close_msg):
@@ -944,7 +946,8 @@ class HASDL2App:
             on_error=on_error,
             on_close=on_close
         )
-        self.ws.run_forever()
+        # ping_interval ensures the connection stays alive and dead links are detected faster
+        self.ws.run_forever(ping_interval=20, ping_timeout=10)
 
     def set_message(self, text, color="white"):
         """Adds a message to the persistent log."""
@@ -2441,9 +2444,8 @@ class HASDL2App:
     def run(self):
         self.init_sdl()
         self.load_data()
-        if HAS_WEBSOCKET:
-            self._start_websocket()
-        else:
+        # WS is now started after successful URL resolution in _process_task_result
+        if not HAS_WEBSOCKET:
             self.set_message("WebSocket disabled (lib missing)", color="yellow")
 
         try:
@@ -2522,6 +2524,9 @@ class HASDL2App:
                 self.load_entities()
                 self.last_sync_time = time.strftime("%H:%M:%S")
                 self._update_selection_context()
+                # Start WebSocket only after we have a confirmed active_url
+                if HAS_WEBSOCKET and not self.ws_connected and (not self.ws_thread or not self.ws_thread.is_alive()):
+                    self._start_websocket()
             elif task_result["type"] == "ws_update":
                 # Partial update from WebSocket event
                 update_data = task_result["result"]

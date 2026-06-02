@@ -104,7 +104,11 @@ Goal: Stable operation on real devices.
 - [x] Finalize full English localization for UI and code.
 - [x] Optimize UI layout for Categories and Settings boxes.
 
-## Phase 7: Advanced UI & Ecosystem
+## Phase 7: Advanced UI & Ecosystem (v0.30.2)
+- [x] **Project Modernization:**
+    - [x] Adopt new PortMaster packaging format (v2) for improved compatibility.
+    - [x] Standardize directory layout (Metadata/Launcher in root, Code in subfolder).
+    - [x] Consolidate project documentation and Changelog into the `docs/` folder.
 - [x] **Advanced Control Components (v0.30.0):**
     - [x] Implement a "Control Mode" for entities: D-Pad Left/Right for 0.5° steps (Climate) or 5% volume (Media).
     - [x] Add visual progress bars and value wheels to the Entity list.
