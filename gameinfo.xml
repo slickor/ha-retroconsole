@@ -4,7 +4,7 @@
 		<path>./Home Assistant - for retroconsoles.sh</path>
 		<name>Home Assistant - for retroconsoles</name>
 		<desc>A dedicated Home Assistant client for retro handhelds. Control your smart home entities like lights, switches, and scripts via a fast, controller-optimized interface. Designed for devices like the R36S and TrimUI Smart Pro.</desc>
-		<releasedate>20260603T000000</releasedate>
+		<releasedate>20260604T000000</releasedate>
 		<developer>slickor</developer>
 		<publisher>slickor</publisher>
 		<genre>Utility</genre>

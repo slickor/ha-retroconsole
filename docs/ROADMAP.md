@@ -104,7 +104,7 @@ Goal: Stable operation on real devices.
 - [x] Finalize full English localization for UI and code.
 - [x] Optimize UI layout for Categories and Settings boxes.
 
-## Phase 7: Advanced UI & Ecosystem (v0.30.2)
+## Phase 7: Advanced UI & Ecosystem (v0.30.3)
 - [x] **Project Modernization:**
     - [x] Adopt new PortMaster packaging format (v2) for improved compatibility.
     - [x] Standardize directory layout (Metadata/Launcher in root, Code in subfolder).

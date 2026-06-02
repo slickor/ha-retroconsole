@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.30.3] - 2026-06-04
+### Fixed
+- **WebSocket:** Fine-tuned reconnection timing to prevent early connection attempts before URL resolution is complete.
+
 ## [0.30.2] - 2026-06-03
 ### Fixed
 - **WebSocket:** Improved initialization sequence to ensure connection only starts after successful URL resolution.

@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Union, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
  
-VERSION = "0.30.2"
+VERSION = "0.30.3"
 
 
 SUPPORTED_ACTIONS = {

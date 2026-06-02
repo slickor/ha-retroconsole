@@ -27,7 +27,7 @@ Turn your retro handheld into a smart home command center. HA RetroConsole provi
 Key milestones reached:
 - **Phase 4 (Deployable App):** Successfully completed with automated build scripts for PortMaster.
 - **Phase 5 (Device Testing):** Completed. Successfully verified on muOS, Spruce, and Knulli distributions for the TrimUI Smart Pro.
-- **v0.30.2 Update:** Introduced Advanced Control Mode with animated gauge UI for media players and climate entities.
+- **v0.30.3 Update:** Introduced Advanced Control Mode with animated gauge UI for media players and climate entities.
 
 
  
@@ -51,7 +51,7 @@ It is highly recommended to use the **IP address** of your Home Assistant server
 The development is structured in several phases. We have reached a stable release candidate.
 * **Phase 0-5:** Core development, connectivity, and device stability (Completed).
 * **Phase 6:** Refinement & Advanced Features (v0.29.2) (Completed).
-* **Phase 7:** Advanced UI & Ecosystem (v0.30.2) (In Progress).
+* **Phase 7:** Advanced UI & Ecosystem (v0.30.3) (In Progress).
 Detailed progress and future plans can be tracked in docs/ROADMAP.md and docs/CHANGELOG.md.
 
 ## Special Thanks
