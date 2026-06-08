@@ -240,6 +240,78 @@ class RetroUI:
         handle_rect = sdl2.SDL_Rect(x, handle_y, 4, handle_h)
         sdl2.SDL_RenderFillRect(self.renderer, handle_rect)
 
+    def draw_graph(self, x: int, y: int, w: int, h: int, data_points: list, color: Any = "cyan"):
+        """Draws a line graph with a Y-axis and horizontal grid lines."""
+        if not data_points or len(data_points) < 2:
+            self.draw_text("Not enough data", x + w//2 - 40, y + h//2, "gray", small=True)
+            return
+
+        is_tuple = isinstance(data_points[0], tuple)
+        values = [p[0] for p in data_points] if is_tuple else data_points
+
+        min_val = min(values)
+        max_val = max(values)
+        val_range = max_val - min_val
+        if val_range == 0:
+            val_range = 1  # avoid division by zero
+
+        y_axis_w = 40
+        x_axis_h = 25 if is_tuple else 0
+        gx = x + y_axis_w
+        gy = y
+        gw = w - y_axis_w
+        gh = h - x_axis_h
+
+        # Draw grid lines and Y-axis labels
+        grid_lines = 5
+        grid_color = sdl2.SDL_Color(50, 50, 50, 255) # Dark gray
+        
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
+        for i in range(grid_lines):
+            # i=0 is top (max_val), i=grid_lines-1 is bottom (min_val)
+            pct = i / (grid_lines - 1)
+            val = max_val - (pct * val_range)
+            line_y = gy + int(pct * gh)
+            
+            # Draw label
+            val_str = f"{val:.1f}"
+            self.draw_text(val_str, x, line_y - 8, "gray", small=True)
+            
+            # Draw grid line
+            sdl2.SDL_SetRenderDrawColor(self.renderer, grid_color.r, grid_color.g, grid_color.b, 255)
+            sdl2.SDL_RenderDrawLine(self.renderer, gx, line_y, gx + gw, line_y)
+
+        # Draw X-axis labels if available
+        if is_tuple:
+            num_labels = 5
+            for i in range(num_labels):
+                idx = int(i * (len(data_points) - 1) / (num_labels - 1))
+                label_str = data_points[idx][1]
+                lx = gx + int(i * gw / (num_labels - 1))
+                tw, _ = self.get_text_size(label_str, small=True)
+                draw_x = lx - tw // 2
+                if draw_x < gx: draw_x = gx
+                if draw_x + tw > gx + gw: draw_x = gx + gw - tw
+                self.draw_text(label_str, draw_x, gy + gh + 5, "gray", small=True)
+                sdl2.SDL_SetRenderDrawColor(self.renderer, grid_color.r, grid_color.g, grid_color.b, 255)
+                sdl2.SDL_RenderDrawLine(self.renderer, lx, gy + gh, lx, gy + gh + 5)
+
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
+
+        # Draw actual graph line
+        sdl_color = self.colors.get(color, self.colors["cyan"]) if isinstance(color, str) else color
+        sdl2.SDL_SetRenderDrawColor(self.renderer, sdl_color.r, sdl_color.g, sdl_color.b, 255)
+
+        points = []
+        for i, val in enumerate(values):
+            px = gx + int(i * gw / (len(values) - 1))
+            py = gy + gh - int((val - min_val) / val_range * gh)
+            points.append((px, py))
+
+        for i in range(len(points) - 1):
+            sdl2.SDL_RenderDrawLine(self.renderer, points[i][0], points[i][1], points[i+1][0], points[i+1][1])
+            sdl2.SDL_RenderDrawLine(self.renderer, points[i][0], points[i][1]+1, points[i+1][0], points[i+1][1]+1)
+
     def cleanup(self):
         """Frees textures and fonts."""
         for tex, w, h in self._text_cache.values():

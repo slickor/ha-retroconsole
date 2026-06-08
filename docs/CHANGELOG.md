@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.30.5] - 2026-06-08
+### Added
+- **UI:** Enhanced sensor graphs with an X-axis showing time (HH:MM) and a Y-axis with horizontal grid lines and value labels.
+
+## [0.30.4] - 2026-06-08
+### Added
+- **UI:** Added historical sensor graphs (24h) accessible via the Confirm button (A/Enter) on sensor entities.
+
 ## [0.30.3] - 2026-06-04
 ### Fixed
 - **WebSocket:** Fine-tuned reconnection timing to prevent early connection attempts before URL resolution is complete.

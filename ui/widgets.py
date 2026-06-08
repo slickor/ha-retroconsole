@@ -37,19 +37,6 @@ def render_message(surface: pygame.Surface, font: pygame.font.Font, message: str
     msg_text = font.render(message, True, msg_color)
     surface.blit(msg_text, (width - msg_text.get_width() - 20, y))
 
-
-def render_controls(surface: pygame.Surface, font: pygame.font.Font, width: int, controls_y: int) -> None:
-    pygame.draw.line(surface, COLOR_BORDER, (0, controls_y), (width, controls_y), 2)
-    controls = [
-        "D-Pad: Navigate",
-        "A: Execute",
-        "X: Refresh",
-        "B: Exit",
-    ]
-    for i, ctrl in enumerate(controls):
-        render_text(surface, font, ctrl, COLOR_TEXT, (20, controls_y + 12 + i * 22))
-
-
 def render_favorites(
     surface: pygame.Surface,
     font_item: pygame.font.Font,
@@ -147,3 +134,68 @@ def render_entity_picker(
         render_text(surface, font_small, f"[{marker}]", COLOR_SUCCESS if marker == "*" else COLOR_INACTIVE, (width - 60, item_y + 10))
 
         item_y += item_height
+
+
+def render_graph(
+    surface: pygame.Surface,
+    font_title: pygame.font.Font,
+    font_small: pygame.font.Font,
+    label: str,
+    history_data: list[dict[str, Any]],
+    width: int,
+    height: int,
+) -> None:
+    surface.fill(COLOR_BG)
+    
+    title_text = fit_text(f"{label} (24h)", font_title, width - 40)
+    render_text(surface, font_title, title_text, COLOR_TEXT_HIGHLIGHT, (20, 20))
+    
+    points = []
+    for item in history_data:
+        state_str = item.get("state")
+        try:
+            val = float(state_str)
+            points.append(val)
+        except (ValueError, TypeError):
+            continue
+            
+    if not points:
+        render_text(surface, font_small, "No valid data for graph.", COLOR_INACTIVE, (20, 80))
+        return
+
+    min_val = min(points)
+    max_val = max(points)
+    
+    pad_x = 40
+    pad_y_top = 80
+    pad_y_bottom = 120
+    graph_w = width - 2 * pad_x
+    graph_h = height - pad_y_top - pad_y_bottom
+    
+    # Gitter zeichnen
+    for i in range(5):
+        y = pad_y_top + i * (graph_h / 4)
+        pygame.draw.line(surface, COLOR_BORDER, (pad_x, y), (pad_x + graph_w, y), 1)
+
+    # Achsen zeichnen
+    pygame.draw.line(surface, COLOR_TEXT, (pad_x, pad_y_top + graph_h), (pad_x + graph_w, pad_y_top + graph_h), 2)
+    pygame.draw.line(surface, COLOR_TEXT, (pad_x, pad_y_top), (pad_x, pad_y_top + graph_h), 2)
+    
+    if max_val == min_val:
+        range_val = 1.0
+    else:
+        range_val = max_val - min_val
+        
+    num_points = len(points)
+    if num_points > 1:
+        plotted_lines = []
+        for i, val in enumerate(points):
+            x = pad_x + (i / (num_points - 1)) * graph_w
+            y = pad_y_top + graph_h - ((val - min_val) / range_val) * graph_h
+            plotted_lines.append((x, y))
+            
+        pygame.draw.lines(surface, COLOR_SUCCESS, False, plotted_lines, 2)
+    
+    # Min/Max Labels
+    render_text(surface, font_small, f"Max: {max_val:.1f}", COLOR_TEXT, (pad_x + 5, pad_y_top - 15))
+    render_text(surface, font_small, f"Min: {min_val:.1f}", COLOR_TEXT, (pad_x + 5, pad_y_top + graph_h + 5))

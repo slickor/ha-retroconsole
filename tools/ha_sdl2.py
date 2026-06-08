@@ -183,6 +183,7 @@ class HASDL2App:
         self.settings_view = "menu" # "menu", "categories", or "brightness"
         self.details_scroll_row = 0 # Scroll position for details box
         self.mode = "main" # "main", "favorites", or "settings"
+        self.graph_data = None
         self.anim_progress = {} # Tracks animated values for bars {entity_id: current_visual_value}
         self.control_targets = {} # Persistent targets for manual control {entity_id: target_pct}
         self.control_mode_active = False # True if interacting with an entity's values
@@ -873,6 +874,34 @@ class HASDL2App:
             timeout=5.0
         ), entity_id
 
+    def _fetch_history_background(self, entity_id):
+        """Fetches 24h history for a sensor in a background thread."""
+        from ha_client import fetch_entity_history
+        import datetime, time
+        history = fetch_entity_history(self.active_url, self.config["token"], entity_id, timeout=10.0)
+        data = []
+        if history:
+            for entry in history:
+                try:
+                    val = float(entry.get("state", 0))
+                    dt_str = entry.get("last_changed")
+                    time_str = ""
+                    if dt_str:
+                        try:
+                            dt = datetime.datetime.strptime(dt_str[:19], "%Y-%m-%dT%H:%M:%S")
+                            offset = -time.timezone if (time.localtime().tm_isdst == 0) else -time.altzone
+                            dt_local = dt + datetime.timedelta(seconds=offset)
+                            time_str = dt_local.strftime("%H:%M")
+                        except Exception:
+                            if "T" in dt_str:
+                                time_part = dt_str.split("T")[1]
+                                parts = time_part.split(":")
+                                time_str = f"{parts[0]}:{parts[1]}"
+                    data.append((val, time_str))
+                except (ValueError, TypeError):
+                    pass
+        return data, entity_id
+
     def _execute_service_and_refresh_background(self, base_url, domain, service, entity_id, previous_state, favorite, data=None):
         """Executes a service call and refreshes states in a background thread."""
         call_service(
@@ -1097,8 +1126,8 @@ class HASDL2App:
                 self.set_message("Exit cancelled.")
             return # Consume the event
 
-        # Auto-close fullscreen camera on navigation
-        if self.mode == "camera_fullscreen" and key in [sdl2.SDLK_UP, sdl2.SDLK_DOWN, sdl2.SDLK_LEFT, sdl2.SDLK_RIGHT]:
+        # Auto-close fullscreen overlay on navigation
+        if self.mode in ["camera_fullscreen", "graph_fullscreen"] and key in [sdl2.SDLK_UP, sdl2.SDLK_DOWN, sdl2.SDLK_LEFT, sdl2.SDLK_RIGHT]:
             self.mode = "main"
 
         # Handle Incremental Controls
@@ -1158,7 +1187,7 @@ class HASDL2App:
             return # Consume the event
 
         # Handle fullscreen mode inputs
-        if self.mode == "camera_fullscreen":
+        if self.mode in ["camera_fullscreen", "graph_fullscreen"]:
             # Auto-close on D-Pad movement
             if btn in [sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP, sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN, 
                        sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT, sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT]:
@@ -1240,7 +1269,7 @@ class HASDL2App:
             self.settings_index = 0
             return
 
-        if self.mode == "camera_fullscreen":
+        if self.mode in ["camera_fullscreen", "graph_fullscreen"]:
             self.mode = "main"
             self.confirm_exit = False
             self.exit_overlay_active = False # Reset if navigating away from potential exit
@@ -1580,7 +1609,7 @@ class HASDL2App:
         return filtered_attrs
 
     def _handle_confirm(self):
-        if self.mode == "camera_fullscreen":
+        if self.mode in ["camera_fullscreen", "graph_fullscreen"]:
             self.mode = "main"
             return
         if self.controls_overlay_active:
@@ -1675,6 +1704,13 @@ class HASDL2App:
                         self.last_camera_refresh_time = time.time()
                     else:
                         self.set_message("Camera snapshot loading...", color="yellow")
+                    return
+
+                if domain == "sensor":
+                    self.mode = "graph_fullscreen"
+                    self.graph_data = None
+                    self.set_message("Loading sensor history...", color="yellow")
+                    self._start_background_task("fetch_history", self._fetch_history_background, entity["entity_id"])
                     return
 
                 # Toggle Control Mode for supported domains instead of immediate action
@@ -1847,6 +1883,8 @@ class HASDL2App:
 
         if self.mode == "camera_fullscreen":
             self._render_camera_overlay()
+        elif self.mode == "graph_fullscreen":
+            self._render_graph_overlay()
 
         # Render overlays
         self._render_controls_overlay()
@@ -2034,6 +2072,39 @@ class HASDL2App:
 
         # 4. Hint
         hint = "Press Back to close | Refreshing every 5s"
+        htw, hth = self.ui.get_text_size(hint, small=True)
+        self.ui.draw_text(hint, overlay_x + (overlay_w - htw) // 2, overlay_y + overlay_h - hth - 10, "gray", small=True)
+
+    def _render_graph_overlay(self):
+        """Renders the selected sensor graph in a centered overlay."""
+        overlay_w = int(self.width * 0.8)
+        overlay_h = int(self.height * 0.7)
+        overlay_x = (self.width - overlay_w) // 2
+        overlay_y = (self.height - overlay_h) // 2
+
+        # Dim background
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
+        sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 0, 0, 180)
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 0, self.width, self.height))
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
+
+        # Draw Retro Box
+        self.ui.draw_retro_box(overlay_x, overlay_y, overlay_w, overlay_h, "SENSOR HISTORY (24h)", color="cyan")
+
+        if self.graph_data:
+            inner_margin = 20
+            graph_x = overlay_x + inner_margin
+            graph_y = overlay_y + inner_margin + 20
+            graph_w = overlay_w - (inner_margin * 2)
+            graph_h = overlay_h - (inner_margin * 2) - 40
+            
+            # Use draw_graph method from RetroUI
+            self.ui.draw_graph(graph_x, graph_y, graph_w, graph_h, self.graph_data, color="cyan")
+        else:
+            self.ui.draw_text("Loading data...", overlay_x + overlay_w//2 - 50, overlay_y + overlay_h//2, "gray")
+
+        # Hint
+        hint = "Press Back to close"
         htw, hth = self.ui.get_text_size(hint, small=True)
         self.ui.draw_text(hint, overlay_x + (overlay_w - htw) // 2, overlay_y + overlay_h - hth - 10, "gray", small=True)
 
@@ -2553,6 +2624,10 @@ class HASDL2App:
                         if eid == self.last_camera_eid and self.mode == "camera_fullscreen":
                             self.camera_tex = tex
                 self.camera_task_thread = None # Reset camera thread tracker
+            elif task_result["type"] == "fetch_history":
+                data, eid = task_result["result"]
+                self.graph_data = data
+                self.set_message("Graph loaded", color="green")
             elif task_result["type"] == "execute_action":
                 new_states = task_result["result"]["new_states"]
                 favorite = task_result["result"]["favorite"]

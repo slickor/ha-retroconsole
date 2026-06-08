@@ -14,3 +14,7 @@ build/
 scripts/
 releases/
 Test/
+config_screenshot.json
+screenshots/
+tools/generate_screenshots.py
+tools/generate_gif.py

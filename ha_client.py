@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import time
+import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
  
-VERSION = "0.30.3"
+VERSION = "0.30.5"
 
 
 SUPPORTED_ACTIONS = {
@@ -171,6 +172,25 @@ def fetch_states_list(base_url: str, token: str, timeout: float) -> List[Dict[st
     if not isinstance(states, list):
         raise HAClientError("Unexpected Home Assistant response: expected a list.")
     return states
+
+
+def fetch_entity_history(base_url: str, token: str, entity_id: str, timeout: float, hours: int = 24) -> List[Dict[str, Any]]:
+    start_time = datetime.datetime.utcnow() - datetime.timedelta(hours=hours)
+    # Home Assistant expects ISO 8601 with timezone, e.g. Z for UTC
+    start_time_iso = start_time.isoformat() + "Z"
+    
+    # minimal_response only returns state and last_changed
+    path = f"/api/history/period/{start_time_iso}?filter_entity_id={entity_id}&minimal_response"
+    
+    history_data = request_json(base_url, token, path, timeout)
+    if not isinstance(history_data, list):
+        raise HAClientError("Unexpected Home Assistant history response: expected a list.")
+    
+    # History API returns a list of lists (one per entity)
+    if not history_data or not isinstance(history_data[0], list):
+        return []
+    
+    return history_data[0]
 
 
 def fetch_states_map(base_url: str, token: str, timeout: float) -> Dict[str, Dict[str, Any]]:

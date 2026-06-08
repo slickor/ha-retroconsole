@@ -14,8 +14,10 @@ from ha_client import (
     favorite_action,
     favorite_entity_id,
     fetch_states_map,
+    fetch_entity_history,
     load_config,
     refresh_after_action,
+    resolve_action,
     save_config,
     VERSION,
     SUPPORTED_ACTIONS,
@@ -33,16 +35,14 @@ from ui.input import (
 from ui.widgets import (
     COLOR_BG,
     COLOR_BORDER,
-    COLOR_ERROR,
-    COLOR_SUCCESS,
     COLOR_TEXT,
     COLOR_TEXT_HIGHLIGHT,
     COLOR_INACTIVE,
-    render_controls,
     render_entity_picker,
     render_favorites,
     render_message,
     render_text,
+    render_graph,
 )
 
 class HARetroApp:
@@ -59,6 +59,10 @@ class HARetroApp:
         self.message_time = 0
         self.auto_refresh_time = 0
         self.running = True
+        
+        self.history_data = []
+        self.graph_entity_id = ""
+        self.graph_label = ""
 
         pygame.init()
         self.width = 640
@@ -82,17 +86,23 @@ class HARetroApp:
             return
 
         self.pending_task_type = task_type
-        self.current_task_thread = threading.Thread(target=self._run_task_wrapper, args=(target_func, args, kwargs))
+        # Capture task_type locally so the thread closure is not affected by
+        # any future write to self.pending_task_type on the main thread.
+        captured_task_type = task_type
+        self.current_task_thread = threading.Thread(
+            target=self._run_task_wrapper,
+            args=(target_func, captured_task_type, args, kwargs),
+        )
         self.current_task_thread.daemon = True  # Allow main program to exit even if thread is running
         self.current_task_thread.start()
 
-    def _run_task_wrapper(self, target_func, args, kwargs):
+    def _run_task_wrapper(self, target_func, task_type, args, kwargs):
         """Wrapper to execute target_func and put result/error into the queue."""
         try:
             result = target_func(*args, **kwargs)
-            self.task_queue.put({"status": "success", "result": result, "type": self.pending_task_type})
-        except BaseException as e:
-            self.task_queue.put({"status": "error", "error": str(e), "type": self.pending_task_type})
+            self.task_queue.put({"status": "success", "result": result, "type": task_type})
+        except Exception as e:
+            self.task_queue.put({"status": "error", "error": str(e), "type": task_type})
 
     def _fetch_states_background(self):
         """Fetches states in a background thread."""
@@ -100,6 +110,15 @@ class HARetroApp:
             self.config["base_url"],
             self.config["token"],
             self.timeout,
+        )
+
+    def _fetch_history_background(self, entity_id):
+        return fetch_entity_history(
+            self.config["base_url"],
+            self.config["token"],
+            entity_id,
+            self.timeout,
+            24
         )
 
     def load_states(self) -> None:
@@ -177,9 +196,11 @@ class HARetroApp:
         if self.mode == "main":
             self._render_header("HA RetroConsole")
             self.render_main()
-        else:
+        elif self.mode == "favorites":
             self._render_header("Edit Favorites")
             self.render_picker()
+        elif self.mode == "graph":
+            self.render_graph_view()
 
         pygame.display.flip()
 
@@ -237,6 +258,20 @@ class HARetroApp:
             ("B: Back", "PC: Esc/B"),
         ])
 
+    def render_graph_view(self) -> None:
+        render_graph(
+            self.screen,
+            self.font_title,
+            self.font_small,
+            self.graph_label,
+            self.history_data,
+            self.width,
+            self.height
+        )
+        self._render_footer([
+            ("B: Back", "PC: Esc/B"),
+        ])
+
     def handle_input(self) -> None:
         actions = poll_actions()
 
@@ -258,8 +293,11 @@ class HARetroApp:
         # Mode-specific dispatch
         if self.mode == "main":
             self._handle_main_input(action)
-        else:
+        elif self.mode == "favorites":
             self._handle_picker_input(action)
+        elif self.mode == "graph":
+            if action == ACTION_BACK:
+                self.mode = "main"
 
     def _handle_main_input(self, action: int) -> None:
         favorites = self.config.get("favorites", [])
@@ -300,7 +338,15 @@ class HARetroApp:
         entity_id = favorite_entity_id(favorite)
         action = favorite_action(favorite)
 
-        from ha_client import resolve_action
+        if entity_domain(entity_id) == "sensor":
+            self.mode = "graph"
+            self.graph_entity_id = entity_id
+            self.graph_label = favorite_label(favorite, self.states.get(entity_id))
+            self.history_data = []
+            self.message = f"Loading graph for {entity_id}..."
+            self.message_time = pygame.time.get_ticks()
+            self._start_background_task("fetch_history", self._fetch_history_background, entity_id)
+            return
 
         resolved = resolve_action(entity_id, action)
         if resolved is None:
@@ -364,6 +410,10 @@ class HARetroApp:
                 self.message = f"Done: {changes[0]}" if changes else "Executed"
                 self.message_time = pygame.time.get_ticks()
                 self.auto_refresh_time = pygame.time.get_ticks() # Keep auto-refresh for post-action
+            elif task_result["type"] == "fetch_history":
+                self.history_data = task_result["result"]
+                self.message = "Graph loaded"
+                self.message_time = pygame.time.get_ticks()
         else:  # status == "error"
             self.message = f"Error: {task_result['error']}"
             self.message_time = pygame.time.get_ticks()
