@@ -11,7 +11,12 @@ This project is an independent community application and is not affiliated with 
 Turn your retro handheld into a smart home command center. HA RetroConsole provides a fast, tactile, and native interface to control your Home Assistant environment without needing a browser or mobile app. It focuses on immediate control of favorites, sensors, switches, lights, scenes, and scripts via the Home Assistant REST API.
 
 <p align="center">
-  <img src="docs/img/screenshot.png" width="600" alt="HA RetroConsole UI Screenshot">
+  <img src="docs/img/screenshot.png" width="400" alt="Main View">
+  <img src="docs/img/screenshot_1.png" width="400" alt="Favorites">
+</p>
+<p align="center">
+  <img src="docs/img/screenshot_2.png" width="400" alt="Details View">
+  <img src="docs/img/screenshot_3.png" width="400" alt="Settings/Graphs">
 </p>
 
 ## Core Features
