@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.30.6] - 2026-06-08
+### Added
+- **Docs:** Showcased a full screenshot gallery in the README.
+
 ## [0.30.5] - 2026-06-08
 ### Added
 - **UI:** Enhanced sensor graphs with an X-axis showing time (HH:MM) and a Y-axis with horizontal grid lines and value labels.
