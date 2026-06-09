@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.31.1] - 2026-06-09
+### Added
+- **UI:** Converted the grid view into a full-width 3x2 dashboard view.
+- **UI:** Implemented a two-level hierarchical layout where the top level (Level 1) displays domain/category cards (plus a Settings card), and selecting a category opens the entities grid (Level 2).
+- **UI:** Added horizontal progress indicators directly onto the grid cards for dimmable lights, climate temperature, and media player volume.
+- **Controls:** Added continuous Left/Right row wrapping, Up/Down row jumps, and 6-item Page Up/Down pagination for both grid levels.
+
 ## [0.31.0] - 2026-06-09
 ### Added
 - **UI:** Implemented Grid/Dashboard view as an alternative to the list view.
