@@ -5,10 +5,13 @@ import pygame
 ACTION_QUIT = "quit"
 ACTION_UP = "up"
 ACTION_DOWN = "down"
+ACTION_LEFT = "left"
+ACTION_RIGHT = "right"
 ACTION_SELECT = "select"
 ACTION_BACK = "back"
 ACTION_REFRESH = "refresh"
 ACTION_FAVORITES = "favorites"
+ACTION_TOGGLE_VIEW = "toggle_view"
 
 
 def map_event(event: pygame.event.Event) -> str | None:
@@ -23,6 +26,10 @@ def map_event(event: pygame.event.Event) -> str | None:
         return ACTION_UP
     if event.key == pygame.K_DOWN:
         return ACTION_DOWN
+    if event.key == pygame.K_LEFT:
+        return ACTION_LEFT
+    if event.key == pygame.K_RIGHT:
+        return ACTION_RIGHT
     if event.key in {pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_a, pygame.K_SPACE}:
         return ACTION_SELECT
     if event.key == pygame.K_b:
@@ -31,6 +38,8 @@ def map_event(event: pygame.event.Event) -> str | None:
         return ACTION_REFRESH
     if event.key in {pygame.K_y, pygame.K_f}:
         return ACTION_FAVORITES
+    if event.key in {pygame.K_TAB, pygame.K_RSHIFT, pygame.K_v}:
+        return ACTION_TOGGLE_VIEW
     return None
 
 

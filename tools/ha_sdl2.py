@@ -183,6 +183,7 @@ class HASDL2App:
         self.settings_view = "menu" # "menu", "categories", or "brightness"
         self.details_scroll_row = 0 # Scroll position for details box
         self.mode = "main" # "main", "favorites", or "settings"
+        self.view_mode = "list" # "list" or "grid"
         self.graph_data = None
         self.anim_progress = {} # Tracks animated values for bars {entity_id: current_visual_value}
         self.control_targets = {} # Persistent targets for manual control {entity_id: target_pct}
@@ -1285,7 +1286,11 @@ class HASDL2App:
                 self.exit_overlay_active = False # Reset
             else:
                 self.settings_active = False
-                self.active_list = "settings"
+                if self.view_mode == "grid":
+                    self.active_list = "domains"
+                    self.nav_index = len(self.domain_list) # focus on the settings card
+                else:
+                    self.active_list = "settings"
                 self.confirm_exit = False
                 self.exit_overlay_active = False # Reset
         elif self.active_list == "entities":
@@ -1317,7 +1322,25 @@ class HASDL2App:
                     else:
                         self._go_back()
                 else:
-                    self.active_list = "domains"
+                    if self.view_mode == "grid":
+                        if self.entity_index > 0:
+                            self.entity_index -= 1
+                            active_row = self.entity_index // 3
+                            start_row = self.entity_scroll_row // 3
+                            if active_row < start_row:
+                                self.entity_scroll_row = active_row * 3
+                            self._update_selection_context()
+                    else:
+                        self.active_list = "domains"
+            elif self.active_list == "domains":
+                if self.view_mode == "grid":
+                    if self.nav_index > 0:
+                        self.nav_index -= 1
+                        active_row = self.nav_index // 3
+                        start_row = self.cat_scroll_row // 3
+                        if active_row < start_row:
+                            self.cat_scroll_row = active_row * 3
+                        self._update_selection_context()
         elif key == sdl2.SDLK_RIGHT: # D-Pad Right
             if self.active_list == "entities":
                 if self.settings_active:
@@ -1329,9 +1352,30 @@ class HASDL2App:
                     elif self.settings_view == "menu":
                         self._handle_confirm()
                 else:
-                    self.active_list = "details"
-            else:
-                self._enter_entities()
+                    if self.view_mode == "grid":
+                        current_domain = self.domain_list[self.nav_index] if (self.domain_list and self.nav_index < len(self.domain_list)) else "favorites"
+                        entities = self.entities_by_domain.get(current_domain, [])
+                        if self.entity_index < len(entities) - 1:
+                            self.entity_index += 1
+                            active_row = self.entity_index // 3
+                            start_row = self.entity_scroll_row // 3
+                            if active_row >= start_row + 2:
+                                self.entity_scroll_row = (active_row - 1) * 3
+                            self._update_selection_context()
+                    else:
+                        self.active_list = "details"
+            else: # domains or settings
+                if self.view_mode == "grid":
+                    grid_items_count = len(self.domain_list) + 1
+                    if self.nav_index < grid_items_count - 1:
+                        self.nav_index += 1
+                        active_row = self.nav_index // 3
+                        start_row = self.cat_scroll_row // 3
+                        if active_row >= start_row + 2:
+                            self.cat_scroll_row = (active_row - 1) * 3
+                        self._update_selection_context()
+                else:
+                    self._enter_entities()
         elif key == sdl2.SDLK_UP:
             self._nav_up()
         elif key == sdl2.SDLK_DOWN:
@@ -1350,6 +1394,12 @@ class HASDL2App:
             self.details_scroll_row = max(0, self.details_scroll_row - 1)
         elif key == sdl2.SDLK_k:
             self.details_scroll_row += 1
+        elif key in {sdl2.SDLK_TAB, sdl2.SDLK_RSHIFT, sdl2.SDLK_v}:
+            self.view_mode = "grid" if self.view_mode == "list" else "list"
+            if self.view_mode == "grid":
+                self.active_list = "domains"
+                self.settings_active = False
+            self._update_selection_context()
 
     def _handle_main_controller(self, btn):
         if btn == self.controls["cancel"]:
@@ -1367,7 +1417,25 @@ class HASDL2App:
                     else:
                         self._go_back()
                 else:
-                    self.active_list = "domains"
+                    if self.view_mode == "grid":
+                        if self.entity_index > 0:
+                            self.entity_index -= 1
+                            active_row = self.entity_index // 3
+                            start_row = self.entity_scroll_row // 3
+                            if active_row < start_row:
+                                self.entity_scroll_row = active_row * 3
+                            self._update_selection_context()
+                    else:
+                        self.active_list = "domains"
+            elif self.active_list == "domains":
+                if self.view_mode == "grid":
+                    if self.nav_index > 0:
+                        self.nav_index -= 1
+                        active_row = self.nav_index // 3
+                        start_row = self.cat_scroll_row // 3
+                        if active_row < start_row:
+                            self.cat_scroll_row = active_row * 3
+                        self._update_selection_context()
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT: # D-Pad Right
             if self.active_list == "entities":
                 if self.settings_active:
@@ -1379,9 +1447,30 @@ class HASDL2App:
                     elif self.settings_view == "menu":
                         self._handle_confirm()
                 else:
-                    self.active_list = "details"
-            else:
-                self._enter_entities() # Switch from domains to entities/settings panel
+                    if self.view_mode == "grid":
+                        current_domain = self.domain_list[self.nav_index] if (self.domain_list and self.nav_index < len(self.domain_list)) else "favorites"
+                        entities = self.entities_by_domain.get(current_domain, [])
+                        if self.entity_index < len(entities) - 1:
+                            self.entity_index += 1
+                            active_row = self.entity_index // 3
+                            start_row = self.entity_scroll_row // 3
+                            if active_row >= start_row + 2:
+                                self.entity_scroll_row = (active_row - 1) * 3
+                            self._update_selection_context()
+                    else:
+                        self.active_list = "details"
+            else: # domains or settings
+                if self.view_mode == "grid":
+                    grid_items_count = len(self.domain_list) + 1
+                    if self.nav_index < grid_items_count - 1:
+                        self.nav_index += 1
+                        active_row = self.nav_index // 3
+                        start_row = self.cat_scroll_row // 3
+                        if active_row >= start_row + 2:
+                            self.cat_scroll_row = (active_row - 1) * 3
+                        self._update_selection_context()
+                else:
+                    self._enter_entities() # Switch from domains to entities/settings panel
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP: # D-Pad Up
             self._nav_up()
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN: # D-Pad Down
@@ -1396,6 +1485,12 @@ class HASDL2App:
             self._handle_confirm()
         elif btn == BTN_Y:
             self._handle_reorder_toggle()
+        elif btn == sdl2.SDL_CONTROLLER_BUTTON_BACK:
+            self.view_mode = "grid" if self.view_mode == "list" else "list"
+            if self.view_mode == "grid":
+                self.active_list = "domains"
+                self.settings_active = False
+            self._update_selection_context()
 
     def _handle_brightness_adjust(self, delta):
         """Adjusts the system brightness by a given delta."""
@@ -1429,9 +1524,16 @@ class HASDL2App:
 
     def _enter_entities(self):
         if self.active_list in ["domains", "settings"]:
-            if self.active_list == "settings": # If the "SETTINGS" entry is selected in the left column
-                self.settings_active = True
-                self.settings_view = "menu"
+            if self.view_mode == "grid":
+                if self.nav_index == len(self.domain_list):
+                    self.settings_active = True
+                    self.settings_view = "menu"
+                    self.settings_index = 0
+                    self.settings_scroll_row = 0
+            else:
+                if self.active_list == "settings": # If the "SETTINGS" entry is selected in the left column
+                    self.settings_active = True
+                    self.settings_view = "menu"
             self.active_list = "entities"
             self.entity_index = 0
             self.entity_scroll_row = 0
@@ -1477,12 +1579,20 @@ class HASDL2App:
             return
 
         if self.active_list == "domains":
-            self.nav_index = max(0, self.nav_index - 1)
-            if self.nav_index < self.cat_scroll_row:
-                self.cat_scroll_row = self.nav_index
-            self.entity_index = 0
-            self.entity_scroll_row = 0
-            self._update_selection_context()
+            if self.view_mode == "grid":
+                self.nav_index = max(0, self.nav_index - 3)
+                active_row = self.nav_index // 3
+                start_row = self.cat_scroll_row // 3
+                if active_row < start_row:
+                    self.cat_scroll_row = active_row * 3
+                self._update_selection_context()
+            else:
+                self.nav_index = max(0, self.nav_index - 1)
+                if self.nav_index < self.cat_scroll_row:
+                    self.cat_scroll_row = self.nav_index
+                self.entity_index = 0
+                self.entity_scroll_row = 0
+                self._update_selection_context()
         elif self.active_list == "settings":
             self.active_list = "domains" # Back to category list
             self.settings_active = False
@@ -1492,9 +1602,16 @@ class HASDL2App:
                 self.cat_scroll_row = self.nav_index - visible_cats + 1
             self._update_selection_context()
         else:
-            self.entity_index = max(0, self.entity_index - 1)
-            if self.entity_index < self.entity_scroll_row:
-                self.entity_scroll_row = self.entity_index
+            if self.view_mode == "grid":
+                self.entity_index = max(0, self.entity_index - 3)
+                active_row = self.entity_index // 3
+                start_row = self.entity_scroll_row // 3
+                if active_row < start_row:
+                    self.entity_scroll_row = active_row * 3
+            else:
+                self.entity_index = max(0, self.entity_index - 1)
+                if self.entity_index < self.entity_scroll_row:
+                    self.entity_scroll_row = self.entity_index
             self._update_selection_context()
 
     def _nav_down(self):
@@ -1515,8 +1632,8 @@ class HASDL2App:
                     self.load_entities()
             elif self.active_list == "domains":
                 if self.nav_index < len(self.domain_list) - 1:
-                    self.domain_list[self.nav_index], self.domain_list[self.nav_index + 1] = \
-                        self.domain_list[self.nav_index + 1], self.domain_list[self.nav_index]
+                    self.domain_list[self.nav_index], self.domain_list[self.nav_index - 1] = \
+                        self.domain_list[self.nav_index - 1], self.domain_list[self.nav_index]
                     self.nav_index += 1
                     visible_cats = 8
                     if self.nav_index >= self.cat_scroll_row + visible_cats:
@@ -1547,46 +1664,93 @@ class HASDL2App:
             return
 
         if self.active_list == "domains":
-            if self.nav_index < len(self.domain_list) - 1:
-                self.nav_index += 1
-                visible_cats = 8
-                if self.nav_index >= self.cat_scroll_row + visible_cats:
-                    self.cat_scroll_row = self.nav_index - visible_cats + 1
-                self.entity_index = 0
-                self.entity_scroll_row = 0
+            if self.view_mode == "grid":
+                grid_items_count = len(self.domain_list) + 1
+                self.nav_index = min(grid_items_count - 1, self.nav_index + 3)
+                active_row = self.nav_index // 3
+                start_row = self.cat_scroll_row // 3
+                if active_row >= start_row + 2:
+                    self.cat_scroll_row = (active_row - 1) * 3
                 self._update_selection_context()
             else:
-                self.active_list = "settings"
-                self.settings_active = True
-                self._update_selection_context()
+                if self.nav_index < len(self.domain_list) - 1:
+                    self.nav_index += 1
+                    visible_cats = 8
+                    if self.nav_index >= self.cat_scroll_row + visible_cats:
+                        self.cat_scroll_row = self.nav_index - visible_cats + 1
+                    self.entity_index = 0
+                    self.entity_scroll_row = 0
+                    self._update_selection_context()
+                else:
+                    self.active_list = "settings"
+                    self.settings_active = True
+                    self._update_selection_context()
         elif self.active_list == "settings":
             pass # Bottom of left column
         else:
             if self.control_mode_active:
                 self.control_mode_active = False # Moving selection exits control mode
-            current_domain = self.domain_list[self.nav_index]
+            current_domain = self.domain_list[self.nav_index] if (self.domain_list and self.nav_index < len(self.domain_list)) else "favorites"
             entities_count = len(self.entities_by_domain.get(current_domain, []))
-            self.entity_index = min(entities_count - 1, self.entity_index + 1)
-            visible_entities = 9
-            if self.entity_index >= self.entity_scroll_row + visible_entities:
-                self.entity_scroll_row = self.entity_index - visible_entities + 1
+            if self.view_mode == "grid":
+                self.entity_index = min(entities_count - 1, self.entity_index + 3)
+                active_row = self.entity_index // 3
+                start_row = self.entity_scroll_row // 3
+                if active_row >= start_row + 2:
+                    self.entity_scroll_row = (active_row - 1) * 3
+            else:
+                self.entity_index = min(entities_count - 1, self.entity_index + 1)
+                visible_entities = 9
+                if self.entity_index >= self.entity_scroll_row + visible_entities:
+                    self.entity_scroll_row = self.entity_index - visible_entities + 1
             self._update_selection_context()
 
     def _page_up(self):
         if self.active_list == "entities":
-            self.entity_index = max(0, self.entity_index - 8)
-            if self.entity_index < self.entity_scroll_row:
-                self.entity_scroll_row = self.entity_index
+            if self.view_mode == "grid":
+                self.entity_index = max(0, self.entity_index - 6)
+                active_row = self.entity_index // 3
+                start_row = self.entity_scroll_row // 3
+                if active_row < start_row:
+                    self.entity_scroll_row = active_row * 3
+            else:
+                self.entity_index = max(0, self.entity_index - 8)
+                if self.entity_index < self.entity_scroll_row:
+                    self.entity_scroll_row = self.entity_index
             self._update_selection_context()
+        elif self.active_list == "domains":
+            if self.view_mode == "grid":
+                self.nav_index = max(0, self.nav_index - 6)
+                active_row = self.nav_index // 3
+                start_row = self.cat_scroll_row // 3
+                if active_row < start_row:
+                    self.cat_scroll_row = active_row * 3
+                self._update_selection_context()
 
     def _page_down(self):
         if self.active_list == "entities" and self.nav_index < len(self.domain_list):
             current_domain = self.domain_list[self.nav_index]
             count = len(self.entities_by_domain.get(current_domain, []))
-            self.entity_index = min(max(0, count - 1), self.entity_index + 8)
-            if self.entity_index >= self.entity_scroll_row + 8:
-                self.entity_scroll_row = min(max(0, count - 8), self.entity_index - 7)
+            if self.view_mode == "grid":
+                self.entity_index = min(max(0, count - 1), self.entity_index + 6)
+                active_row = self.entity_index // 3
+                start_row = self.entity_scroll_row // 3
+                if active_row >= start_row + 2:
+                    self.entity_scroll_row = (active_row - 1) * 3
+            else:
+                self.entity_index = min(max(0, count - 1), self.entity_index + 8)
+                if self.entity_index >= self.entity_scroll_row + 8:
+                    self.entity_scroll_row = min(max(0, count - 8), self.entity_index - 7)
             self._update_selection_context()
+        elif self.active_list == "domains":
+            if self.view_mode == "grid":
+                grid_items_count = len(self.domain_list) + 1
+                self.nav_index = min(max(0, grid_items_count - 1), self.nav_index + 6)
+                active_row = self.nav_index // 3
+                start_row = self.cat_scroll_row // 3
+                if active_row >= start_row + 2:
+                    self.cat_scroll_row = (active_row - 1) * 3
+                self._update_selection_context()
 
     def _get_selected_entity(self):
         if self.domain_list and self.nav_index < len(self.domain_list):
@@ -2136,42 +2300,53 @@ class HASDL2App:
         # Render text (8px moved up)
         self.ui.draw_text(line1, text_start_x, 0, "white", xl=True)
 
-        # 2. Left column (152 px): Categories + Settings
-        cat_box_h = self.main_area_h - 45 - self.v_gap
-        self.ui.draw_retro_box(self.col1_x, self.main_y, self.col1_w, cat_box_h, "CATEGORIES")
-        self.draw_menu(self.col1_x + self.margin, self.main_y + 13, cat_box_h)
-        
-        set_box_y = self.main_y + cat_box_h + self.v_gap
-        self.ui.draw_retro_box(self.col1_x, set_box_y, self.col1_w, 45, "SETTINGS")
-        self._render_settings_entry(self.col1_x + self.margin, set_box_y + 13)
-
-        # 3. Middle column (228 px): Entities
-        title = "SETTINGS" if self.settings_active else "ENTITIES"
-        self.ui.draw_retro_box(self.col2_x, self.main_y, self.col2_w, self.main_area_h, title)
-        if self.settings_active:
-            self._render_settings_panel(self.col2_x + self.margin, self.main_y + 13, self.main_area_h)
+        if self.view_mode == "grid" and not self.settings_active:
+            if self.active_list == "domains":
+                title = "DASHBOARD"
+                self.ui.draw_retro_box(self.h_gap, self.main_y, self.width - 2 * self.h_gap, self.main_area_h, title)
+                self._render_categories_grid(self.h_gap + self.margin, self.main_y + 13, self.main_area_h)
+            else:
+                current_domain = self.domain_list[self.nav_index] if (self.domain_list and self.nav_index < len(self.domain_list)) else "favorites"
+                title = current_domain.upper()
+                self.ui.draw_retro_box(self.h_gap, self.main_y, self.width - 2 * self.h_gap, self.main_area_h, title)
+                self._render_entities_grid(self.h_gap + self.margin, self.main_y + 13, self.main_area_h)
         else:
-            self._render_entities_list(self.col2_x + self.margin, self.main_y + 13, self.main_area_h)
+            # 2. Left column (152 px): Categories + Settings
+            cat_box_h = self.main_area_h - 45 - self.v_gap
+            self.ui.draw_retro_box(self.col1_x, self.main_y, self.col1_w, cat_box_h, "CATEGORIES")
+            self.draw_menu(self.col1_x + self.margin, self.main_y + 13, cat_box_h)
+            
+            set_box_y = self.main_y + cat_box_h + self.v_gap
+            self.ui.draw_retro_box(self.col1_x, set_box_y, self.col1_w, 45, "SETTINGS")
+            self._render_settings_entry(self.col1_x + self.margin, set_box_y + 13)
 
-        # 4. Right column (192 px): Details + Preview
-        # Preview at 4:3 for col3_w(192) is 144px
-        preview_h = 144
-        details_h = self.main_area_h - preview_h - self.v_gap
-        
-        details_box_color = "yellow" if self.active_list == "details" else "cyan"
-        self.ui.draw_retro_box(self.col3_x, self.main_y, self.col3_w, details_h, "DETAILS", color=details_box_color, title_color="cyan")
-        self._render_details_box(self.col3_x + self.margin, self.main_y + 13, self.col3_w - 2 * self.margin, details_h - 20)
-        
-        preview_y = self.main_y + details_h + self.v_gap
-        
-        preview_title = "PREVIEW"
-        sel_ent = self._get_selected_entity()
-        if sel_ent and not self.settings_active:
-            if entity_domain(sel_ent.get("entity_id", "")) in ["climate", "media_player"]:
-                preview_title = "CONTROLS"
+            # 3. Middle column (228 px): Entities
+            title = "SETTINGS" if self.settings_active else "ENTITIES"
+            self.ui.draw_retro_box(self.col2_x, self.main_y, self.col2_w, self.main_area_h, title)
+            if self.settings_active:
+                self._render_settings_panel(self.col2_x + self.margin, self.main_y + 13, self.main_area_h)
+            else:
+                self._render_entities_list(self.col2_x + self.margin, self.main_y + 13, self.main_area_h)
 
-        self.ui.draw_retro_box(self.col3_x, preview_y, self.col3_w, preview_h, preview_title)
-        self._render_preview_box(self.col3_x + self.margin, preview_y + 13, self.col3_w - 2 * self.margin, preview_h - 20)
+            # 4. Right column (192 px): Details + Preview
+            # Preview at 4:3 for col3_w(192) is 144px
+            preview_h = 144
+            details_h = self.main_area_h - preview_h - self.v_gap
+            
+            details_box_color = "yellow" if self.active_list == "details" else "cyan"
+            self.ui.draw_retro_box(self.col3_x, self.main_y, self.col3_w, details_h, "DETAILS", color=details_box_color, title_color="cyan")
+            self._render_details_box(self.col3_x + self.margin, self.main_y + 13, self.col3_w - 2 * self.margin, details_h - 20)
+            
+            preview_y = self.main_y + details_h + self.v_gap
+            
+            preview_title = "PREVIEW"
+            sel_ent = self._get_selected_entity()
+            if sel_ent and not self.settings_active:
+                if entity_domain(sel_ent.get("entity_id", "")) in ["climate", "media_player"]:
+                    preview_title = "CONTROLS"
+
+            self.ui.draw_retro_box(self.col3_x, preview_y, self.col3_w, preview_h, preview_title)
+            self._render_preview_box(self.col3_x + self.margin, preview_y + 13, self.col3_w - 2 * self.margin, preview_h - 20)
 
         # 5. Bottom Row: Console (Left/Center) + System (Right)
         # Console width covers col 1 and col 2
@@ -2510,6 +2685,201 @@ class HASDL2App:
             self.ui.draw_scrollbar(
                 int(self.col2_x + self.col2_w - self.SCROLLBAR_WIDTH - 4), y_start, box_h - 18,
                 self.entity_scroll_row, len(entities), visible_entities
+            )
+
+    def _render_categories_grid(self, x, y_start, box_h):
+        """Renders the domains and settings as a 3x2 grid of category tiles."""
+        grid_items = list(self.domain_list) + ["settings"]
+        
+        cols = 3
+        rows = 2
+        
+        # Calculate cell size
+        box_w = self.width - 2 * self.h_gap - 2 * self.margin
+        gap = 16
+        cell_w = (box_w - (cols - 1) * gap) // cols
+        
+        box_h_inner = box_h - 20
+        cell_h = (box_h_inner - (rows - 1) * gap) // rows
+        
+        visible_entities = cols * rows
+        
+        # We scroll the categories using self.cat_scroll_row
+        start_row = self.cat_scroll_row // cols
+        start_idx = start_row * cols
+        end_idx = min(len(grid_items), start_idx + visible_entities)
+
+        for i in range(start_idx, end_idx):
+            item = grid_items[i]
+            col = (i - start_idx) % cols
+            row = (i - start_idx) // cols
+            
+            cell_x = x + col * (cell_w + gap)
+            cell_y = y_start + row * (cell_h + gap)
+            
+            is_selected = (self.active_list == "domains" and i == self.nav_index)
+            
+            if is_selected:
+                is_flashing = (time.time() - self.fav_flash_time < 0.3)
+                flash_color = self.config.get("flash_color", "yellow") if is_flashing else "cyan"
+                self.ui.draw_selection_highlight(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, color=flash_color)
+                self.ui.draw_rounded_rect(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, flash_color)
+                
+            self.ui.draw_rounded_rect(int(cell_x), int(cell_y), cell_w, cell_h, "white" if is_selected else "grey")
+            
+            if item == "settings":
+                icon_tex = self.domain_icons.get("settings")
+                label = "Settings"
+                subtitle = "App Options"
+                is_on = False
+            else:
+                icon_tex = self.domain_icons.get(item) or self.domain_icons.get(f"{item}_on")
+                label = item.replace("_", " ").capitalize()
+                ents_count = len(self.entities_by_domain.get(item, []))
+                subtitle = f"{ents_count} Item" + ("s" if ents_count != 1 else "")
+                is_on = any(e.get("state") == "on" for e in self.entities_by_domain.get(item, []))
+
+            icon_color = COLOR_YELLOW if is_on else COLOR_GREY
+            
+            if icon_tex:
+                icon_size = 32
+                dst = sdl2.SDL_Rect(int(cell_x + 12), int(cell_y + 12), icon_size, icon_size)
+                sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
+                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
+                
+            display_label = self.ui.truncate_text(label, cell_w - 60, small=False)
+            self.ui.draw_text(display_label, cell_x + 52, cell_y + 16, "white", small=False)
+            
+            display_subtitle = self.ui.truncate_text(subtitle, cell_w - 32, small=False)
+            self.ui.draw_text(display_subtitle, cell_x + 16, cell_y + 56, "gray", small=False)
+
+        if len(grid_items) > visible_entities:
+            total_rows = (len(grid_items) + cols - 1) // cols
+            self.ui.draw_scrollbar(
+                int(self.width - self.h_gap - self.SCROLLBAR_WIDTH - 4), y_start, box_h - 18,
+                start_row, total_rows, rows
+            )
+
+    def _render_entities_grid(self, x, y_start, box_h):
+        """Renders the list of active domain entities as a 3x2 grid of large cards."""
+        current_domain = self.domain_list[self.nav_index] if (self.domain_list and self.nav_index < len(self.domain_list)) else "favorites"
+        entities = self.entities_by_domain.get(current_domain, [])
+        if not entities:
+            self.ui.draw_text("No entities found.", x, y_start, "gray", small=True)
+            return
+
+        cols = 3
+        rows = 2
+        
+        # Calculate cell size
+        box_w = self.width - 2 * self.h_gap - 2 * self.margin
+        gap = 16
+        cell_w = (box_w - (cols - 1) * gap) // cols
+        
+        box_h_inner = box_h - 20
+        cell_h = (box_h_inner - (rows - 1) * gap) // rows
+        
+        visible_entities = cols * rows
+        
+        # Adjust scroll row start
+        start_row = self.entity_scroll_row // cols
+        start_idx = start_row * cols
+        end_idx = min(len(entities), start_idx + visible_entities)
+
+        for i in range(start_idx, end_idx):
+            entity = entities[i]
+            col = (i - start_idx) % cols
+            row = (i - start_idx) // cols
+            
+            cell_x = x + col * (cell_w + gap)
+            cell_y = y_start + row * (cell_h + gap)
+            
+            is_selected = (self.active_list == "entities" and i == self.entity_index)
+            
+            if is_selected:
+                if self.reorder_mode:
+                    flash_color = "red"
+                elif self.control_mode_active:
+                    flash_color = "yellow"
+                else:
+                    is_flashing = (time.time() - self.fav_flash_time < 0.3)
+                    flash_color = self.config.get("flash_color", "yellow") if is_flashing else "cyan"
+                
+                self.ui.draw_selection_highlight(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, color=flash_color)
+                self.ui.draw_rounded_rect(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, flash_color)
+                
+            self.ui.draw_rounded_rect(int(cell_x), int(cell_y), cell_w, cell_h, "white" if is_selected else "grey")
+            
+            entity_id = entity.get("entity_id", "")
+            domain = entity_domain(entity_id)
+            is_on = entity.get("state") == "on"
+            icon_color = COLOR_YELLOW if is_on else COLOR_GREY
+            
+            icon_variant = f"{domain}_on" if is_on else f"{domain}_off"
+            icon_tex = self.domain_icons.get(icon_variant) or self.domain_icons.get(domain)
+            
+            if icon_tex:
+                icon_size = 32
+                dst = sdl2.SDL_Rect(int(cell_x + 12), int(cell_y + 12), icon_size, icon_size)
+                sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
+                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
+                
+            label = display_name(entity_id, entity)
+            display_label = self.ui.truncate_text(label, cell_w - 60, small=False)
+            self.ui.draw_text(display_label, cell_x + 52, cell_y + 16, "white", small=False)
+            
+            state_str = get_state_with_unit(entity)
+            if state_str == "on": state_str = "On"
+            elif state_str == "off": state_str = "Off"
+            display_state = self.ui.truncate_text(state_str, cell_w - 32, small=False)
+            self.ui.draw_text(display_state, cell_x + 16, cell_y + 56, "cyan" if is_on else "gray", small=False)
+            
+            # Progress bar for adjustable entities
+            attrs = entity.get("attributes", {})
+            has_progress = False
+            fill_pct = 0.0
+            
+            if domain == "light" and is_on:
+                brightness = attrs.get("brightness")
+                if brightness is not None:
+                    fill_pct = float(brightness) / 255.0
+                    has_progress = True
+            elif domain == "media_player":
+                volume = attrs.get("volume_level")
+                if volume is not None:
+                    fill_pct = float(volume)
+                    has_progress = True
+            elif domain == "climate":
+                temp = attrs.get("temperature") or attrs.get("current_temperature")
+                if temp is not None:
+                    fill_pct = max(0.0, min(1.0, (float(temp) - 7) / (35 - 7)))
+                    has_progress = True
+            
+            if has_progress:
+                bar_x = cell_x + 16
+                bar_y = cell_y + 96
+                bar_w = cell_w - 32
+                bar_h = 8
+                
+                # Background
+                sdl2.SDL_SetRenderDrawColor(self.renderer, 40, 40, 40, 255)
+                sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(bar_x, bar_y, bar_w, bar_h))
+                
+                # Fill
+                if fill_pct > 0:
+                    fill_w = int(bar_w * fill_pct)
+                    fill_color = COLOR_YELLOW if (is_selected and self.control_mode_active) else COLOR_CYAN
+                    sdl2.SDL_SetRenderDrawColor(self.renderer, fill_color.r, fill_color.g, fill_color.b, 255)
+                    sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(bar_x, bar_y, fill_w, bar_h))
+
+        if len(entities) > visible_entities:
+            # Scrollbar on the right edge of the dashboard box
+            total_rows = (len(entities) + cols - 1) // cols
+            self.ui.draw_scrollbar(
+                int(self.width - self.h_gap - self.SCROLLBAR_WIDTH - 4), y_start, box_h - 18,
+                start_row, total_rows, rows
             )
 
     def run(self):

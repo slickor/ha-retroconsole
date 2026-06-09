@@ -29,6 +29,9 @@ from ui.input import (
     ACTION_SELECT,
     ACTION_UP,
     ACTION_DOWN,
+    ACTION_LEFT,
+    ACTION_RIGHT,
+    ACTION_TOGGLE_VIEW,
     ACTION_QUIT,
     poll_actions,
 )
@@ -55,6 +58,7 @@ class HARetroApp:
         self.entities: list[dict[str, str]] = []
         self.picker_selected = 0
         self.mode = "main"
+        self.view_mode = "list"
         self.message = "Connecting..."
         self.message_time = 0
         self.auto_refresh_time = 0
@@ -221,22 +225,33 @@ class HARetroApp:
 
     def render_main(self) -> None:
         favorites = self.config.get("favorites", [])
-        render_favorites(
-            self.screen,
-            self.font_item,
-            self.font_small,
-            favorites,
-            self.states,
-            self.selected,
-            self.width,
-        )
+        if self.view_mode == "grid":
+            from ui.widgets import render_favorites_grid
+            render_favorites_grid(
+                self.screen,
+                self.font_item,
+                self.font_small,
+                favorites,
+                self.states,
+                self.selected,
+                self.width,
+            )
+        else:
+            render_favorites(
+                self.screen,
+                self.font_item,
+                self.font_small,
+                favorites,
+                self.states,
+                self.selected,
+                self.width,
+            )
         
         self._render_footer([
             ("D-Pad: Navigate", "PC: Arrows"),
-            ("A: Execute", "PC: Enter"),
-            ("Y: Favorites", "PC: F"),
+            ("A: Exec / B: Exit", "PC: Enter/Esc"),
+            ("Y: Fav / Sel: View", "PC: F/V"),
             ("X: Refresh", "PC: R"),
-            ("B: Exit", "PC: Esc/B"),
         ])
 
     def render_picker(self) -> None:
@@ -303,15 +318,29 @@ class HARetroApp:
         favorites = self.config.get("favorites", [])
         if action == ACTION_BACK:
             self.running = False
+        elif action == ACTION_TOGGLE_VIEW:
+            self.view_mode = "grid" if self.view_mode == "list" else "list"
         elif action == ACTION_FAVORITES:
             self.mode = "favorites"
             self.load_entities()
             self.message = "Edit favorites"
             self.message_time = pygame.time.get_ticks()
         elif action == ACTION_UP and favorites:
-            self.selected = (self.selected - 1) % len(favorites)
+            if self.view_mode == "grid":
+                self.selected = max(0, self.selected - 3)
+            else:
+                self.selected = (self.selected - 1) % len(favorites)
         elif action == ACTION_DOWN and favorites:
-            self.selected = (self.selected + 1) % len(favorites)
+            if self.view_mode == "grid":
+                self.selected = min(len(favorites) - 1, self.selected + 3)
+            else:
+                self.selected = (self.selected + 1) % len(favorites)
+        elif action == ACTION_LEFT and favorites and self.view_mode == "grid":
+            if self.selected % 3 != 0:
+                self.selected = max(0, self.selected - 1)
+        elif action == ACTION_RIGHT and favorites and self.view_mode == "grid":
+            if self.selected % 3 != 2:
+                self.selected = min(len(favorites) - 1, self.selected + 1)
         elif action == ACTION_SELECT:
             self.execute_action()
 

@@ -199,3 +199,77 @@ def render_graph(
     # Min/Max Labels
     render_text(surface, font_small, f"Max: {max_val:.1f}", COLOR_TEXT, (pad_x + 5, pad_y_top - 15))
     render_text(surface, font_small, f"Min: {min_val:.1f}", COLOR_TEXT, (pad_x + 5, pad_y_top + graph_h + 5))
+
+def render_favorites_grid(
+    surface: pygame.Surface,
+    font_item: pygame.font.Font,
+    font_small: pygame.font.Font,
+    favorites: list[Any],
+    states: dict[str, dict[str, Any]],
+    selected: int,
+    width: int,
+) -> None:
+    if not favorites:
+        render_text(surface, font_item, "No favorites configured.", COLOR_INACTIVE, (40, 80))
+        return
+
+    from ha_client import favorite_action, favorite_entity_id, favorite_label, resolve_action
+
+    cols = 3
+    rows = 3
+    items_per_page = cols * rows
+    current_page = selected // items_per_page
+    start_index = current_page * items_per_page
+    end_index = min(len(favorites), start_index + items_per_page)
+
+    tile_w = 180
+    tile_h = 80
+    pad_x = 20
+    pad_y = 15
+
+    total_w = cols * tile_w + (cols - 1) * pad_x
+    start_x = (width - total_w) // 2
+    start_y = 80
+
+    for idx in range(start_index, end_index):
+        favorite = favorites[idx]
+        entity_id = favorite_entity_id(favorite)
+        state = states.get(entity_id)
+        label = favorite_label(favorite, state)
+        value = state.get("state", "?") if state is not None else "?"
+        action = resolve_action(entity_id, favorite_action(favorite))
+
+        is_selected = idx == selected
+        is_controllable = action is not None
+
+        rel_idx = idx - start_index
+        col = rel_idx % cols
+        row = rel_idx // cols
+
+        x = start_x + col * (tile_w + pad_x)
+        y = start_y + row * (tile_h + pad_y)
+
+        bg_rect = pygame.Rect(x, y, tile_w, tile_h)
+        if is_selected:
+            pygame.draw.rect(surface, COLOR_SELECTED, bg_rect)
+            pygame.draw.rect(surface, COLOR_TEXT_HIGHLIGHT, bg_rect, 2)
+        else:
+            pygame.draw.rect(surface, COLOR_BORDER, bg_rect, 1)
+
+        text_color = COLOR_TEXT_HIGHLIGHT if is_selected else COLOR_TEXT
+        if not is_controllable:
+            text_color = COLOR_INACTIVE
+
+        # Render Label
+        label_text = fit_text(label, font_item, tile_w - 20)
+        render_text(surface, font_item, label_text, text_color, (x + 10, y + 10))
+        
+        # Render Value
+        value_text = fit_text(str(value).upper(), font_small, tile_w - 40)
+        render_text(surface, font_small, value_text, text_color, (x + 10, y + tile_h - 25))
+
+        # Render Marker
+        marker = "A" if is_controllable else "-"
+        marker_color = COLOR_SUCCESS if is_controllable else COLOR_INACTIVE
+        marker_text = font_small.render(f"[{marker}]", True, marker_color)
+        surface.blit(marker_text, (x + tile_w - 30, y + tile_h - 25))

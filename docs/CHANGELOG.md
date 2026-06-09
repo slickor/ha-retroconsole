@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.31.0] - 2026-06-09
+### Added
+- **UI:** Implemented Grid/Dashboard view as an alternative to the list view.
+- **Controls:** Added Left/Right D-Pad navigation for the new Grid View.
+- **Controls:** The Select button (Tab, Right Shift, or V on PC) now toggles between List and Grid views.
+
 ## [0.30.6] - 2026-06-08
 ### Added
 - **Docs:** Showcased a full screenshot gallery in the README.

@@ -122,3 +122,8 @@ Goal: Stable operation on real devices.
 - [ ] **Localization (i18n):** Move all UI strings to `lang/*.json` for easy community translations.
 - [ ] **Optimization:** Implement texture compression/pooling for icons to reduce memory on R36S.
 - [ ] Add an in-app updater check for new PortMaster releases.
+
+## Phase 8: Extended Integrations & UI (v0.31.0)
+- [x] **Grid/Dashboard View:** Implement a tile-based dashboard view (similar to HA Lovelace) as an alternative to the list view for quicker access to favorites.
+- [ ] **Expanded Domain Support:** Add full support and custom UI components for complex domains such as `cover` (up/down/stop), `lock` (lock/unlock), and `vacuum` (start/stop/return).
+- [ ] **Live Camera Streams (MJPEG):** Upgrade the current 5-second snapshot refresh to support native MJPEG live streams for smoother camera feeds.
