@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.31.2] - 2026-06-10
+### Fixed
+- **UI:** Fixed scroll row snapping in Categories Grid View when navigating beyond the first 6 cards.
+- **UI:** Resolved card persistence issue for Settings card selection during background data updates.
+- **Controls:** Updated console help guide at startup to show the new view mode toggle control.
+- **Runner:** Removed console pause prompt when closing the Windows runner script.
+
 ## [0.31.1] - 2026-06-09
 ### Added
 - **UI:** Converted the grid view into a full-width 3x2 dashboard view.

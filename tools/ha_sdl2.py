@@ -1020,14 +1020,28 @@ class HASDL2App:
         
         # Safety: Ensure nav_index remains valid after data reload
         if self.domain_list:
-            self.nav_index = min(self.nav_index, len(self.domain_list) - 1)
-            # Keep category scroll row in check
-            visible_cats = 8
-            if self.nav_index < self.cat_scroll_row:
-                self.cat_scroll_row = self.nav_index
-            elif self.nav_index >= self.cat_scroll_row + visible_cats:
-                self.cat_scroll_row = self.nav_index - visible_cats + 1
-            self.cat_scroll_row = max(0, min(self.cat_scroll_row, max(0, len(self.domain_list) - visible_cats)))
+            max_nav = len(self.domain_list) if (self.view_mode == "grid" and self.active_list == "domains") else len(self.domain_list) - 1
+            self.nav_index = min(self.nav_index, max_nav)
+            if self.view_mode == "grid":
+                # Grid View Category Scrolling Sync
+                active_row = self.nav_index // 3
+                start_row = self.cat_scroll_row // 3
+                if active_row < start_row:
+                    self.cat_scroll_row = active_row * 3
+                elif active_row >= start_row + 2:
+                    self.cat_scroll_row = (active_row - 1) * 3
+                
+                total_rows = (len(self.domain_list) + 1 + 2) // 3 # including settings card
+                max_scroll_row = max(0, (total_rows - 2) * 3)
+                self.cat_scroll_row = max(0, min(self.cat_scroll_row, max_scroll_row))
+            else:
+                # Keep category scroll row in check
+                visible_cats = 8
+                if self.nav_index < self.cat_scroll_row:
+                    self.cat_scroll_row = self.nav_index
+                elif self.nav_index >= self.cat_scroll_row + visible_cats:
+                    self.cat_scroll_row = self.nav_index - visible_cats + 1
+                self.cat_scroll_row = max(0, min(self.cat_scroll_row, max(0, len(self.domain_list) - visible_cats)))
         else:
             self.nav_index = 0
             self.cat_scroll_row = 0
@@ -3259,5 +3273,6 @@ if __name__ == "__main__":
     print("L2, R2              : Scroll Console Log")
     print("I, K / R-Stick      : Scroll Details (PC / Handheld)")
     print("Start / S-Key       : Open App Settings")
+    print("Select / Tab, V     : Toggle List/Grid View")
     print("-" * 50 + "\n")
     app.run()
