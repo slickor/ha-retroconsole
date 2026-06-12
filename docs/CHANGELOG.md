@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.32.0] - 2026-06-12
+### Added
+- **UI:** Added a polished startup splashscreen that overlays the dashboard during the initial connection phase.
+- **UI:** The splashscreen centers the retroconsole logo (`docs/img/logo_350x350.png`) on a dimmed, semi-transparent background and includes a pulsing server connection status message.
+- **Tools:** Added a background transparency utility script (`tools/make_transparent.py`) to convert solid white backgrounds of assets using border-based flood-fill.
+- **Docs:** Expanded setup documentation in `INSTALL.md` and `README.md` to explain the fallback `alternative_url` configuration.
+
+## [0.31.3] - 2026-06-12
+### Added
+- **UI:** Converted the grid layout to a 3x3 dashboard view (previously 3x2).
+- **UI:** Adjusted dimensions and text coordinates in grid view (labels, state texts, progress bars) for a compact vertical fit.
+### Fixed
+- **UI:** Improved readability of selected tiles by showing gray subtitle texts (domain items count) and inactive states (e.g., "Off") in white.
+
 ## [0.31.2] - 2026-06-10
 ### Fixed
 - **UI:** Fixed scroll row snapping in Categories Grid View when navigating beyond the first 6 cards.

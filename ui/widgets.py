@@ -172,12 +172,12 @@ def render_graph(
     graph_w = width - 2 * pad_x
     graph_h = height - pad_y_top - pad_y_bottom
     
-    # Gitter zeichnen
+    # Draw grid
     for i in range(5):
         y = pad_y_top + i * (graph_h / 4)
         pygame.draw.line(surface, COLOR_BORDER, (pad_x, y), (pad_x + graph_w, y), 1)
 
-    # Achsen zeichnen
+    # Draw axes
     pygame.draw.line(surface, COLOR_TEXT, (pad_x, pad_y_top + graph_h), (pad_x + graph_w, pad_y_top + graph_h), 2)
     pygame.draw.line(surface, COLOR_TEXT, (pad_x, pad_y_top), (pad_x, pad_y_top + graph_h), 2)
     

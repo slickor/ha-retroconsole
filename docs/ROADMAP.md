@@ -104,7 +104,7 @@ Goal: Stable operation on real devices.
 - [x] Finalize full English localization for UI and code.
 - [x] Optimize UI layout for Categories and Settings boxes.
 
-## Phase 7: Advanced UI & Ecosystem (v0.30.6)
+## Phase 7: Advanced UI & Ecosystem (v0.30.6) (Completed)
 - [x] **Project Modernization:**
     - [x] Adopt new PortMaster packaging format (v2) for improved compatibility.
     - [x] Standardize directory layout (Metadata/Launcher in root, Code in subfolder).
@@ -123,7 +123,8 @@ Goal: Stable operation on real devices.
 - [ ] **Optimization:** Implement texture compression/pooling for icons to reduce memory on R36S.
 - [ ] Add an in-app updater check for new PortMaster releases.
 
-## Phase 8: Extended Integrations & UI (v0.31.0)
+## Phase 8: Extended Integrations & UI (v0.32.0) (Completed)
 - [x] **Grid/Dashboard View:** Implement a tile-based dashboard view (similar to HA Lovelace) as an alternative to the list view for quicker access to favorites.
+- [x] **Startup Splashscreen:** Show a premium splashscreen with a semi-transparent background and pulsing server connection text during the initial data load.
 - [ ] **Expanded Domain Support:** Add full support and custom UI components for complex domains such as `cover` (up/down/stop), `lock` (lock/unlock), and `vacuum` (start/stop/return).
 - [ ] **Live Camera Streams (MJPEG):** Upgrade the current 5-second snapshot refresh to support native MJPEG live streams for smoother camera feeds.

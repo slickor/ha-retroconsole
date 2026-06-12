@@ -179,6 +179,7 @@ class HASDL2App:
         self.settings_scroll_row = 0 # Scroll position for settings lists
         self.entity_index = 0 # Index for the middle entity list
         self.settings_index = 0 # Index for settings options
+        self.settings_menu_index = 0 # Index for settings main menu to restore on return
         self.settings_active = False # True if middle column shows settings
         self.settings_view = "menu" # "menu", "categories", or "brightness"
         self.details_scroll_row = 0 # Scroll position for details box
@@ -755,6 +756,17 @@ class HASDL2App:
                         self.domain_icons[btn] = texture
                     sdl2.SDL_FreeSurface(surface)
 
+        # Load splashscreen logo
+        splash_path = os.path.normpath(os.path.join(script_dir, "..", "docs", "img", "logo_350x350.png"))
+        if os.path.exists(splash_path):
+            surface = sdlimage.IMG_Load(splash_path.encode('utf-8'))
+            if surface:
+                texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
+                if texture:
+                    sdl2.SDL_SetTextureBlendMode(texture, sdl2.SDL_BLENDMODE_BLEND)
+                    self.domain_icons["splash_logo"] = texture
+                sdl2.SDL_FreeSurface(surface)
+
         # Open game controllers
         for i in range(sdl2.SDL_NumJoysticks()):
             if sdl2.SDL_IsGameController(i):
@@ -1028,11 +1040,11 @@ class HASDL2App:
                 start_row = self.cat_scroll_row // 3
                 if active_row < start_row:
                     self.cat_scroll_row = active_row * 3
-                elif active_row >= start_row + 2:
-                    self.cat_scroll_row = (active_row - 1) * 3
+                elif active_row >= start_row + 3:
+                    self.cat_scroll_row = (active_row - 2) * 3
                 
                 total_rows = (len(self.domain_list) + 1 + 2) // 3 # including settings card
-                max_scroll_row = max(0, (total_rows - 2) * 3)
+                max_scroll_row = max(0, (total_rows - 3) * 3)
                 self.cat_scroll_row = max(0, min(self.cat_scroll_row, max_scroll_row))
             else:
                 # Keep category scroll row in check
@@ -1295,7 +1307,7 @@ class HASDL2App:
         elif self.settings_active:
             if self.settings_view != "menu":
                 self.settings_view = "menu"
-                self.settings_index = 0 # Reset selection in settings menu
+                self.settings_index = getattr(self, "settings_menu_index", 0)
                 self.confirm_exit = False
                 self.exit_overlay_active = False # Reset
             else:
@@ -1328,13 +1340,7 @@ class HASDL2App:
                 self.active_list = "entities"
             elif self.active_list == "entities":
                 if self.settings_active:
-                    if self.settings_view == "brightness":
-                        self._handle_brightness_adjust(-10)
-                    elif self.settings_view == "edit_url":
-                        row_len = len(self.kb_layout[self.kb_row])
-                        self.kb_col = (self.kb_col - 1) % row_len
-                    else:
-                        self._go_back()
+                    self._handle_settings_nav("left")
                 else:
                     if self.view_mode == "grid":
                         if self.entity_index > 0:
@@ -1358,13 +1364,7 @@ class HASDL2App:
         elif key == sdl2.SDLK_RIGHT: # D-Pad Right
             if self.active_list == "entities":
                 if self.settings_active:
-                    if self.settings_view == "brightness":
-                        self._handle_brightness_adjust(10)
-                    elif self.settings_view == "edit_url":
-                        row_len = len(self.kb_layout[self.kb_row])
-                        self.kb_col = (self.kb_col + 1) % row_len
-                    elif self.settings_view == "menu":
-                        self._handle_confirm()
+                    self._handle_settings_nav("right")
                 else:
                     if self.view_mode == "grid":
                         current_domain = self.domain_list[self.nav_index] if (self.domain_list and self.nav_index < len(self.domain_list)) else "favorites"
@@ -1373,8 +1373,8 @@ class HASDL2App:
                             self.entity_index += 1
                             active_row = self.entity_index // 3
                             start_row = self.entity_scroll_row // 3
-                            if active_row >= start_row + 2:
-                                self.entity_scroll_row = (active_row - 1) * 3
+                            if active_row >= start_row + 3:
+                                self.entity_scroll_row = (active_row - 2) * 3
                             self._update_selection_context()
                     else:
                         self.active_list = "details"
@@ -1385,8 +1385,8 @@ class HASDL2App:
                         self.nav_index += 1
                         active_row = self.nav_index // 3
                         start_row = self.cat_scroll_row // 3
-                        if active_row >= start_row + 2:
-                            self.cat_scroll_row = (active_row - 1) * 3
+                        if active_row >= start_row + 3:
+                            self.cat_scroll_row = (active_row - 2) * 3
                         self._update_selection_context()
                 else:
                     self._enter_entities()
@@ -1423,13 +1423,7 @@ class HASDL2App:
                 self.active_list = "entities"
             elif self.active_list == "entities":
                 if self.settings_active:
-                    if self.settings_view == "brightness":
-                        self._handle_brightness_adjust(-10)
-                    elif self.settings_view == "edit_url":
-                        row_len = len(self.kb_layout[self.kb_row])
-                        self.kb_col = (self.kb_col - 1) % row_len
-                    else:
-                        self._go_back()
+                    self._handle_settings_nav("left")
                 else:
                     if self.view_mode == "grid":
                         if self.entity_index > 0:
@@ -1453,13 +1447,7 @@ class HASDL2App:
         elif btn == sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT: # D-Pad Right
             if self.active_list == "entities":
                 if self.settings_active:
-                    if self.settings_view == "brightness":
-                        self._handle_brightness_adjust(10)
-                    elif self.settings_view == "edit_url":
-                        row_len = len(self.kb_layout[self.kb_row])
-                        self.kb_col = (self.kb_col + 1) % row_len
-                    elif self.settings_view == "menu":
-                        self._handle_confirm()
+                    self._handle_settings_nav("right")
                 else:
                     if self.view_mode == "grid":
                         current_domain = self.domain_list[self.nav_index] if (self.domain_list and self.nav_index < len(self.domain_list)) else "favorites"
@@ -1468,8 +1456,8 @@ class HASDL2App:
                             self.entity_index += 1
                             active_row = self.entity_index // 3
                             start_row = self.entity_scroll_row // 3
-                            if active_row >= start_row + 2:
-                                self.entity_scroll_row = (active_row - 1) * 3
+                            if active_row >= start_row + 3:
+                                self.entity_scroll_row = (active_row - 2) * 3
                             self._update_selection_context()
                     else:
                         self.active_list = "details"
@@ -1480,8 +1468,8 @@ class HASDL2App:
                         self.nav_index += 1
                         active_row = self.nav_index // 3
                         start_row = self.cat_scroll_row // 3
-                        if active_row >= start_row + 2:
-                            self.cat_scroll_row = (active_row - 1) * 3
+                        if active_row >= start_row + 3:
+                            self.cat_scroll_row = (active_row - 2) * 3
                         self._update_selection_context()
                 else:
                     self._enter_entities() # Switch from domains to entities/settings panel
@@ -1531,10 +1519,99 @@ class HASDL2App:
         elif btn == self.controls["confirm"]:
             self._handle_settings_action()
 
-    def _handle_settings_action(self):
-        """Action handler for the dedicated settings mode."""
-        if self.settings_selected_index == 1: # 'Back' option
-            self.mode = "main"
+    def _handle_settings_nav(self, direction):
+        if self.settings_view == "edit_url":
+            if direction == "left":
+                self.kb_col = (self.kb_col - 1) % len(self.kb_layout[self.kb_row])
+            elif direction == "right":
+                self.kb_col = (self.kb_col + 1) % len(self.kb_layout[self.kb_row])
+            elif direction == "up":
+                self.kb_row = (self.kb_row - 1) % len(self.kb_layout)
+                row_len = len(self.kb_layout[self.kb_row])
+                self.kb_col = min(self.kb_col, row_len - 1)
+            elif direction == "down":
+                self.kb_row = (self.kb_row + 1) % len(self.kb_layout)
+                row_len = len(self.kb_layout[self.kb_row])
+                self.kb_col = min(self.kb_col, row_len - 1)
+            return
+
+        if self.settings_view == "brightness":
+            if direction == "left":
+                self._handle_brightness_adjust(-10)
+            elif direction == "right":
+                self._handle_brightness_adjust(10)
+            return
+
+        if self.settings_view == "wifidebug":
+            if direction == "up":
+                self.settings_scroll_row = max(0, self.settings_scroll_row - 1)
+            elif direction == "down":
+                limit = len(self._collect_wifi_debug_info()) - 1
+                visible_settings = 18
+                self.settings_scroll_row = min(max(0, limit - visible_settings + 1), self.settings_scroll_row + 1)
+            return
+
+        if self.view_mode == "grid":
+            if self.settings_view == "menu":
+                cols = 3
+                count = 8
+            elif self.settings_view == "categories":
+                cols = 3
+                count = len(VIEWABLE_DOMAINS)
+            elif self.settings_view == "flash_color":
+                cols = 3
+                count = len(self.flash_colors)
+            elif self.settings_view == "connection":
+                cols = 2
+                count = 2
+            else:
+                cols = 1
+                count = 1
+
+            if direction == "left":
+                if self.settings_index % cols != 0:
+                    self.settings_index = max(0, self.settings_index - 1)
+            elif direction == "right":
+                if self.settings_index % cols != cols - 1:
+                    self.settings_index = min(count - 1, self.settings_index + 1)
+            elif direction == "up":
+                self.settings_index = max(0, self.settings_index - cols)
+            elif direction == "down":
+                self.settings_index = min(count - 1, self.settings_index + cols)
+
+            if self.settings_view == "categories":
+                active_row = self.settings_index // 3
+                start_row = self.settings_scroll_row // 3
+                if active_row < start_row:
+                    self.settings_scroll_row = active_row * 3
+                elif active_row >= start_row + 3:
+                    self.settings_scroll_row = (active_row - 2) * 3
+        else:
+            if self.settings_view == "menu":
+                limit = 7
+            elif self.settings_view == "connection":
+                limit = 1
+            elif self.settings_view == "categories":
+                limit = len(VIEWABLE_DOMAINS) - 1
+            elif self.settings_view == "flash_color":
+                limit = len(self.flash_colors) - 1
+            else:
+                limit = 0
+
+            if direction == "up":
+                self.settings_index = max(0, self.settings_index - 1)
+                if self.settings_index < self.settings_scroll_row:
+                    self.settings_scroll_row = self.settings_index
+            elif direction == "down":
+                self.settings_index = min(limit, self.settings_index + 1)
+                visible_settings = 8
+                if self.settings_index >= self.settings_scroll_row + visible_settings:
+                    self.settings_scroll_row = self.settings_index - visible_settings + 1
+            elif direction == "left":
+                self._go_back()
+            elif direction == "right":
+                if self.settings_view == "menu":
+                    self._handle_confirm()
 
     def _enter_entities(self):
         if self.active_list in ["domains", "settings"]:
@@ -1578,18 +1655,7 @@ class HASDL2App:
             return
 
         if self.active_list == "entities" and self.settings_active:
-            if self.settings_view == "menu":
-                self.settings_index = max(0, self.settings_index - 1)
-            elif self.settings_view == "connection":
-                self.settings_index = max(0, self.settings_index - 1)
-            elif self.settings_view == "edit_url":
-                self.kb_row = (self.kb_row - 1) % len(self.kb_layout)
-                row_len = len(self.kb_layout[self.kb_row])
-                self.kb_col = min(self.kb_col, row_len - 1)
-            else:
-                self.settings_index = max(0, self.settings_index - 1)
-                if self.settings_index < self.settings_scroll_row:
-                    self.settings_scroll_row = self.settings_index
+            self._handle_settings_nav("up")
             return
 
         if self.active_list == "domains":
@@ -1655,26 +1721,7 @@ class HASDL2App:
             return
 
         if self.active_list == "entities" and self.settings_active:
-            if self.settings_view == "menu":
-                self.settings_index = min(7, self.settings_index + 1) # Limit for 8 menu items
-            elif self.settings_view == "connection":
-                self.settings_index = min(1, self.settings_index + 1) # 0: Primary, 1: Alternative
-            elif self.settings_view == "edit_url":
-                self.kb_row = (self.kb_row + 1) % len(self.kb_layout)
-                row_len = len(self.kb_layout[self.kb_row])
-                self.kb_col = min(self.kb_col, row_len - 1)
-            elif self.settings_view == "websocket":
-                self.settings_index = 0 # Only one item (Restart)
-            else:
-                if self.settings_view == "categories": limit = len(VIEWABLE_DOMAINS) - 1
-                elif self.settings_view == "flash_color": limit = len(self.flash_colors) - 1
-                elif self.settings_view == "wifidebug": limit = len(self._collect_wifi_debug_info()) - 1
-                else: limit = 0
-
-                self.settings_index = min(limit, self.settings_index + 1)
-                visible_settings = 8 if self.settings_view != "wifidebug" else 18
-                if self.settings_index >= self.settings_scroll_row + visible_settings:
-                    self.settings_scroll_row = self.settings_index - visible_settings + 1
+            self._handle_settings_nav("down")
             return
 
         if self.active_list == "domains":
@@ -1683,8 +1730,8 @@ class HASDL2App:
                 self.nav_index = min(grid_items_count - 1, self.nav_index + 3)
                 active_row = self.nav_index // 3
                 start_row = self.cat_scroll_row // 3
-                if active_row >= start_row + 2:
-                    self.cat_scroll_row = (active_row - 1) * 3
+                if active_row >= start_row + 3:
+                    self.cat_scroll_row = (active_row - 2) * 3
                 self._update_selection_context()
             else:
                 if self.nav_index < len(self.domain_list) - 1:
@@ -1710,8 +1757,8 @@ class HASDL2App:
                 self.entity_index = min(entities_count - 1, self.entity_index + 3)
                 active_row = self.entity_index // 3
                 start_row = self.entity_scroll_row // 3
-                if active_row >= start_row + 2:
-                    self.entity_scroll_row = (active_row - 1) * 3
+                if active_row >= start_row + 3:
+                    self.entity_scroll_row = (active_row - 2) * 3
             else:
                 self.entity_index = min(entities_count - 1, self.entity_index + 1)
                 visible_entities = 9
@@ -1722,7 +1769,7 @@ class HASDL2App:
     def _page_up(self):
         if self.active_list == "entities":
             if self.view_mode == "grid":
-                self.entity_index = max(0, self.entity_index - 6)
+                self.entity_index = max(0, self.entity_index - 9)
                 active_row = self.entity_index // 3
                 start_row = self.entity_scroll_row // 3
                 if active_row < start_row:
@@ -1734,7 +1781,7 @@ class HASDL2App:
             self._update_selection_context()
         elif self.active_list == "domains":
             if self.view_mode == "grid":
-                self.nav_index = max(0, self.nav_index - 6)
+                self.nav_index = max(0, self.nav_index - 9)
                 active_row = self.nav_index // 3
                 start_row = self.cat_scroll_row // 3
                 if active_row < start_row:
@@ -1746,11 +1793,11 @@ class HASDL2App:
             current_domain = self.domain_list[self.nav_index]
             count = len(self.entities_by_domain.get(current_domain, []))
             if self.view_mode == "grid":
-                self.entity_index = min(max(0, count - 1), self.entity_index + 6)
+                self.entity_index = min(max(0, count - 1), self.entity_index + 9)
                 active_row = self.entity_index // 3
                 start_row = self.entity_scroll_row // 3
-                if active_row >= start_row + 2:
-                    self.entity_scroll_row = (active_row - 1) * 3
+                if active_row >= start_row + 3:
+                    self.entity_scroll_row = (active_row - 2) * 3
             else:
                 self.entity_index = min(max(0, count - 1), self.entity_index + 8)
                 if self.entity_index >= self.entity_scroll_row + 8:
@@ -1759,11 +1806,11 @@ class HASDL2App:
         elif self.active_list == "domains":
             if self.view_mode == "grid":
                 grid_items_count = len(self.domain_list) + 1
-                self.nav_index = min(max(0, grid_items_count - 1), self.nav_index + 6)
+                self.nav_index = min(max(0, grid_items_count - 1), self.nav_index + 9)
                 active_row = self.nav_index // 3
                 start_row = self.cat_scroll_row // 3
-                if active_row >= start_row + 2:
-                    self.cat_scroll_row = (active_row - 1) * 3
+                if active_row >= start_row + 3:
+                    self.cat_scroll_row = (active_row - 2) * 3
                 self._update_selection_context()
 
     def _get_selected_entity(self):
@@ -1800,6 +1847,7 @@ class HASDL2App:
             return
         elif self.settings_active and self.active_list == "entities":
             if self.settings_view == "menu":
+                self.settings_menu_index = self.settings_index
                 if self.settings_index == 0: # "Server Connection"
                     self.settings_view = "connection"
                     self.settings_index = 0
@@ -2064,6 +2112,10 @@ class HASDL2App:
         elif self.mode == "graph_fullscreen":
             self._render_graph_overlay()
 
+        # Render splashscreen overlay if we are still loading initial data
+        if not self.states and not self.api_error_active:
+            self._render_splashscreen()
+
         # Render overlays
         self._render_controls_overlay()
         # Render exit confirmation overlay on top of everything else
@@ -2205,6 +2257,40 @@ class HASDL2App:
         tw3, th3 = self.ui.get_text_size(hint, small=True)
         self.ui.draw_text(hint, overlay_x + (overlay_w - tw3) // 2, overlay_y + overlay_h - th3 - 15, "gray", small=True)
 
+    def _render_splashscreen(self):
+        """Renders the splashscreen overlay with a semi-transparent background and the logo."""
+        # 1. Draw semi-transparent background overlay over the whole screen
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
+        # Dark midnight blue with 180/255 alpha (70% opacity)
+        sdl2.SDL_SetRenderDrawColor(self.renderer, 10, 10, 15, 180)
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 0, self.width, self.height))
+        sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
+
+        # 2. Draw centered logo
+        logo_tex = self.domain_icons.get("splash_logo")
+        logo_w, logo_h = 350, 350
+        logo_x = (self.width - logo_w) // 2
+        logo_y = (self.height - logo_h) // 2 - 20 # Offset slightly upwards to accommodate text at the bottom
+
+        if logo_tex:
+            dst = sdl2.SDL_Rect(logo_x, logo_y, logo_w, logo_h)
+            sdl2.SDL_RenderCopy(self.renderer, logo_tex, None, dst)
+        else:
+            # Fallback text if logo doesn't exist
+            text = "HOME ASSISTANT"
+            tw, th = self.ui.get_text_size(text, xl=True)
+            self.ui.draw_text(text, (self.width - tw) // 2, (self.height - th) // 2, "cyan", xl=True)
+
+        # 3. Draw pulsing loading text under the logo
+        loading_text = "Connecting to Home Assistant..."
+        tw, th = self.ui.get_text_size(loading_text)
+        text_x = (self.width - tw) // 2
+        text_y = logo_y + logo_h + 10
+
+        # Pulsing color using self.pulse_alpha
+        pulse_color = sdl2.SDL_Color(0, 163, 255, self.pulse_alpha)
+        self.ui.draw_text(loading_text, text_x, text_y, pulse_color)
+
     def _render_camera_overlay(self):
         """Renders the selected camera snapshot in a centered overlay (75% screen size)."""
         if not self.camera_tex:
@@ -2314,8 +2400,14 @@ class HASDL2App:
         # Render text (8px moved up)
         self.ui.draw_text(line1, text_start_x, 0, "white", xl=True)
 
-        if self.view_mode == "grid" and not self.settings_active:
-            if self.active_list == "domains":
+        if self.view_mode == "grid":
+            if self.settings_active:
+                title = "SETTINGS"
+                if self.settings_view != "menu":
+                    title = f"SETTINGS - {self.settings_view.replace('_', ' ').upper()}"
+                self.ui.draw_retro_box(self.h_gap, self.main_y, self.width - 2 * self.h_gap, self.main_area_h, title)
+                self._render_settings_grid(self.h_gap + self.margin, self.main_y + 13, self.main_area_h)
+            elif self.active_list == "domains":
                 title = "DASHBOARD"
                 self.ui.draw_retro_box(self.h_gap, self.main_y, self.width - 2 * self.h_gap, self.main_area_h, title)
                 self._render_categories_grid(self.h_gap + self.margin, self.main_y + 13, self.main_area_h)
@@ -2552,6 +2644,376 @@ class HASDL2App:
         elif self.settings_view == "about":
             self._render_about_view(x, y)
 
+    def _render_settings_grid(self, x, y_start, box_h):
+        """Renders settings menus and submenus in grid layout."""
+        if self.settings_view == "menu":
+            menu_items = [
+                ("Server", "wifi_0", ("Configure primary and", "alternative server URLs")),
+                ("Categories", "categories", ("Toggle visibility of", "individual domains")), 
+                ("Brightness", "brightness", ("Adjust hardware screen", "brightness level")),
+                ("Flash Color", "favorites", ("Select color feedback", "for button presses")),
+                ("WiFi Debug", "wifi_err", ("View network debug info", "and interface status")),
+                ("WebSocket Service", "script", ("WebSocket connection", "status and controls")),
+                ("System Details", "sensor", ("Hardware statistics", "and system resources")),
+                ("About", "ha_logo", ("HA RetroConsole info,", "credits and version"))
+            ]
+            
+            cols = 3
+            rows = 3
+            gap = 16
+            
+            box_w = self.width - 2 * self.h_gap - 2 * self.margin
+            cell_w = (box_w - (cols - 1) * gap) // cols
+            box_h_inner = box_h - 20
+            cell_h = (box_h_inner - (rows - 1) * gap) // rows
+            
+            for i, (label, icon_key, desc) in enumerate(menu_items):
+                col = i % cols
+                row = i // cols
+                
+                cell_x = x + col * (cell_w + gap)
+                cell_y = y_start + row * (cell_h + gap)
+                
+                is_selected = (self.settings_index == i)
+                
+                if is_selected:
+                    is_flashing = (time.time() - self.fav_flash_time < 0.3)
+                    flash_color = self.config.get("flash_color", "yellow") if is_flashing else "cyan"
+                    self.ui.draw_selection_highlight(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, color=flash_color)
+                    self.ui.draw_rounded_rect(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, flash_color)
+                    
+                self.ui.draw_rounded_rect(int(cell_x), int(cell_y), cell_w, cell_h, "white" if is_selected else "grey")
+                
+                icon_tex = self.domain_icons.get(icon_key)
+                icon_size = 24
+                if icon_key == "ha_logo":
+                    icon_size = 19
+                
+                if icon_tex:
+                    icon_draw_y = int(cell_y + 12)
+                    if icon_key == "ha_logo":
+                        icon_draw_y = int(cell_y + 14)
+                    dst = sdl2.SDL_Rect(int(cell_x + 12), icon_draw_y, icon_size, icon_size)
+                    sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                
+                display_label = self.ui.truncate_text(label, cell_w - 52, small=False)
+                self.ui.draw_text(display_label, cell_x + 44, cell_y + 14, "white", small=False)
+                
+                desc_color = "white" if is_selected else "gray"
+                desc_l1, desc_l2 = desc
+                
+                display_l1 = self.ui.truncate_text(desc_l1, cell_w - 24, small=True)
+                self.ui.draw_text(display_l1, cell_x + 12, cell_y + 42, desc_color, small=True)
+                
+                display_l2 = self.ui.truncate_text(desc_l2, cell_w - 24, small=True)
+                self.ui.draw_text(display_l2, cell_x + 12, cell_y + 58, desc_color, small=True)
+
+        elif self.settings_view == "categories":
+            hidden = self.config.get("hidden_domains", [])
+            cols = 3
+            rows = 3
+            visible_items = cols * rows
+            
+            box_w = self.width - 2 * self.h_gap - 2 * self.margin
+            gap = 16
+            cell_w = (box_w - (cols - 1) * gap) // cols
+            box_h_inner = box_h - 20
+            cell_h = (box_h_inner - (rows - 1) * gap) // rows
+            
+            start = self.settings_scroll_row
+            end = min(len(VIEWABLE_DOMAINS), start + visible_items)
+            
+            for i in range(start, end):
+                domain = VIEWABLE_DOMAINS[i]
+                rel_idx = i - start
+                col = rel_idx % cols
+                row = rel_idx // cols
+                
+                cell_x = x + col * (cell_w + gap)
+                cell_y = y_start + row * (cell_h + gap)
+                
+                is_hidden = domain in hidden
+                is_selected = (self.settings_index == i)
+                
+                if is_selected:
+                    self.ui.draw_selection_highlight(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, color="cyan")
+                    self.ui.draw_rounded_rect(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, "cyan")
+                    
+                self.ui.draw_rounded_rect(int(cell_x), int(cell_y), cell_w, cell_h, "white" if is_selected else "grey")
+                
+                status_icon_name = "binary_sensor_off" if is_hidden else "binary_sensor_on"
+                status_tex = self.domain_icons.get(status_icon_name)
+                icon_size = 24
+                
+                if status_tex:
+                    icon_color = COLOR_YELLOW if not is_hidden else COLOR_GREY
+                    sdl2.SDL_SetTextureColorMod(status_tex, icon_color.r, icon_color.g, icon_color.b)
+                    dst = sdl2.SDL_Rect(int(cell_x + 12), int(cell_y + 12), icon_size, icon_size)
+                    sdl2.SDL_RenderCopy(self.renderer, status_tex, None, dst)
+                    sdl2.SDL_SetTextureColorMod(status_tex, 255, 255, 255)
+                
+                domain_name = domain.replace("_", "-").capitalize()
+                display_label = self.ui.truncate_text(domain_name, cell_w - 52, small=False)
+                self.ui.draw_text(display_label, cell_x + 44, cell_y + 14, "white", small=False)
+                
+                status_text = "Hidden" if is_hidden else "Visible"
+                status_color = "white" if is_selected else ("gray" if is_hidden else "cyan")
+                self.ui.draw_text(status_text, cell_x + 12, cell_y + 48, status_color, small=True)
+                
+            if len(VIEWABLE_DOMAINS) > visible_items:
+                total_rows = (len(VIEWABLE_DOMAINS) + cols - 1) // cols
+                start_row = start // cols
+                self.ui.draw_scrollbar(
+                    int(self.width - self.h_gap - self.SCROLLBAR_WIDTH - 4), y_start, box_h - 18,
+                    start_row, total_rows, rows
+                )
+
+        elif self.settings_view == "flash_color":
+            current_color = self.config.get("flash_color", "yellow")
+            cols = 3
+            rows = 2
+            
+            box_w = self.width - 2 * self.h_gap - 2 * self.margin
+            gap = 16
+            cell_w = (box_w - (cols - 1) * gap) // cols
+            box_h_inner = box_h - 20
+            cell_h = (box_h_inner - (rows - 1) * gap) // rows
+            
+            for i, col_name in enumerate(self.flash_colors):
+                col = i % cols
+                row = i // cols
+                
+                cell_x = x + col * (cell_w + gap)
+                cell_y = y_start + row * (cell_h + gap)
+                
+                is_selected = (self.settings_index == i)
+                is_active = (col_name == current_color)
+                
+                if is_selected:
+                    self.ui.draw_selection_highlight(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, color="cyan")
+                    self.ui.draw_rounded_rect(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, "cyan")
+                    
+                self.ui.draw_rounded_rect(int(cell_x), int(cell_y), cell_w, cell_h, "white" if is_selected else "grey")
+                
+                color_preview_size = 20
+                self.ui.draw_rounded_rect(int(cell_x + 12), int(cell_y + 14), color_preview_size, color_preview_size, col_name)
+                
+                if is_active:
+                    self.ui.draw_text("ACTIVE", cell_x + 12, cell_y + 48, "yellow", small=True)
+                
+                display_label = self.ui.truncate_text(col_name.capitalize(), cell_w - 52, small=False)
+                self.ui.draw_text(display_label, cell_x + 44, cell_y + 14, "white", small=False)
+
+        elif self.settings_view == "connection":
+            urls = [
+                ("Primary URL", self.config.get("base_url", ""), "primary"),
+                ("Alternative URL", self.config.get("alternative_url", ""), "alternative")
+            ]
+            cols = 2
+            rows = 1
+            
+            box_w = self.width - 2 * self.h_gap - 2 * self.margin
+            gap = 24
+            cell_w = (box_w - (cols - 1) * gap) // cols
+            cell_h = box_h - 40
+            
+            for i, (label, val, utype) in enumerate(urls):
+                col = i % cols
+                cell_x = x + col * (cell_w + gap)
+                cell_y = y_start + 10
+                
+                is_sel = (self.settings_index == i)
+                is_active = (self.url_type == utype)
+                
+                if is_sel:
+                    self.ui.draw_selection_highlight(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, color="cyan")
+                    self.ui.draw_rounded_rect(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, "cyan")
+                    
+                self.ui.draw_rounded_rect(int(cell_x), int(cell_y), cell_w, cell_h, "white" if is_sel else "grey")
+                
+                status_label = "[ACTIVE]" if is_active else ""
+                status_color = "yellow" if is_active else "gray"
+                if status_label:
+                    self.ui.draw_text(status_label, cell_x + 16, cell_y + 16, status_color, small=True)
+                
+                self.ui.draw_text(label, cell_x + 16, cell_y + 36, "white", small=False)
+                
+                display_val = self.ui.truncate_text(val if val else "[Not Set]", cell_w - 32, small=True)
+                self.ui.draw_text(display_val, cell_x + 16, cell_y + 80, "white" if val else "gray", small=True)
+                
+                self.ui.draw_text("Confirm to switch URL", cell_x + 16, cell_y + cell_h - 40, "gray", small=True)
+                self.ui.draw_text("Y to Edit", cell_x + 16, cell_y + cell_h - 25, "gray", small=True)
+
+        elif self.settings_view == "brightness":
+            self.ui.draw_text("Display Brightness", x + 20, y_start + 10, "cyan", large=True)
+            y_bar = y_start + 60
+            bar_w = self.width - 2 * self.h_gap - 2 * self.margin - 120
+            
+            self.ui.draw_rounded_rect(int(x + 20), int(y_bar), bar_w, 30, "white")
+            fill_w = int((self.current_brightness / 100.0) * (bar_w - 6))
+            sdl2.SDL_SetRenderDrawColor(self.renderer, COLOR_CYAN.r, COLOR_CYAN.g, COLOR_CYAN.b, COLOR_CYAN.a)
+            sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(int(x + 23), int(y_bar + 3), fill_w, 24))
+            
+            self.ui.draw_text(f"{self.current_brightness}%", x + 20 + bar_w + 20, y_bar + 4, "white", large=True)
+            self.ui.draw_text("Use D-Pad Left/Right to adjust", x + 20, y_bar + 50, "gray", small=False)
+
+        elif self.settings_view == "websocket":
+            self.ui.draw_text("WebSocket Service", x + 20, y_start + 10, "cyan", large=True)
+            
+            card_w = (self.width - 2 * self.h_gap - 2 * self.margin - 40) // 2
+            card_h = 140
+            
+            self.ui.draw_rounded_rect(int(x + 20), int(y_start + 60), card_w, card_h, "grey")
+            self.ui.draw_text("Connection Status:", x + 36, y_start + 76, "gray", small=True)
+            
+            status_text = "CONNECTED" if self.ws_connected else "DISCONNECTED"
+            status_color = "green" if self.ws_connected else "red"
+            self.ui.draw_text(status_text, x + 36, y_start + 100, status_color, large=True)
+            
+            is_selected = (self.settings_index == 0)
+            rx = x + 40 + card_w
+            ry = y_start + 60
+            
+            if is_selected:
+                self.ui.draw_selection_highlight(int(rx - 2), int(ry - 2), card_w + 4, card_h + 4, color="cyan")
+                self.ui.draw_rounded_rect(int(rx - 2), int(ry - 2), card_w + 4, card_h + 4, "cyan")
+            self.ui.draw_rounded_rect(int(rx), int(ry), card_w, card_h, "white" if is_selected else "grey")
+            
+            btn_text_color = "white" if is_selected else "cyan"
+            self.ui.draw_text("Restart Connection", rx + 16, ry + 20, btn_text_color, small=False)
+            self.ui.draw_text("Force a manual reconnect attempt.", rx + 16, ry + 50, "gray", small=True)
+            self.ui.draw_text("Confirm to trigger", rx + 16, ry + 100, "gray", small=True)
+
+        elif self.settings_view == "wifidebug":
+            self.ui.draw_text("WiFi Debug (Use D-Pad to scroll):", x + 20, y_start, "cyan")
+            y_log = y_start + 25
+            debug_info = self._collect_wifi_debug_info()
+            item_h = 16
+            visible_lines = (box_h - 60) // item_h
+            start = self.settings_scroll_row
+            end = min(len(debug_info), start + visible_lines)
+            
+            border_w = self.width - 2 * self.h_gap - 2 * self.margin - 40
+            border_h = visible_lines * item_h + 10
+            self.ui.draw_rounded_rect(int(x + 20), int(y_log - 5), border_w, border_h, "grey")
+            
+            for i in range(start, end):
+                line_y = y_log + (i - start) * item_h
+                self.ui.draw_text(debug_info[i], x + 30, line_y, "white", small=True)
+                
+            if len(debug_info) > visible_lines:
+                self.ui.draw_scrollbar(
+                    int(self.width - self.h_gap - self.SCROLLBAR_WIDTH - 24), y_log, border_h - 10,
+                    start, len(debug_info), visible_lines
+                )
+
+        elif self.settings_view == "system_details":
+            self.ui.draw_text("System Details", x + 20, y_start + 10, "cyan", large=True)
+            y_grid = y_start + 50
+            
+            cpu_mhz, free_ram, wifi = self._get_system_stats()
+            temp = "N/A"
+            temp_path = "/sys/class/thermal/thermal_zone0/temp"
+            if os.path.exists(temp_path):
+                try:
+                    with open(temp_path, "r") as f:
+                        temp = f"{int(f.read().strip()) / 1000:.1f} C"
+                except: pass
+                
+            details = [
+                ("CPU Speed", cpu_mhz),
+                ("CPU Temp", temp),
+                ("Free RAM", free_ram),
+                ("WiFi Signal", wifi),
+                ("Storage (/)", self._get_disk_usage()),
+                ("Local IP", self.ip_address)
+            ]
+            
+            cols = 3
+            rows = 2
+            gap = 16
+            box_w = self.width - 2 * self.h_gap - 2 * self.margin - 40
+            cell_w = (box_w - (cols - 1) * gap) // cols
+            cell_h = 70
+            
+            for i, (label, val) in enumerate(details):
+                col = i % cols
+                row = i // cols
+                cell_x = x + 20 + col * (cell_w + gap)
+                cell_y = y_grid + row * (cell_h + gap)
+                
+                self.ui.draw_rounded_rect(int(cell_x), int(cell_y), cell_w, cell_h, "grey")
+                self.ui.draw_text(label, cell_x + 12, cell_y + 12, "gray", small=True)
+                self.ui.draw_text(val, cell_x + 12, cell_y + 36, "white", small=False)
+
+        elif self.settings_view == "about":
+            logo_x = x + (self.width - 2 * self.h_gap - 2 * self.margin - 80) // 2
+            logo_y = y_start + 10
+            
+            icon_tex = self.domain_icons.get("ha_logo")
+            if icon_tex:
+                dst = sdl2.SDL_Rect(int(logo_x), int(logo_y), 48, 48)
+                sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                
+            self.ui.draw_text("HA RetroConsole", logo_x - 30, logo_y + 60, "white", large=True)
+            self.ui.draw_text(f"Version: {VERSION}", logo_x - 10, logo_y + 90, "cyan", small=True)
+            self.ui.draw_text("Author: slickor", logo_x - 10, logo_y + 110, "gray", small=True)
+            
+            self.ui.draw_text("A native Home Assistant client built for retro handhelds.", x + 20, logo_y + 145, "white", small=True)
+            self.ui.draw_text("Enjoy controlling your smart home on the go!", x + 20, logo_y + 165, "white", small=True)
+
+        elif self.settings_view == "edit_url":
+            label = "Primary URL" if self.edit_target_key == "base_url" else "Alternative URL"
+            self.ui.draw_text(f"Edit {label}:", x + 20, y_start, "cyan", small=True)
+            
+            buf_w = self.width - 2 * self.h_gap - 2 * self.margin - 40
+            self.ui.draw_rounded_rect(int(x + 20), int(y_start + 18), buf_w, 28, "grey")
+            display_text = self.ui.truncate_text(self.edit_buffer + "_", buf_w - 20, small=True)
+            self.ui.draw_text(display_text, x + 30, y_start + 24, "white", small=True)
+            
+            kb_y = y_start + 56
+            key_w = 22
+            key_h = 24
+            
+            max_kb_w = 0
+            for row in self.kb_layout:
+                row_w = 0
+                for key in row:
+                    actual_key_w = key_w
+                    if len(key) > 1:
+                        tw, _ = self.ui.get_text_size(key, small=True)
+                        actual_key_w = tw + 10
+                    row_w += actual_key_w + 6
+                max_kb_w = max(max_kb_w, row_w)
+                
+            kb_x_start = x + 20 + (buf_w - max_kb_w) // 2
+            
+            for r_idx, row in enumerate(self.kb_layout):
+                cur_x = kb_x_start
+                for c_idx, key in enumerate(row):
+                    is_sel = (self.kb_row == r_idx and self.kb_col == c_idx)
+                    
+                    actual_key_w = key_w
+                    if len(key) > 1:
+                        tw, _ = self.ui.get_text_size(key, small=True)
+                        actual_key_w = tw + 10
+                        
+                    text_color = "white" if not is_sel else "black"
+                    if key == "Shift" and self.kb_shift:
+                        text_color = "yellow" if not is_sel else "black"
+                        
+                    if is_sel:
+                        self.ui.draw_selection_highlight(int(cur_x - 2), int(kb_y - 2), actual_key_w, key_h, color="cyan")
+                        self.ui.draw_rounded_rect(int(cur_x - 2), int(kb_y - 2), actual_key_w, key_h, "cyan")
+                        
+                    tw, th = self.ui.get_text_size(key, small=True)
+                    self.ui.draw_text(key, cur_x + (actual_key_w - tw) // 2, kb_y + (key_h - th) // 2, text_color, small=True)
+                    cur_x += actual_key_w + 6
+                kb_y += key_h + 6
+                
+            kb_y += 5
+            self.ui.draw_text("X: Backspace | Confirm: Type | Cancel: Close", x + 20, kb_y, "gray", small=True)
+
     def draw_menu(self, x, y_start, box_h):
         """Draws the navigation menu with pointer and highlight."""
         if not self.domain_list:
@@ -2702,11 +3164,11 @@ class HASDL2App:
             )
 
     def _render_categories_grid(self, x, y_start, box_h):
-        """Renders the domains and settings as a 3x2 grid of category tiles."""
+        """Renders the domains and settings as a 3x3 grid of category tiles."""
         grid_items = list(self.domain_list) + ["settings"]
         
         cols = 3
-        rows = 2
+        rows = 3
         
         # Calculate cell size
         box_w = self.width - 2 * self.h_gap - 2 * self.margin
@@ -2766,7 +3228,8 @@ class HASDL2App:
             self.ui.draw_text(display_label, cell_x + 52, cell_y + 16, "white", small=False)
             
             display_subtitle = self.ui.truncate_text(subtitle, cell_w - 32, small=False)
-            self.ui.draw_text(display_subtitle, cell_x + 16, cell_y + 56, "gray", small=False)
+            sub_color = "white" if is_selected else "gray"
+            self.ui.draw_text(display_subtitle, cell_x + 16, cell_y + 56, sub_color, small=False)
 
         if len(grid_items) > visible_entities:
             total_rows = (len(grid_items) + cols - 1) // cols
@@ -2776,7 +3239,7 @@ class HASDL2App:
             )
 
     def _render_entities_grid(self, x, y_start, box_h):
-        """Renders the list of active domain entities as a 3x2 grid of large cards."""
+        """Renders the list of active domain entities as a 3x3 grid of large cards."""
         current_domain = self.domain_list[self.nav_index] if (self.domain_list and self.nav_index < len(self.domain_list)) else "favorites"
         entities = self.entities_by_domain.get(current_domain, [])
         if not entities:
@@ -2784,7 +3247,7 @@ class HASDL2App:
             return
 
         cols = 3
-        rows = 2
+        rows = 3
         
         # Calculate cell size
         box_w = self.width - 2 * self.h_gap - 2 * self.margin
@@ -2842,13 +3305,7 @@ class HASDL2App:
                 
             label = display_name(entity_id, entity)
             display_label = self.ui.truncate_text(label, cell_w - 60, small=False)
-            self.ui.draw_text(display_label, cell_x + 52, cell_y + 16, "white", small=False)
-            
-            state_str = get_state_with_unit(entity)
-            if state_str == "on": state_str = "On"
-            elif state_str == "off": state_str = "Off"
-            display_state = self.ui.truncate_text(state_str, cell_w - 32, small=False)
-            self.ui.draw_text(display_state, cell_x + 16, cell_y + 56, "cyan" if is_on else "gray", small=False)
+            self.ui.draw_text(display_label, cell_x + 52, cell_y + 14, "white", small=False)
             
             # Progress bar for adjustable entities
             attrs = entity.get("attributes", {})
@@ -2870,12 +3327,21 @@ class HASDL2App:
                 if temp is not None:
                     fill_pct = max(0.0, min(1.0, (float(temp) - 7) / (35 - 7)))
                     has_progress = True
+
+            state_str = get_state_with_unit(entity)
+            if state_str == "on": state_str = "On"
+            elif state_str == "off": state_str = "Off"
+            display_state = self.ui.truncate_text(state_str, cell_w - 32, small=False)
+            
+            state_y = cell_y + 42 if has_progress else cell_y + 50
+            state_color = "cyan" if is_on else ("white" if is_selected else "gray")
+            self.ui.draw_text(display_state, cell_x + 16, state_y, state_color, small=False)
             
             if has_progress:
                 bar_x = cell_x + 16
-                bar_y = cell_y + 96
+                bar_y = cell_y + 66
                 bar_w = cell_w - 32
-                bar_h = 8
+                bar_h = 6
                 
                 # Background
                 sdl2.SDL_SetRenderDrawColor(self.renderer, 40, 40, 40, 255)

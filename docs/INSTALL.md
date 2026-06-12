@@ -37,6 +37,7 @@ The app requires a `config.json` file in the `ha-retroconsole` folder. You can r
 ```json
 {
   "base_url": "http://192.168.1.100:8123",
+  "alternative_url": "https://your-ha.myfritz.net:8123",
   "token": "YOUR_LONG_LIVED_ACCESS_TOKEN",
   "control_layout": "auto",
   "favorites": []
@@ -45,6 +46,7 @@ The app requires a `config.json` file in the `ha-retroconsole` folder. You can r
 
 ### Critical Settings:
 - **base_url**: **Use the IP address.** Most handheld Linux distributions (muOS, Spruce, ArkOS) do not support mDNS, so `homeassistant.local` will likely fail.
+- **alternative_url**: (Optional) A secondary URL (e.g., an external domain, Nabu Casa link, or VPN address) to use as a fallback if the primary `base_url` is unreachable. The app checks connectivity on startup and falls back automatically.
 - **control_layout**: 
   - `"auto"`: Tries to detect your OS (Spruce vs. muOS).
   - `"muos"`: Uses A for Confirm, B for Cancel.

@@ -7,16 +7,16 @@ try:
     import pyautogui
     import pygetwindow as gw
 except ImportError:
-    print("Bitte installiere die benötigten Module: pip install pyautogui pygetwindow Pillow pyscreeze")
+    print("Please install the required modules: pip install pyautogui pygetwindow Pillow pyscreeze")
     sys.exit(1)
 
-# --- Konfiguration ---
+# --- Configuration ---
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "screenshots")
 CONFIG_SRC = os.path.join(os.path.dirname(__file__), "..", "config.json")
 APP_SCRIPT = os.path.join(os.path.dirname(__file__), "ha_sdl2.py")
 APP_DIR = os.path.dirname(__file__)
 
-# Offset-Werte für Fensterrahmen (Windows)
+# Window frame offsets (Windows)
 BORDER_LEFT = 8
 BORDER_RIGHT = 8
 BORDER_TOP = 31
@@ -27,17 +27,17 @@ if not os.path.exists(OUTPUT_DIR):
 
 def main():
     if not os.path.exists(CONFIG_SRC):
-        print(f"Fehler: config.json nicht gefunden unter {CONFIG_SRC}")
+        print(f"Error: config.json not found at {CONFIG_SRC}")
         return
 
-    print("Starte Anwendung...")
-    # Starte die App direkt mit der aktuellen config.json
+    print("Starting application...")
+    # Start the app directly with the current config.json
     process = subprocess.Popen(
         [sys.executable, APP_SCRIPT, "--config", CONFIG_SRC],
         cwd=APP_DIR
     )
 
-    print("Warte 10 Sekunden für den Start und ersten Verbindungsaufbau...")
+    print("Waiting 10 seconds for startup and first connection...")
     time.sleep(10)
 
     try:
@@ -45,7 +45,7 @@ def main():
         while process.poll() is None:
             screenshot_path = os.path.join(OUTPUT_DIR, f"live_screenshot_{count:03d}.png")
             
-            # Finde das Fenster
+            # Find the window
             app_window = None
             for title in gw.getAllTitles():
                 if "Home Assistant" in title or "HA Retro" in title:
@@ -54,7 +54,7 @@ def main():
             
             if app_window:
                 try:
-                    app_window.activate() # Versuche, das Fenster in den Vordergrund zu holen
+                    app_window.activate() # Try to bring the window to the foreground
                     time.sleep(0.5)
                 except Exception:
                     pass
@@ -68,24 +68,24 @@ def main():
                 pyautogui.screenshot(screenshot_path, region=region)
                 print(f"Screenshot {count} gespeichert: {screenshot_path}")
             else:
-                print("[Warnung] Fenster nicht gefunden. Mache stattdessen einen Vollbild-Screenshot...")
+                print("[Warning] Window not found. Taking a fullscreen screenshot instead...")
                 pyautogui.screenshot(screenshot_path)
-                print(f"Vollbild-Screenshot {count} gespeichert: {screenshot_path}")
+                print(f"Fullscreen screenshot {count} saved: {screenshot_path}")
 
             count += 1
-            print("Warte weitere 10 Sekunden...")
+            print("Waiting another 10 seconds...")
             time.sleep(10)
             
     except KeyboardInterrupt:
-        print("\nScreenshot-Automatisierung durch Benutzer abgebrochen (Strg+C).")
+        print("\nScreenshot automation aborted by user (Ctrl+C).")
     finally:
-        print("Beende die Anwendung...")
+        print("Terminating the application...")
         if process.poll() is None:
             process.terminate()
             process.wait()
 
 if __name__ == "__main__":
-    print("Starte kontinuierliche Screenshot-Automatisierung...")
-    print("Die App wird gestartet und alle 10 Sekunden wird ein Screenshot erstellt.")
-    print("Abbrechen jederzeit mit Strg+C möglich.")
+    print("Starting continuous screenshot automation...")
+    print("The app will start and a screenshot will be created every 10 seconds.")
+    print("Can be cancelled at any time with Ctrl+C.")
     main()

@@ -32,18 +32,25 @@ Turn your retro handheld into a smart home command center. HA RetroConsole provi
 Key milestones reached:
 - **Phase 4 (Deployable App):** Successfully completed with automated build scripts for PortMaster.
 - **Phase 5 (Device Testing):** Completed. Successfully verified on muOS, Spruce, and Knulli distributions for the TrimUI Smart Pro.
-- **v0.31.0 Update:** Added Grid/Dashboard view for favorites.
+- **v0.32.0 Update:** Added a startup splashscreen overlay with pulsing status text and fallback server URL fallback documentation.
 
 
  
 
 For detailed setup instructions, see the Installation & Configuration Guide.
 
-## Connectivity Note
+## Connectivity & Fallback Note
 
 **Important:** Many handheld Linux distributions (like those used on the R36S or TrimUI Smart Pro) do not support mDNS out of the box. 
 
 It is highly recommended to use the **IP address** of your Home Assistant server (e.g., `http://192.168.1.100:8123`) in your `config.json` instead of `http://homeassistant.local:8123`.
+
+### Fallback Server URL
+If you want to use the application both at home and on the go (e.g., via VPN, WireGuard, or external access), you can configure a fallback server URL:
+- Specify your local IP address under `base_url` for fast local home network connectivity.
+- Specify your external domain or Nabu Casa URL under `alternative_url` in your `config.json`.
+
+On startup, the client automatically tests connectivity to the primary `base_url` first, and seamlessly falls back to the `alternative_url` if the primary is unreachable.
 
 ## Quickstart
 
@@ -56,8 +63,8 @@ It is highly recommended to use the **IP address** of your Home Assistant server
 The development is structured in several phases. We have reached a stable release candidate.
 * **Phase 0-5:** Core development, connectivity, and device stability (Completed).
 * **Phase 6:** Refinement & Advanced Features (v0.29.2) (Completed).
-* **Phase 7:** Advanced UI & Ecosystem (v0.30.6) (In Progress).
-* **Phase 8:** Extended Integrations & UI (v0.31.0) (In Progress).
+* **Phase 7:** Advanced UI & Ecosystem (v0.30.6) (Completed).
+* **Phase 8:** Extended Integrations & UI (v0.32.0) (Completed).
 Detailed progress and future plans can be tracked in docs/ROADMAP.md and docs/CHANGELOG.md.
 
 ## Special Thanks

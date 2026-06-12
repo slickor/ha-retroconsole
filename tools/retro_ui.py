@@ -78,7 +78,7 @@ class RetroUI:
             color_id = color
         else: # Assume it's an SDL_Color object
             sdl_color = color
-            color_id = f"{color.r}{color.g}{color.b}"
+            color_id = f"{color.r}{color.g}{color.b}{color.a}"
         
         if xl:
             size_id = "xl"
