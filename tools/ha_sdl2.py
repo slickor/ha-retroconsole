@@ -2259,12 +2259,17 @@ class HASDL2App:
 
     def _render_splashscreen(self):
         """Renders the splashscreen overlay with a semi-transparent background and the logo."""
-        # 1. Draw semi-transparent background overlay over the whole screen
+        # 1. Draw semi-transparent background overlay over the whole physical screen (including pillarbox/letterbox areas)
+        real_w, real_h = ctypes.c_int(), ctypes.c_int()
+        sdl2.SDL_GetRendererOutputSize(self.renderer, ctypes.byref(real_w), ctypes.byref(real_h))
+        
+        sdl2.SDL_RenderSetLogicalSize(self.renderer, 0, 0)
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
         # Dark midnight blue with 180/255 alpha (70% opacity)
         sdl2.SDL_SetRenderDrawColor(self.renderer, 10, 10, 15, 180)
-        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 0, self.width, self.height))
+        sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 0, real_w.value, real_h.value))
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
+        sdl2.SDL_RenderSetLogicalSize(self.renderer, self.width, self.height)
 
         # 2. Draw centered logo
         logo_tex = self.domain_icons.get("splash_logo")
@@ -2283,13 +2288,16 @@ class HASDL2App:
 
         # 3. Draw pulsing loading text under the logo
         loading_text = "Connecting to Home Assistant..."
-        tw, th = self.ui.get_text_size(loading_text)
+        tw, th = self.ui.get_text_size(loading_text, large=True)
         text_x = (self.width - tw) // 2
-        text_y = logo_y + logo_h + 10
+        if logo_tex:
+            text_y = logo_y + logo_h - 85
+        else:
+            text_y = (self.height // 2) - 25
 
         # Pulsing color using self.pulse_alpha
         pulse_color = sdl2.SDL_Color(0, 163, 255, self.pulse_alpha)
-        self.ui.draw_text(loading_text, text_x, text_y, pulse_color)
+        self.ui.draw_text(loading_text, text_x, text_y, pulse_color, large=True)
 
     def _render_camera_overlay(self):
         """Renders the selected camera snapshot in a centered overlay (75% screen size)."""

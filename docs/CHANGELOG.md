@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.32.1] - 2026-06-17
+### Added
+- **UI:** Expanded start screen dimming overlay to full physical screen resolution to cover pillarboxes/letterboxes on widescreen displays like the Trimui Smart Pro.
+- **UI:** Increased font size and adjusted Y-positioning of the startup loading text ("Connecting to Home Assistant...") to place it closer to the logo.
+
 ## [0.32.0] - 2026-06-12
 ### Added
 - **UI:** Added a polished startup splashscreen that overlays the dashboard during the initial connection phase.
