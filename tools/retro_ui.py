@@ -28,7 +28,8 @@ class RetroUI:
             "magenta":sdl2.SDL_Color(255, 0, 255, 255),
             "white":  sdl2.SDL_Color(255, 255, 255, 255),
             "black":  sdl2.SDL_Color(0, 0, 0, 255),
-            "box_bg": sdl2.SDL_Color(0, 19, 41, 180) # Semi-transparent blue
+            "box_bg": sdl2.SDL_Color(0, 19, 41, 180), # Semi-transparent blue
+            "scrollbar_track": sdl2.SDL_Color(40, 40, 40, 255)
         }
         self._text_cache: Dict[str, Tuple[Any, int, int]] = {}
 
@@ -222,7 +223,8 @@ class RetroUI:
             return
 
         # Track background
-        sdl2.SDL_SetRenderDrawColor(self.renderer, 40, 40, 40, 255)
+        track_col = self.colors.get("scrollbar_track", sdl2.SDL_Color(40, 40, 40, 255))
+        sdl2.SDL_SetRenderDrawColor(self.renderer, track_col.r, track_col.g, track_col.b, track_col.a)
         track_rect = sdl2.SDL_Rect(x, y, 4, h)
         sdl2.SDL_RenderFillRect(self.renderer, track_rect)
 
@@ -236,7 +238,8 @@ class RetroUI:
         handle_y = y + int(progress * scroll_range)
 
         # Draw handle
-        sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 163, 255, 255)
+        cyan_col = self.colors["cyan"]
+        sdl2.SDL_SetRenderDrawColor(self.renderer, cyan_col.r, cyan_col.g, cyan_col.b, cyan_col.a)
         handle_rect = sdl2.SDL_Rect(x, handle_y, 4, handle_h)
         sdl2.SDL_RenderFillRect(self.renderer, handle_rect)
 
@@ -311,6 +314,33 @@ class RetroUI:
         for i in range(len(points) - 1):
             sdl2.SDL_RenderDrawLine(self.renderer, points[i][0], points[i][1], points[i+1][0], points[i+1][1])
             sdl2.SDL_RenderDrawLine(self.renderer, points[i][0], points[i][1]+1, points[i+1][0], points[i+1][1]+1)
+
+    def change_font(self, font_path: str, font_size: int = 24):
+        """Changes the font dynamically at runtime, closing old fonts and clearing the text cache."""
+        if self.font:
+            ttf.TTF_CloseFont(self.font)
+        if self.font_small:
+            ttf.TTF_CloseFont(self.font_small)
+        if self.font_large:
+            ttf.TTF_CloseFont(self.font_large)
+        if self.font_xl:
+            ttf.TTF_CloseFont(self.font_xl)
+            
+        self.font = ttf.TTF_OpenFont(font_path.encode('utf-8'), font_size)
+        self.font_small = ttf.TTF_OpenFont(font_path.encode('utf-8'), int(font_size * 0.75))
+        self.font_large = ttf.TTF_OpenFont(font_path.encode('utf-8'), int(font_size * 1.5))
+        self.font_xl = ttf.TTF_OpenFont(font_path.encode('utf-8'), int(font_size * 2.5))
+        
+        if not self.font or not self.font_small or not self.font_large or not self.font_xl:
+            raise RuntimeError(f"Could not load fonts: {ttf.TTF_GetError()}")
+            
+        self.clear_text_cache()
+
+    def clear_text_cache(self):
+        """Destroys all cached text textures and clears the text cache."""
+        for tex, w, h in self._text_cache.values():
+            sdl2.SDL_DestroyTexture(tex)
+        self._text_cache.clear()
 
     def cleanup(self):
         """Frees textures and fonts."""

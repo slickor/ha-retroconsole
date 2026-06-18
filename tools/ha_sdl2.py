@@ -1,5 +1,6 @@
 import sys
 import os
+from pathlib import Path
 import time
 import math
 import threading
@@ -137,6 +138,7 @@ class HASDL2App:
     def __init__(self, config_path):
         self.config_path = config_path
         self.config = load_config(config_path)
+        self.current_theme = self.config.get("theme", "home_assistant")
         self.edit_buffer = ""
         self.edit_cursor = 0
         self.edit_target_key = None # "base_url" or "alternative_url"
@@ -199,6 +201,7 @@ class HASDL2App:
         self.selection_start_time = time.time()
         self.fav_flash_time = 0
         self.log_entries = [] # List of (timestamp, text, color)
+        self.themes = self._load_themes()
         self.btn_flash_times = {} # Map of btn_id -> timestamp for visual feedback
         self.log_scroll = 0
         self.trigger_l_pressed = False
@@ -419,7 +422,10 @@ class HASDL2App:
         wifi_icon_key = "wifi_4" if wifi_val != "N/A" else "wifi_err"
         wifi_tex = self.domain_icons.get(wifi_icon_key)
         if wifi_tex:
+            icon_color = self._get_default_icon_color()
+            sdl2.SDL_SetTextureColorMod(wifi_tex, icon_color.r, icon_color.g, icon_color.b)
             sdl2.SDL_RenderCopy(self.renderer, wifi_tex, None, sdl2.SDL_Rect(x + 443, y + 5, 16, 16))
+            sdl2.SDL_SetTextureColorMod(wifi_tex, 255, 255, 255)
 
         # Controls Hint (Right aligned)
         hint = "[START] Controls Overlay"
@@ -709,27 +715,14 @@ class HASDL2App:
         # automatically on high-res screens like the TrimUI Smart Pro (720p).
         sdl2.SDL_RenderSetLogicalSize(self.renderer, self.width, self.height)
         
-        # Cross-platform font candidates including relative asset path
+        # Determine active font from configuration
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        font_candidates = [
-            os.path.join(script_dir, "..", "assets", "fonts", "m5x7.ttf"),
-            "C:\\Windows\\Fonts\\arial.ttf",
-            "C:\\Windows\\Fonts\\verdana.ttf",
-            "C:\\Windows\\Fonts\\segoeui.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/TTF/DejaVuSans.ttf"
-        ]
-        selected_font = None
-        for candidate in font_candidates:
-            if os.path.exists(candidate):
-                selected_font = candidate
-                break
+        selected_font_type = self.config.get("font", "pixel")
+        selected_font = self._get_font_path(selected_font_type)
+        font_size = 15 if selected_font_type == "sans-serif" else 24
         
-        if not selected_font:
-            raise SystemExit("Error: Could not load any font. Ensure assets/fonts/m5x7.ttf exists.")
-
         # Initialize the RetroUI framework
-        self.ui = RetroUI(self.renderer, selected_font)
+        self.ui = RetroUI(self.renderer, selected_font, font_size)
 
         # Load domain icons (light.png, switch.png, etc.)
         icon_dir = os.path.join(script_dir, "..", "assets", "icons")
@@ -774,6 +767,153 @@ class HASDL2App:
                 if controller:
                     self.game_controllers.append(controller)
                     print(f"Opened game controller: {sdl2.SDL_GameControllerName(controller).decode('utf-8')}")
+
+        # Apply initial theme
+        self.apply_theme(self.current_theme)
+
+    def _load_themes(self):
+        default_themes = {
+            "home_assistant": {
+                "name": "Home Assistant (Default)",
+                "cyan": [0, 163, 255, 255],
+                "yellow": [238, 176, 0, 255],
+                "bg": [10, 10, 15, 255],
+                "box_bg": [0, 19, 41, 180],
+                "gray": [85, 85, 85, 255],
+                "white": [255, 255, 255, 255],
+                "scrollbar_track": [40, 40, 40, 255]
+            },
+            "pipboy": {
+                "name": "Pip-Boy Green",
+                "cyan": [26, 255, 128, 255],
+                "yellow": [255, 204, 0, 255],
+                "bg": [5, 10, 5, 255],
+                "box_bg": [5, 30, 10, 180],
+                "gray": [40, 100, 50, 255],
+                "white": [200, 255, 220, 255],
+                "scrollbar_track": [15, 45, 20, 255]
+            },
+            "amber": {
+                "name": "Classic Amber",
+                "cyan": [255, 140, 0, 255],
+                "yellow": [255, 220, 0, 255],
+                "bg": [10, 5, 0, 255],
+                "box_bg": [30, 15, 0, 180],
+                "gray": [120, 60, 0, 255],
+                "white": [255, 230, 200, 255],
+                "scrollbar_track": [45, 20, 0, 255]
+            },
+            "purple": {
+                "name": "Midnight Purple",
+                "cyan": [200, 0, 255, 255],
+                "yellow": [0, 255, 220, 255],
+                "bg": [10, 5, 15, 255],
+                "box_bg": [25, 0, 40, 180],
+                "gray": [100, 50, 120, 255],
+                "white": [255, 220, 255, 255],
+                "scrollbar_track": [35, 10, 45, 255]
+            },
+            "monochrome": {
+                "name": "DMG Monochrome",
+                "cyan": [15, 56, 15, 255],
+                "yellow": [48, 98, 48, 255],
+                "bg": [139, 172, 15, 255],
+                "box_bg": [139, 172, 15, 50],
+                "gray": [48, 98, 48, 255],
+                "white": [15, 56, 15, 255],
+                "scrollbar_track": [155, 188, 15, 255]
+            }
+        }
+        themes_path = Path(self.config_path).parent / "themes.json"
+        if not themes_path.exists():
+            try:
+                with open(themes_path, "w") as f:
+                    json.dump(default_themes, f, indent=4)
+                print(f"Created themes.json at {themes_path}")
+            except Exception as e:
+                print(f"Error creating themes.json: {e}")
+            return default_themes
+
+        try:
+            with open(themes_path, "r") as f:
+                loaded = json.load(f)
+                if isinstance(loaded, dict) and len(loaded) > 0:
+                    print(f"Loaded themes from {themes_path}")
+                    return loaded
+                else:
+                    print("themes.json is empty or invalid format, using defaults.")
+                    return default_themes
+        except Exception as e:
+            print(f"Error loading themes.json: {e}")
+            return default_themes
+
+    def _get_font_path(self, font_type: str) -> str:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        if font_type == "sans-serif":
+            candidates = [
+                "C:\\Windows\\Fonts\\arial.ttf",
+                "C:\\Windows\\Fonts\\verdana.ttf",
+                "C:\\Windows\\Fonts\\segoeui.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/TTF/DejaVuSans.ttf"
+            ]
+            for c in candidates:
+                if os.path.exists(c):
+                    return c
+        # Fallback to pixel font
+        return os.path.normpath(os.path.join(script_dir, "..", "assets", "fonts", "m5x7.ttf"))
+
+    def apply_theme(self, theme_name):
+        """Applies a theme by name, updating self.ui.colors and global color objects."""
+        theme = self.themes.get(theme_name, self.themes.get("home_assistant"))
+        if not theme:
+            print(f"Warning: Theme {theme_name} not found.")
+            return
+            
+        self.current_theme = theme_name
+        self.config["theme"] = theme_name
+        
+        # 1. Update self.ui.colors in RetroUI
+        for color_name, val in theme.items():
+            if color_name == "name":
+                continue
+            if color_name in self.ui.colors:
+                self.ui.colors[color_name].r = val[0]
+                self.ui.colors[color_name].g = val[1]
+                self.ui.colors[color_name].b = val[2]
+                self.ui.colors[color_name].a = val[3]
+                
+        # 2. Update global color objects in tools.ha_sdl2 module namespace
+        global COLOR_CYAN, COLOR_YELLOW, COLOR_GREY, COLOR_BG
+        
+        if "cyan" in theme:
+            cyan_val = theme["cyan"]
+            COLOR_CYAN.r, COLOR_CYAN.g, COLOR_CYAN.b, COLOR_CYAN.a = cyan_val
+        
+        if "yellow" in theme:
+            yellow_val = theme["yellow"]
+            COLOR_YELLOW.r, COLOR_YELLOW.g, COLOR_YELLOW.b, COLOR_YELLOW.a = yellow_val
+        
+        if "gray" in theme:
+            gray_val = theme["gray"]
+            COLOR_GREY.r, COLOR_GREY.g, COLOR_GREY.b, COLOR_GREY.a = gray_val
+        
+        if "bg" in theme:
+            bg_val = theme["bg"]
+            COLOR_BG.r, COLOR_BG.g, COLOR_BG.b, COLOR_BG.a = bg_val
+        
+        # Clear RetroUI text cache to force redraw with the new colors
+        self.ui.clear_text_cache()
+
+    def _get_default_icon_color(self):
+        """Returns the appropriate SDL_Color for non-status, standard icons based on theme."""
+        if self.current_theme == "home_assistant":
+            color_name = "white"
+        elif self.current_theme == "monochrome":
+            color_name = "cyan" # dark green
+        else:
+            color_name = "gray" # dim color for theme
+        return self.ui.colors.get(color_name, self.ui.colors["white"])
 
     def _start_background_task(self, task_type, target_func, *args, **kwargs):
         """Starts a function in a background thread and puts its result/error into the task_queue."""
@@ -1554,13 +1694,19 @@ class HASDL2App:
         if self.view_mode == "grid":
             if self.settings_view == "menu":
                 cols = 3
-                count = 8
+                count = 10
             elif self.settings_view == "categories":
                 cols = 3
                 count = len(VIEWABLE_DOMAINS)
             elif self.settings_view == "flash_color":
                 cols = 3
                 count = len(self.flash_colors)
+            elif self.settings_view == "theme":
+                cols = 3
+                count = len(self.themes)
+            elif self.settings_view == "font":
+                cols = 2
+                count = 2
             elif self.settings_view == "connection":
                 cols = 2
                 count = 2
@@ -1579,7 +1725,7 @@ class HASDL2App:
             elif direction == "down":
                 self.settings_index = min(count - 1, self.settings_index + cols)
 
-            if self.settings_view == "categories":
+            if self.settings_view in ["menu", "categories"]:
                 active_row = self.settings_index // 3
                 start_row = self.settings_scroll_row // 3
                 if active_row < start_row:
@@ -1588,13 +1734,17 @@ class HASDL2App:
                     self.settings_scroll_row = (active_row - 2) * 3
         else:
             if self.settings_view == "menu":
-                limit = 7
+                limit = 9
             elif self.settings_view == "connection":
                 limit = 1
             elif self.settings_view == "categories":
                 limit = len(VIEWABLE_DOMAINS) - 1
             elif self.settings_view == "flash_color":
                 limit = len(self.flash_colors) - 1
+            elif self.settings_view == "theme":
+                limit = len(self.themes) - 1
+            elif self.settings_view == "font":
+                limit = 1
             else:
                 limit = 0
 
@@ -1863,22 +2013,47 @@ class HASDL2App:
                     self.settings_view = "flash_color"
                     self.settings_index = 0
                     self.settings_scroll_row = 0
-                elif self.settings_index == 4: # "WiFi Debug"
+                elif self.settings_index == 4: # "UI Theme"
+                    self.settings_view = "theme"
+                    self.settings_index = 0
+                    self.settings_scroll_row = 0
+                elif self.settings_index == 5: # "UI Font"
+                    self.settings_view = "font"
+                    self.settings_index = 0
+                    self.settings_scroll_row = 0
+                elif self.settings_index == 6: # "WiFi Debug"
                     self.settings_view = "wifidebug"
                     self.settings_index = 0
                     self.settings_scroll_row = 0
-                elif self.settings_index == 5: # "WebSocket Service"
+                elif self.settings_index == 7: # "WebSocket Service"
                     self.settings_view = "websocket"
                     self.settings_index = 0
                     self.settings_scroll_row = 0
-                elif self.settings_index == 6: # "System Details"
+                elif self.settings_index == 8: # "System Details"
                     self.settings_view = "system_details"
                     self.settings_index = 0
                     self.settings_scroll_row = 0
-                elif self.settings_index == 7: # "About"
+                elif self.settings_index == 9: # "About"
                     self.settings_view = "about"
                     self.settings_index = 0
                     self.settings_scroll_row = 0
+            elif self.settings_view == "font":
+                font_keys = ["pixel", "sans-serif"]
+                selected_font = font_keys[self.settings_index]
+                self.config["font"] = selected_font
+                self.save_config()
+                font_path = self._get_font_path(selected_font)
+                font_size = 15 if selected_font == "sans-serif" else 24
+                self.ui.change_font(font_path, font_size)
+                self.set_message(f"Font changed to: {selected_font.capitalize()}")
+            elif self.settings_view == "theme":
+                theme_keys = list(self.themes.keys())
+                selected_theme = theme_keys[self.settings_index]
+                self.apply_theme(selected_theme)
+                self.save_config()
+                theme_data = self.themes[selected_theme]
+                display_name = theme_data.get("name", selected_theme.capitalize().replace("_", " "))
+                self.set_message(f"Theme: {display_name}")
             elif self.settings_view == "connection":
                 # Manual switch to selected server
                 target_type = "primary" if self.settings_index == 0 else "alternative"
@@ -2400,7 +2575,10 @@ class HASDL2App:
         # Render logo
         if logo_tex:
             logo_y = (self.header_h - new_logo_h) // 2 # Center vertically in the new header
+            icon_color = self.ui.colors.get("cyan", self.ui.colors["white"])
+            sdl2.SDL_SetTextureColorMod(logo_tex, icon_color.r, icon_color.g, icon_color.b)
             sdl2.SDL_RenderCopy(self.renderer, logo_tex, None, sdl2.SDL_Rect(block_start_x, logo_y, new_logo_w, new_logo_h))
+            sdl2.SDL_SetTextureColorMod(logo_tex, 255, 255, 255)
             text_start_x = block_start_x + new_logo_w + spacing
         else:
             text_start_x = block_start_x # If no logo, text starts at block-start
@@ -2479,8 +2657,11 @@ class HASDL2App:
         icon_tex = self.domain_icons.get("settings")
         icon_w = 24
         if icon_tex:
+            icon_color = self._get_default_icon_color()
+            sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
             dst = sdl2.SDL_Rect(int(x), int(y_pos - 3), icon_w, icon_w)
             sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+            sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
             icon_w += 10
         
         if self.active_list == "settings": # If the settings entry itself is selected in the left column
@@ -2509,6 +2690,8 @@ class HASDL2App:
                 ("Visible Categories", "categories"), 
                 ("Display Brightness", "brightness"),
                 ("Flash Color", "favorites"),
+                ("UI Theme", "scene"),
+                ("UI Font", "input_boolean"),
                 ("WiFi Debug", "wifi_err"),
                 ("WebSocket Service", "script"),
                 ("System Details", "sensor"),
@@ -2533,7 +2716,10 @@ class HASDL2App:
 
                     icon_draw_y = int(current_item_y + (item_h - icon_size) // 2 + y_offset)
                     dst = sdl2.SDL_Rect(int(x), icon_draw_y, icon_size, icon_size)
+                    icon_color = self._get_default_icon_color()
+                    sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
                     sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                    sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
 
                 if is_selected:
                     color = "cyan"
@@ -2639,6 +2825,73 @@ class HASDL2App:
                 # Draw a small preview box of the color
                 self.ui.draw_rounded_rect(int(x + highlight_w - 40), int(y_list + 2), 20, 16, col)
 
+        elif self.settings_view == "font":
+            self.ui.draw_text("Select UI Font:", x, y, "cyan")
+            y_list_start = y + 30
+            font_keys = ["pixel", "sans-serif"]
+            font_names = ["Pixel Font (Default)", "Sans-Serif Font"]
+            
+            for i, name in enumerate(font_names):
+                y_list = y_list_start + (i * item_h)
+                is_selected = (self.settings_active and self.active_list == "entities" and i == self.settings_index)
+                is_active = (font_keys[i] == self.config.get("font", "pixel"))
+                
+                if is_selected:
+                    color = "cyan"
+                    self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y_list - 1), highlight_w, item_h, color="cyan")
+                    self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y_list - 1), highlight_w, item_h, "cyan")
+                    self.ui.draw_pointer(int(x - self.margin - self.SCROLLBAR_WIDTH - 5 + self.pulse_x), y_list + 10, color="cyan", alpha=self.pulse_alpha)
+                else:
+                    color = "white"
+                
+                if is_active:
+                    self.ui.draw_text(">", x, y_list + 2, "yellow", small=True)
+                
+                self.ui.draw_text(name, x + 20, y_list + 2, color, small=True)
+
+        elif self.settings_view == "theme":
+            self.ui.draw_text("Select UI Theme:", x, y, "cyan")
+            y_list_start = y + 30
+            theme_keys = list(self.themes.keys())
+            
+            for i, theme_key in enumerate(theme_keys):
+                y_list = y_list_start + (i * item_h)
+                is_selected = (self.settings_active and self.active_list == "entities" and i == self.settings_index)
+                is_active = (theme_key == self.current_theme)
+                
+                if is_selected:
+                    color = "cyan"
+                    self.ui.draw_selection_highlight(int(x - self.margin // 2), int(y_list - 1), highlight_w, item_h, color="cyan")
+                    self.ui.draw_rounded_rect(int(x - self.margin // 2), int(y_list - 1), highlight_w, item_h, "cyan")
+                    self.ui.draw_pointer(int(x - self.margin - self.SCROLLBAR_WIDTH - 5 + self.pulse_x), y_list + 10, color="cyan", alpha=self.pulse_alpha)
+                else:
+                    color = "white"
+                
+                if is_active:
+                    self.ui.draw_text(">", x, y_list + 2, "yellow", small=True)
+                
+                theme_data = self.themes[theme_key]
+                display_name = theme_data.get("name", theme_key.capitalize().replace("_", " "))
+                self.ui.draw_text(display_name, x + 20, y_list + 2, color, small=True)
+                
+                # Draw a small 2-color preview box
+                bg_col = theme_data.get("bg", [10, 10, 15, 255])[:3]
+                cyan_col = theme_data.get("cyan", [0, 163, 255, 255])[:3]
+                
+                preview_x = int(x + highlight_w - 40)
+                preview_y = int(y_list + 2)
+                preview_w = 20
+                preview_h = 16
+                
+                # Draw preview bg
+                sdl2.SDL_SetRenderDrawColor(self.renderer, bg_col[0], bg_col[1], bg_col[2], 255)
+                sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(preview_x, preview_y, preview_w, preview_h))
+                
+                # Draw preview border & dot
+                sdl2.SDL_SetRenderDrawColor(self.renderer, cyan_col[0], cyan_col[1], cyan_col[2], 255)
+                sdl2.SDL_RenderDrawRect(self.renderer, sdl2.SDL_Rect(preview_x, preview_y, preview_w, preview_h))
+                sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(preview_x + 6, preview_y + 4, 8, 8))
+
         elif self.settings_view == "wifidebug":
             self._render_wifi_debug_view(x, y, box_h)
         elif self.settings_view == "edit_url":
@@ -2660,6 +2913,8 @@ class HASDL2App:
                 ("Categories", "categories", ("Toggle visibility of", "individual domains")), 
                 ("Brightness", "brightness", ("Adjust hardware screen", "brightness level")),
                 ("Flash Color", "favorites", ("Select color feedback", "for button presses")),
+                ("UI Theme", "scene", ("Change retro color", "theme of the interface")),
+                ("UI Font", "input_boolean", ("Select interface font", "Pixel vs. Sans-Serif")),
                 ("WiFi Debug", "wifi_err", ("View network debug info", "and interface status")),
                 ("WebSocket Service", "script", ("WebSocket connection", "status and controls")),
                 ("System Details", "sensor", ("Hardware statistics", "and system resources")),
@@ -2668,6 +2923,7 @@ class HASDL2App:
             
             cols = 3
             rows = 3
+            visible_items = cols * rows
             gap = 16
             
             box_w = self.width - 2 * self.h_gap - 2 * self.margin
@@ -2675,9 +2931,14 @@ class HASDL2App:
             box_h_inner = box_h - 20
             cell_h = (box_h_inner - (rows - 1) * gap) // rows
             
-            for i, (label, icon_key, desc) in enumerate(menu_items):
-                col = i % cols
-                row = i // cols
+            start = self.settings_scroll_row
+            end = min(len(menu_items), start + visible_items)
+            
+            for i in range(start, end):
+                label, icon_key, desc = menu_items[i]
+                rel_idx = i - start
+                col = rel_idx % cols
+                row = rel_idx // cols
                 
                 cell_x = x + col * (cell_w + gap)
                 cell_y = y_start + row * (cell_h + gap)
@@ -2702,7 +2963,10 @@ class HASDL2App:
                     if icon_key == "ha_logo":
                         icon_draw_y = int(cell_y + 14)
                     dst = sdl2.SDL_Rect(int(cell_x + 12), icon_draw_y, icon_size, icon_size)
+                    icon_color = self._get_default_icon_color()
+                    sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
                     sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                    sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
                 
                 display_label = self.ui.truncate_text(label, cell_w - 52, small=False)
                 self.ui.draw_text(display_label, cell_x + 44, cell_y + 14, "white", small=False)
@@ -2715,6 +2979,14 @@ class HASDL2App:
                 
                 display_l2 = self.ui.truncate_text(desc_l2, cell_w - 24, small=True)
                 self.ui.draw_text(display_l2, cell_x + 12, cell_y + 58, desc_color, small=True)
+                
+            if len(menu_items) > visible_items:
+                total_rows = (len(menu_items) + cols - 1) // cols
+                start_row = start // cols
+                self.ui.draw_scrollbar(
+                    int(self.width - self.h_gap - self.SCROLLBAR_WIDTH - 4), y_start, box_h - 18,
+                    start_row, total_rows, rows
+                )
 
         elif self.settings_view == "categories":
             hidden = self.config.get("hidden_domains", [])
@@ -2954,6 +3226,99 @@ class HASDL2App:
                 self.ui.draw_text(label, cell_x + 12, cell_y + 12, "gray", small=True)
                 self.ui.draw_text(val, cell_x + 12, cell_y + 36, "white", small=False)
 
+        elif self.settings_view == "font":
+            self.ui.draw_text("Select UI Font", x + 20, y_start + 10, "cyan", large=True)
+            font_keys = ["pixel", "sans-serif"]
+            font_names = ["Pixel Font", "Sans-Serif"]
+            
+            cols = 2
+            rows = 1
+            gap = 16
+            
+            box_w = self.width - 2 * self.h_gap - 2 * self.margin - 40
+            cell_w = (box_w - (cols - 1) * gap) // cols
+            cell_h = 75
+            
+            y_grid = y_start + 50
+            
+            for i, name in enumerate(font_names):
+                col = i % cols
+                row = i // cols
+                
+                cell_x = x + 20 + col * (cell_w + gap)
+                cell_y = y_grid + row * (cell_h + gap)
+                
+                is_selected = (self.settings_index == i)
+                is_active = (font_keys[i] == self.config.get("font", "pixel"))
+                
+                if is_selected:
+                    self.ui.draw_selection_highlight(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, color="cyan")
+                    self.ui.draw_rounded_rect(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, "cyan")
+                    
+                self.ui.draw_rounded_rect(int(cell_x), int(cell_y), cell_w, cell_h, "white" if is_selected else "grey")
+                
+                if is_active:
+                    self.ui.draw_text("ACTIVE", cell_x + 12, cell_y + 50, "yellow", small=True)
+                
+                # Draw font name
+                self.ui.draw_text(name, cell_x + 12, cell_y + 12, "white", small=False)
+
+        elif self.settings_view == "theme":
+            self.ui.draw_text("Select UI Theme", x + 20, y_start + 10, "cyan", large=True)
+            theme_keys = list(self.themes.keys())
+            
+            cols = 3
+            rows = (len(theme_keys) + 2) // 3
+            gap = 16
+            
+            box_w = self.width - 2 * self.h_gap - 2 * self.margin - 40
+            cell_w = (box_w - (cols - 1) * gap) // cols
+            cell_h = 75
+            
+            y_grid = y_start + 50
+            
+            for i, theme_key in enumerate(theme_keys):
+                col = i % cols
+                row = i // cols
+                
+                cell_x = x + 20 + col * (cell_w + gap)
+                cell_y = y_grid + row * (cell_h + gap)
+                
+                is_selected = (self.settings_index == i)
+                is_active = (theme_key == self.current_theme)
+                
+                if is_selected:
+                    self.ui.draw_selection_highlight(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, color="cyan")
+                    self.ui.draw_rounded_rect(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, "cyan")
+                    
+                self.ui.draw_rounded_rect(int(cell_x), int(cell_y), cell_w, cell_h, "white" if is_selected else "grey")
+                
+                theme_data = self.themes[theme_key]
+                name = theme_data.get("name", theme_key.capitalize().replace("_", " "))
+                
+                # Draw preview block
+                bg_col = theme_data.get("bg", [10, 10, 15, 255])[:3]
+                cyan_col = theme_data.get("cyan", [0, 163, 255, 255])[:3]
+                preview_x = int(cell_x + 12)
+                preview_y = int(cell_y + 12)
+                preview_w = 24
+                preview_h = 18
+                
+                # Draw preview bg
+                sdl2.SDL_SetRenderDrawColor(self.renderer, bg_col[0], bg_col[1], bg_col[2], 255)
+                sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(preview_x, preview_y, preview_w, preview_h))
+                
+                # Draw preview accent border and indicator
+                sdl2.SDL_SetRenderDrawColor(self.renderer, cyan_col[0], cyan_col[1], cyan_col[2], 255)
+                sdl2.SDL_RenderDrawRect(self.renderer, sdl2.SDL_Rect(preview_x, preview_y, preview_w, preview_h))
+                sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(preview_x + 8, preview_y + 5, 8, 8))
+                
+                if is_active:
+                    self.ui.draw_text("ACTIVE", cell_x + 12, cell_y + 50, "yellow", small=True)
+                
+                display_label = self.ui.truncate_text(name, cell_w - 52, small=True)
+                self.ui.draw_text(display_label, cell_x + 44, cell_y + 12, "white", small=True)
+
         elif self.settings_view == "about":
             logo_x = x + (self.width - 2 * self.h_gap - 2 * self.margin - 80) // 2
             logo_y = y_start + 10
@@ -2961,7 +3326,10 @@ class HASDL2App:
             icon_tex = self.domain_icons.get("ha_logo")
             if icon_tex:
                 dst = sdl2.SDL_Rect(int(logo_x), int(logo_y), 48, 48)
+                icon_color = self.ui.colors.get("cyan", self.ui.colors["white"])
+                sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
                 sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
                 
             self.ui.draw_text("HA RetroConsole", logo_x - 30, logo_y + 60, "white", large=True)
             self.ui.draw_text(f"Version: {VERSION}", logo_x - 10, logo_y + 90, "cyan", small=True)
@@ -3046,7 +3414,10 @@ class HASDL2App:
                 icon_w = 24
                 # Render icon slightly vertically offset
                 dst = sdl2.SDL_Rect(int(x), int(y_pos + 1), icon_w, icon_w) # Icon 1 pixel higher
+                icon_color = self._get_default_icon_color()
+                sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
                 sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst) # Render icon
+                sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
                 icon_w += 10 # Spacing to text
             
             if self.active_list == "domains" and i == self.nav_index:

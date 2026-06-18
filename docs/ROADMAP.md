@@ -104,7 +104,7 @@ Goal: Stable operation on real devices.
 - [x] Finalize full English localization for UI and code.
 - [x] Optimize UI layout for Categories and Settings boxes.
 
-## Phase 7: Advanced UI & Ecosystem (v0.30.6) (Completed)
+## Phase 7: Advanced Control Components (v0.30.0) (Completed)
 - [x] **Project Modernization:**
     - [x] Adopt new PortMaster packaging format (v2) for improved compatibility.
     - [x] Standardize directory layout (Metadata/Launcher in root, Code in subfolder).
@@ -112,19 +112,24 @@ Goal: Stable operation on real devices.
 - [x] **Advanced Control Components (v0.30.0):**
     - [x] Implement a "Control Mode" for entities: D-Pad Left/Right for 0.5° steps (Climate) or 5% volume (Media).
     - [x] Add visual progress bars and value wheels to the Entity list.
-- [ ] **Dynamic Theme Engine:**
-    - [ ] Define external `themes.json` structure for custom color palettes.
-    - [ ] Implement runtime font switching (e.g., Pixel vs. Sans-Serif).
-- [ ] **Area & Floorplan Support:**
-    - [ ] Fetch Area/Device mapping from HA API.
-    - [ ] Option to group the Categories column by "Areas" instead of "Domains".
-- [x] Transition from REST polling to WebSocket API for instant, event-driven state updates.
-- [ ] **Localization (i18n):** Move all UI strings to `lang/*.json` for easy community translations.
-- [ ] **Optimization:** Implement texture compression/pooling for icons to reduce memory on R36S.
-- [ ] Add an in-app updater check for new PortMaster releases.
 
 ## Phase 8: Extended Integrations & UI (v0.32.0) (Completed)
 - [x] **Grid/Dashboard View:** Implement a tile-based dashboard view (similar to HA Lovelace) as an alternative to the list view for quicker access to favorites.
 - [x] **Startup Splashscreen:** Show a premium splashscreen with a semi-transparent background and pulsing server connection text during the initial data load.
+- [x] Transition from REST polling to WebSocket API for instant, event-driven state updates.
+
+## Phase 9: Dynamic Themes & Fonts (v0.33.0) (Completed)
+- [x] **Dynamic Theme Engine:**
+    - [x] Define external `themes.json` structure for custom color palettes.
+    - [x] Implement runtime font switching (e.g., Pixel vs. Sans-Serif).
+- [x] Expand Settings UI to handle scrolling for more than 9 items.
+
+## Phase 10: Future Plans
+- [ ] **Area & Floorplan Support:**
+    - [ ] Fetch Area/Device mapping from HA API.
+    - [ ] Option to group the Categories column by "Areas" instead of "Domains".
 - [ ] **Expanded Domain Support:** Add full support and custom UI components for complex domains such as `cover` (up/down/stop), `lock` (lock/unlock), and `vacuum` (start/stop/return).
 - [ ] **Live Camera Streams (MJPEG):** Upgrade the current 5-second snapshot refresh to support native MJPEG live streams for smoother camera feeds.
+- [ ] **Localization (i18n):** Move all UI strings to `lang/*.json` for easy community translations.
+- [ ] **Optimization:** Implement texture compression/pooling for icons to reduce memory on R36S.
+- [ ] Add an in-app updater check for new PortMaster releases.

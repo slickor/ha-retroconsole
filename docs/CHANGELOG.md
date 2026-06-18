@@ -2,10 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.33.0] - 2026-06-18
+### Added
+- **UI:** Implemented external `themes.json` structure next to `config.json` for custom color palettes, fully loaded at startup and dynamically updated in settings menus.
+- **UI:** Added new "80s Outrun" (Synthwave) theme with deep indigo, neon pink, and bright yellow accent colors.
+- **UI:** Added runtime font switching (Pixel Font vs. Sans-Serif Font) with config persistence and dynamic text cache clearing.
+- **UI:** Auto-adjusted the base size of the sans-serif font to 15pt to maintain layout alignment and prevent overflow across all 640x480 views.
+- **UI:** Extended settings layout to 10 options, adding dynamic scrolling support for grid-based settings menu to accommodate overflow.
+
 ## [0.32.1] - 2026-06-17
 ### Added
 - **UI:** Expanded start screen dimming overlay to full physical screen resolution to cover pillarboxes/letterboxes on widescreen displays like the Trimui Smart Pro.
 - **UI:** Increased font size and adjusted Y-positioning of the startup loading text ("Connecting to Home Assistant...") to place it closer to the logo.
+- **UI:** Implemented a Dynamic Theme Engine with five selectable retro color palettes (Home Assistant, Pip-Boy Green, Classic Amber, Midnight Purple, DMG Monochrome) that can be swapped in real-time from settings and persist in `config.json`.
+- **UI:** Updated the scrollbar drawing utility to use the theme's dynamic primary color instead of a hardcoded cyan value.
+- **UI:** Dynamically colorized static white icons (WiFi indicator, settings menus, and categories) to follow the theme's accent color (dimmed/grayed for Pip-Boy/Amber/Purple, dark green for DMG Monochrome) while preserving original white for the default Home Assistant theme.
+- **UI:** Themed the main Home Assistant logo in the header and about screen to use the active theme's dynamic `cyan` accent color (representing the theme's primary active shade across all layouts).
+- **UI:** Themed the scrollbar track (inactive background area) dynamically across all themes, using a light green shade in DMG Monochrome to provide contrast against the dark green handle and resolve visibility issues.
 
 ## [0.32.0] - 2026-06-12
 ### Added

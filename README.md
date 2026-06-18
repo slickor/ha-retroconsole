@@ -32,6 +32,7 @@ Turn your retro handheld into a smart home command center. HA RetroConsole provi
 Key milestones reached:
 - **Phase 4 (Deployable App):** Successfully completed with automated build scripts for PortMaster.
 - **Phase 5 (Device Testing):** Completed. Successfully verified on muOS, Spruce, and Knulli distributions for the TrimUI Smart Pro.
+- **v0.33.0 Update:** Implemented custom color themes (including a new 80s Synthwave theme) loaded from an external `themes.json` file and runtime font switching (Pixel vs. Sans-Serif font options).
 - **v0.32.0 Update:** Added a startup splashscreen overlay with pulsing status text and fallback server URL fallback documentation.
 
 
@@ -63,8 +64,10 @@ On startup, the client automatically tests connectivity to the primary `base_url
 The development is structured in several phases. We have reached a stable release candidate.
 * **Phase 0-5:** Core development, connectivity, and device stability (Completed).
 * **Phase 6:** Refinement & Advanced Features (v0.29.2) (Completed).
-* **Phase 7:** Advanced UI & Ecosystem (v0.30.6) (Completed).
+* **Phase 7:** Advanced Control Components (v0.30.0) (Completed).
 * **Phase 8:** Extended Integrations & UI (v0.32.0) (Completed).
+* **Phase 9:** Dynamic Themes & Fonts (v0.33.0) (Completed).
+* **Phase 10:** Future Plans (Area Support, MJPEG, i18n).
 Detailed progress and future plans can be tracked in docs/ROADMAP.md and docs/CHANGELOG.md.
 
 ## Special Thanks
