@@ -118,7 +118,7 @@ Goal: Stable operation on real devices.
 - [x] **Startup Splashscreen:** Show a premium splashscreen with a semi-transparent background and pulsing server connection text during the initial data load.
 - [x] Transition from REST polling to WebSocket API for instant, event-driven state updates.
 
-## Phase 9: Dynamic Themes & Fonts (v0.33.0) (Completed)
+## Phase 9: Dynamic Themes & Fonts (v0.33.1) (Completed)
 - [x] **Dynamic Theme Engine:**
     - [x] Define external `themes.json` structure for custom color palettes.
     - [x] Implement runtime font switching (e.g., Pixel vs. Sans-Serif).

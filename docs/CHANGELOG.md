@@ -2,10 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.33.1] - 2026-06-18
+### Added
+- **UI:** Added new "80s Outrun" (Synthwave) theme with deep indigo, neon pink, and bright yellow accent colors.
+- **Docs:** Added new screenshots to the README and simplified the current status summary.
+
 ## [0.33.0] - 2026-06-18
 ### Added
 - **UI:** Implemented external `themes.json` structure next to `config.json` for custom color palettes, fully loaded at startup and dynamically updated in settings menus.
-- **UI:** Added new "80s Outrun" (Synthwave) theme with deep indigo, neon pink, and bright yellow accent colors.
 - **UI:** Added runtime font switching (Pixel Font vs. Sans-Serif Font) with config persistence and dynamic text cache clearing.
 - **UI:** Auto-adjusted the base size of the sans-serif font to 15pt to maintain layout alignment and prevent overflow across all 640x480 views.
 - **UI:** Extended settings layout to 10 options, adding dynamic scrolling support for grid-based settings menu to accommodate overflow.

@@ -18,6 +18,14 @@ Turn your retro handheld into a smart home command center. HA RetroConsole provi
   <img src="docs/img/screenshot_2.png" width="400" alt="Details View">
   <img src="docs/img/screenshot_3.png" width="400" alt="Settings/Graphs">
 </p>
+<p align="center">
+  <img src="docs/img/screenshot_4.png" width="400" alt="Grid View">
+  <img src="docs/img/screenshot_5.png" width="400" alt="Theme Engine">
+</p>
+<p align="center">
+  <img src="docs/img/screenshot_6.png" width="400" alt="Synthwave Theme">
+  <img src="docs/img/screenshot_7.png" width="400" alt="Dashboard">
+</p>
 
 ## Core Features
 
@@ -29,14 +37,13 @@ Turn your retro handheld into a smart home command center. HA RetroConsole provi
 
 ## Current Status
 
-Key milestones reached:
-- **Phase 4 (Deployable App):** Successfully completed with automated build scripts for PortMaster.
-- **Phase 5 (Device Testing):** Completed. Successfully verified on muOS, Spruce, and Knulli distributions for the TrimUI Smart Pro.
-- **v0.33.0 Update:** Implemented custom color themes (including a new 80s Synthwave theme) loaded from an external `themes.json` file and runtime font switching (Pixel vs. Sans-Serif font options).
-- **v0.32.0 Update:** Added a startup splashscreen overlay with pulsing status text and fallback server URL fallback documentation.
+The application is in a stable, highly functional state and is verified to run smoothly on distributions like muOS, Spruce, and Knulli.
 
-
- 
+**Latest Highlights (v0.33.1):**
+- **Dynamic Theme Engine:** Real-time selectable retro color palettes (including Pip-Boy, DMG Monochrome, and 80s Synthwave) via `themes.json`.
+- **Dashboard & UI:** An intuitive tile-based dashboard view alongside the classic list view, complete with runtime font switching (Pixel vs. Sans-Serif) and a polished startup splashscreen.
+- **Advanced Controls:** Embedded progress bars and dedicated control modes for immediate `climate` and `media_player` adjustments.
+- **PortMaster Ready:** Fully packaged and verified for easy deployment on devices like the TrimUI Smart Pro and R36S.
 
 For detailed setup instructions, see the Installation & Configuration Guide.
 
