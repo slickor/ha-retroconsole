@@ -39,7 +39,7 @@ Turn your retro handheld into a smart home command center. HA RetroConsole provi
 
 The application is in a stable, highly functional state and is verified to run smoothly on distributions like muOS, Spruce, and Knulli.
 
-**Latest Highlights (v0.34.0):**
+**Latest Highlights (v0.34.1):**
 - **Unified Settings Engine:** Merged the two separate settings renderers (list/grid) into a single adaptive layout engine, eliminating duplication bugs.
 - **Dynamic Font Loading:** Fonts are now automatically discovered from `assets/fonts/` — no more hardcoded font lists.
 - **Settings Submenus:** Reorganized settings into logical categories (Connection, Display, System & Prefs) with nested submenus.

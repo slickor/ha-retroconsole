@@ -1,6 +1,10 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [0.34.1] - 2026-06-20
+### Added
+- **Deployment:** Extended `github_push.ps1` to automatically create a GitHub Release and attach the compiled `v0.34.1.zip` via the GitHub CLI.
+- **Documentation:** Added prepared Reddit posts for r/R36S, r/trimui, r/homeassistant, and r/SBCGaming.
+
 
 ## [0.34.0] - 2026-06-20
 ### Added
