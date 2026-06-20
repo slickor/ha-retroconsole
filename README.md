@@ -39,10 +39,11 @@ Turn your retro handheld into a smart home command center. HA RetroConsole provi
 
 The application is in a stable, highly functional state and is verified to run smoothly on distributions like muOS, Spruce, and Knulli.
 
-**Latest Highlights (v0.33.1):**
+**Latest Highlights (v0.34.0):**
+- **Unified Settings Engine:** Merged the two separate settings renderers (list/grid) into a single adaptive layout engine, eliminating duplication bugs.
+- **Dynamic Font Loading:** Fonts are now automatically discovered from `assets/fonts/` — no more hardcoded font lists.
+- **Settings Submenus:** Reorganized settings into logical categories (Connection, Display, System & Prefs) with nested submenus.
 - **Dynamic Theme Engine:** Real-time selectable retro color palettes (including Pip-Boy, DMG Monochrome, and 80s Synthwave) via `themes.json`.
-- **Dashboard & UI:** An intuitive tile-based dashboard view alongside the classic list view, complete with runtime font switching (Pixel vs. Sans-Serif) and a polished startup splashscreen.
-- **Advanced Controls:** Embedded progress bars and dedicated control modes for immediate `climate` and `media_player` adjustments.
 - **PortMaster Ready:** Fully packaged and verified for easy deployment on devices like the TrimUI Smart Pro and R36S.
 
 For detailed setup instructions, see the Installation & Configuration Guide.

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.34.0] - 2026-06-20
+### Added
+- **UI:** Unified settings rendering engine — merged `_render_settings_panel` (list view) and `_render_settings_grid` (grid view) into a single adaptive `_render_settings_unified` method that dynamically switches between column layouts based on available screen width.
+- **UI:** Dynamic font loading — the app now automatically discovers all `.ttf` fonts in `assets/fonts/` at startup and populates the font selection menu dynamically.
+- **UI:** Settings submenus — reorganized flat settings list into logical categories (Connection, Display, System & Prefs) with hierarchical submenu navigation.
+- **UI:** Adjusted header layout (logo and title vertical positioning).
+### Changed
+- **Config:** Font selection now stores the actual filename (e.g., `Inter-Regular.ttf`) instead of generic labels like `sans-serif`. Backwards-compatible with old config values.
+### Fixed
+- **UI:** Fixed bug where dynamic fonts and submenus only appeared in one view mode (grid or list) but not the other, caused by duplicated rendering code.
+- **Navigation:** Unified input handling (`_handle_settings_nav`) to use a single column/count calculation for both view modes.
+
 ## [0.33.1] - 2026-06-18
 ### Added
 - **UI:** Added new "80s Outrun" (Synthwave) theme with deep indigo, neon pink, and bright yellow accent colors.

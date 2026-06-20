@@ -203,8 +203,8 @@ class RetroUI:
         if title:
             t_color = title_color if title_color else color
             tw, th = self.get_text_size(title) # Use normal font size for box titles
-            # Break line
-            clear_rect = sdl2.SDL_Rect(x + 15, y, tw + 10, 2) # Clear 2px for a cleaner break
+            # Clear background behind the title text completely to prevent it from blending badly over edges
+            clear_rect = sdl2.SDL_Rect(x + 15, y - (th // 2), tw + 10, th)
             bg = self.colors["bg"]
             sdl2.SDL_SetRenderDrawColor(self.renderer, bg.r, bg.g, bg.b, 255)
             sdl2.SDL_RenderFillRect(self.renderer, clear_rect)

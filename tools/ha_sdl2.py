@@ -716,10 +716,16 @@ class HASDL2App:
         sdl2.SDL_RenderSetLogicalSize(self.renderer, self.width, self.height)
         
         # Determine active font from configuration
+        self._load_available_fonts()
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        selected_font_type = self.config.get("font", "pixel")
+        selected_font_type = self.config.get("font", "m5x7.ttf")
         selected_font = self._get_font_path(selected_font_type)
-        font_size = 15 if selected_font_type == "sans-serif" else 24
+        
+        # Adjust font size based on whether it's m5x7 (pixel) or something else
+        if selected_font.endswith("m5x7.ttf"):
+            font_size = 24
+        else:
+            font_size = 15
         
         # Initialize the RetroUI framework
         self.ui = RetroUI(self.renderer, selected_font, font_size)
@@ -785,12 +791,12 @@ class HASDL2App:
             },
             "pipboy": {
                 "name": "Pip-Boy Green",
-                "cyan": [26, 255, 128, 255],
+                "cyan": [20, 255, 40, 255],
                 "yellow": [255, 204, 0, 255],
                 "bg": [5, 10, 5, 255],
                 "box_bg": [5, 30, 10, 180],
                 "gray": [40, 100, 50, 255],
-                "white": [200, 255, 220, 255],
+                "white": [180, 255, 180, 255],
                 "scrollbar_track": [15, 45, 20, 255]
             },
             "amber": {
@@ -847,21 +853,40 @@ class HASDL2App:
             print(f"Error loading themes.json: {e}")
             return default_themes
 
-    def _get_font_path(self, font_type: str) -> str:
+    def _load_available_fonts(self):
+        """Scans the assets/fonts directory for .ttf files."""
+        self.available_fonts = []
+        fonts_dir = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "fonts"))
+        if os.path.exists(fonts_dir):
+            for filename in sorted(os.listdir(fonts_dir)):
+                if filename.lower().endswith('.ttf'):
+                    # Create a display name (e.g., 'Inter-Regular.ttf' -> 'Inter Regular')
+                    display_name = filename[:-4].replace("-", " ")
+                    self.available_fonts.append({"filename": filename, "name": display_name})
+        
+        if not self.available_fonts:
+            # Fallback if directory is empty
+            self.available_fonts.append({"filename": "m5x7.ttf", "name": "m5x7"})
+
+    def _get_font_path(self, font_filename: str) -> str:
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        if font_type == "sans-serif":
-            candidates = [
-                "C:\\Windows\\Fonts\\arial.ttf",
-                "C:\\Windows\\Fonts\\verdana.ttf",
-                "C:\\Windows\\Fonts\\segoeui.ttf",
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                "/usr/share/fonts/TTF/DejaVuSans.ttf"
-            ]
-            for c in candidates:
-                if os.path.exists(c):
-                    return c
-        # Fallback to pixel font
-        return os.path.normpath(os.path.join(script_dir, "..", "assets", "fonts", "m5x7.ttf"))
+        fonts_dir = os.path.normpath(os.path.join(script_dir, "..", "assets", "fonts"))
+        
+        # Backwards compatibility
+        if font_filename == "pixel":
+            font_filename = "m5x7.ttf"
+        elif font_filename == "sans-serif":
+            font_filename = "Inter-Regular.ttf"
+            
+        font_path = os.path.join(fonts_dir, font_filename)
+        if os.path.exists(font_path):
+            return font_path
+            
+        # Fallback to first available or m5x7
+        if hasattr(self, "available_fonts") and self.available_fonts:
+            return os.path.join(fonts_dir, self.available_fonts[0]["filename"])
+            
+        return os.path.join(fonts_dir, "m5x7.ttf")
 
     def apply_theme(self, theme_name):
         """Applies a theme by name, updating self.ui.colors and global color objects."""
@@ -1445,11 +1470,34 @@ class HASDL2App:
             self.confirm_exit = False
             self.exit_overlay_active = False # Reset
         elif self.settings_active:
-            if self.settings_view != "menu":
-                self.settings_view = "menu"
+            if self.settings_view in ["connection", "wifidebug", "websocket", "edit_url"]:
+                if self.settings_view == "edit_url":
+                    self.settings_view = "connection"
+                else:
+                    self.settings_view = "submenu_connection"
+                    self.settings_index = getattr(self, "settings_menu_index", 0)
+                self.confirm_exit = False
+                self.exit_overlay_active = False
+            elif self.settings_view in ["theme", "font", "flash_color", "brightness"]:
+                self.settings_view = "submenu_display"
                 self.settings_index = getattr(self, "settings_menu_index", 0)
                 self.confirm_exit = False
-                self.exit_overlay_active = False # Reset
+                self.exit_overlay_active = False
+            elif self.settings_view in ["categories", "system_details", "about"]:
+                self.settings_view = "submenu_system"
+                self.settings_index = getattr(self, "settings_menu_index", 0)
+                self.confirm_exit = False
+                self.exit_overlay_active = False
+            elif self.settings_view in ["submenu_connection", "submenu_display", "submenu_system"]:
+                self.settings_view = "menu"
+                self.settings_index = getattr(self, "settings_main_index", 0)
+                self.confirm_exit = False
+                self.exit_overlay_active = False
+            elif self.settings_view != "menu":
+                self.settings_view = "menu"
+                self.settings_index = getattr(self, "settings_main_index", 0)
+                self.confirm_exit = False
+                self.exit_overlay_active = False # Fallback
             else:
                 self.settings_active = False
                 if self.view_mode == "grid":
@@ -1691,77 +1739,65 @@ class HASDL2App:
                 self.settings_scroll_row = min(max(0, limit - visible_settings + 1), self.settings_scroll_row + 1)
             return
 
-        if self.view_mode == "grid":
-            if self.settings_view == "menu":
-                cols = 3
-                count = 10
-            elif self.settings_view == "categories":
-                cols = 3
-                count = len(VIEWABLE_DOMAINS)
-            elif self.settings_view == "flash_color":
-                cols = 3
-                count = len(self.flash_colors)
-            elif self.settings_view == "theme":
-                cols = 3
-                count = len(self.themes)
-            elif self.settings_view == "font":
-                cols = 2
-                count = 2
-            elif self.settings_view == "connection":
-                cols = 2
-                count = 2
-            else:
-                cols = 1
-                count = 1
-
-            if direction == "left":
-                if self.settings_index % cols != 0:
-                    self.settings_index = max(0, self.settings_index - 1)
-            elif direction == "right":
-                if self.settings_index % cols != cols - 1:
-                    self.settings_index = min(count - 1, self.settings_index + 1)
-            elif direction == "up":
-                self.settings_index = max(0, self.settings_index - cols)
-            elif direction == "down":
-                self.settings_index = min(count - 1, self.settings_index + cols)
-
-            if self.settings_view in ["menu", "categories"]:
-                active_row = self.settings_index // 3
-                start_row = self.settings_scroll_row // 3
-                if active_row < start_row:
-                    self.settings_scroll_row = active_row * 3
-                elif active_row >= start_row + 3:
-                    self.settings_scroll_row = (active_row - 2) * 3
+        is_grid = (self.view_mode == "grid")
+        
+        if self.settings_view == "menu":
+            cols = 3 if is_grid else 1
+            count = 3
+        elif self.settings_view == "submenu_connection":
+            cols = 3 if is_grid else 1
+            count = 3
+        elif self.settings_view == "submenu_display":
+            cols = 4 if is_grid else 1
+            count = 4
+        elif self.settings_view == "submenu_system":
+            cols = 3 if is_grid else 1
+            count = 3
+        elif self.settings_view == "categories":
+            cols = 3 if is_grid else 1
+            count = len(VIEWABLE_DOMAINS)
+        elif self.settings_view == "flash_color":
+            cols = 3 if is_grid else 1
+            count = len(self.flash_colors)
+        elif self.settings_view == "theme":
+            cols = 3 if is_grid else 1
+            count = len(self.themes)
+        elif self.settings_view == "font":
+            cols = 2 if is_grid else 1
+            count = len(getattr(self, "available_fonts", []))
+        elif self.settings_view == "connection":
+            cols = 2 if is_grid else 1
+            count = 2
         else:
-            if self.settings_view == "menu":
-                limit = 9
-            elif self.settings_view == "connection":
-                limit = 1
-            elif self.settings_view == "categories":
-                limit = len(VIEWABLE_DOMAINS) - 1
-            elif self.settings_view == "flash_color":
-                limit = len(self.flash_colors) - 1
-            elif self.settings_view == "theme":
-                limit = len(self.themes) - 1
-            elif self.settings_view == "font":
-                limit = 1
-            else:
-                limit = 0
+            cols = 1
+            count = 1
 
-            if direction == "up":
+        if direction == "left":
+            if self.settings_index % cols != 0:
                 self.settings_index = max(0, self.settings_index - 1)
-                if self.settings_index < self.settings_scroll_row:
-                    self.settings_scroll_row = self.settings_index
-            elif direction == "down":
-                self.settings_index = min(limit, self.settings_index + 1)
-                visible_settings = 8
-                if self.settings_index >= self.settings_scroll_row + visible_settings:
-                    self.settings_scroll_row = self.settings_index - visible_settings + 1
-            elif direction == "left":
+            elif cols == 1:
                 self._go_back()
-            elif direction == "right":
-                if self.settings_view == "menu":
-                    self._handle_confirm()
+        elif direction == "right":
+            if self.settings_index % cols != cols - 1 and self.settings_index < count - 1:
+                self.settings_index += 1
+            elif cols == 1 and self.settings_view in ["menu", "submenu_connection", "submenu_display", "submenu_system"]:
+                self._handle_confirm()
+        elif direction == "up":
+            self.settings_index = max(0, self.settings_index - cols)
+            
+            active_row = self.settings_index // cols
+            start_row = self.settings_scroll_row // cols
+            if active_row < start_row:
+                self.settings_scroll_row = active_row * cols
+        elif direction == "down":
+            self.settings_index = min(count - 1, self.settings_index + cols)
+            
+            visible_rows = 3 if is_grid else 8
+            active_row = self.settings_index // cols
+            start_row = self.settings_scroll_row // cols
+            
+            if active_row >= start_row + visible_rows:
+                self.settings_scroll_row = (active_row - visible_rows + 1) * cols
 
     def _enter_entities(self):
         if self.active_list in ["domains", "settings"]:
@@ -1997,55 +2033,58 @@ class HASDL2App:
             return
         elif self.settings_active and self.active_list == "entities":
             if self.settings_view == "menu":
+                self.settings_main_index = self.settings_index
+                if self.settings_index == 0:
+                    self.settings_view = "submenu_connection"
+                elif self.settings_index == 1:
+                    self.settings_view = "submenu_display"
+                elif self.settings_index == 2:
+                    self.settings_view = "submenu_system"
+                self.settings_index = 0
+                self.settings_scroll_row = 0
+            elif self.settings_view == "submenu_connection":
                 self.settings_menu_index = self.settings_index
                 if self.settings_index == 0: # "Server Connection"
                     self.settings_view = "connection"
-                    self.settings_index = 0
-                    self.settings_scroll_row = 0
-                elif self.settings_index == 1: # "Visible Categories"
-                    self.settings_view = "categories"
-                    self.settings_index = 0
-                    self.settings_scroll_row = 0
-                elif self.settings_index == 2: # "Display Brightness"
+                elif self.settings_index == 1: # "WiFi Debug"
+                    self.settings_view = "wifidebug"
+                elif self.settings_index == 2: # "WebSocket Service"
+                    self.settings_view = "websocket"
+                self.settings_index = 0
+                self.settings_scroll_row = 0
+            elif self.settings_view == "submenu_display":
+                self.settings_menu_index = self.settings_index
+                if self.settings_index == 0: # "UI Theme"
+                    self.settings_view = "theme"
+                elif self.settings_index == 1: # "UI Font"
+                    self.settings_view = "font"
+                elif self.settings_index == 2: # "Flash Color"
+                    self.settings_view = "flash_color"
+                elif self.settings_index == 3: # "Display Brightness"
                     self.settings_view = "brightness"
                     self.current_brightness = self._get_brightness()
-                elif self.settings_index == 3: # "Flash Color"
-                    self.settings_view = "flash_color"
-                    self.settings_index = 0
-                    self.settings_scroll_row = 0
-                elif self.settings_index == 4: # "UI Theme"
-                    self.settings_view = "theme"
-                    self.settings_index = 0
-                    self.settings_scroll_row = 0
-                elif self.settings_index == 5: # "UI Font"
-                    self.settings_view = "font"
-                    self.settings_index = 0
-                    self.settings_scroll_row = 0
-                elif self.settings_index == 6: # "WiFi Debug"
-                    self.settings_view = "wifidebug"
-                    self.settings_index = 0
-                    self.settings_scroll_row = 0
-                elif self.settings_index == 7: # "WebSocket Service"
-                    self.settings_view = "websocket"
-                    self.settings_index = 0
-                    self.settings_scroll_row = 0
-                elif self.settings_index == 8: # "System Details"
+                self.settings_index = 0
+                self.settings_scroll_row = 0
+            elif self.settings_view == "submenu_system":
+                self.settings_menu_index = self.settings_index
+                if self.settings_index == 0: # "Visible Categories"
+                    self.settings_view = "categories"
+                elif self.settings_index == 1: # "System Details"
                     self.settings_view = "system_details"
-                    self.settings_index = 0
-                    self.settings_scroll_row = 0
-                elif self.settings_index == 9: # "About"
+                elif self.settings_index == 2: # "About"
                     self.settings_view = "about"
-                    self.settings_index = 0
-                    self.settings_scroll_row = 0
+                self.settings_index = 0
+                self.settings_scroll_row = 0
             elif self.settings_view == "font":
-                font_keys = ["pixel", "sans-serif"]
-                selected_font = font_keys[self.settings_index]
-                self.config["font"] = selected_font
-                self.save_config()
-                font_path = self._get_font_path(selected_font)
-                font_size = 15 if selected_font == "sans-serif" else 24
-                self.ui.change_font(font_path, font_size)
-                self.set_message(f"Font changed to: {selected_font.capitalize()}")
+                available = getattr(self, "available_fonts", [])
+                if available and self.settings_index < len(available):
+                    selected_font = available[self.settings_index]["filename"]
+                    self.config["font"] = selected_font
+                    self.save_config()
+                    font_path = self._get_font_path(selected_font)
+                    font_size = 24 if selected_font.endswith("m5x7.ttf") else 15
+                    self.ui.change_font(font_path, font_size)
+                    self.set_message(f"Font changed to: {available[self.settings_index]['name']}")
             elif self.settings_view == "theme":
                 theme_keys = list(self.themes.keys())
                 selected_theme = theme_keys[self.settings_index]
@@ -2529,11 +2568,22 @@ class HASDL2App:
         overlay_x = (self.width - overlay_w) // 2
         overlay_y = (self.height - overlay_h) // 2
 
+        is_dmg = self.current_theme == "monochrome"
+        
         # Dim background
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
         sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 0, 0, 180)
         sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(0, 0, self.width, self.height))
         sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_NONE)
+
+        if is_dmg:
+            # Draw an opaque background specifically for the overlay box to improve readability
+            bg_color = self.ui.colors.get("bg", sdl2.SDL_Color(139, 172, 15, 255))
+            sdl2.SDL_SetRenderDrawColor(self.renderer, bg_color.r, bg_color.g, bg_color.b, 255)
+            # Fill respecting 2px rounded corners
+            sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(overlay_x + 1, overlay_y + 2, overlay_w - 2, overlay_h - 4))
+            sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(overlay_x + 3, overlay_y + 1, overlay_w - 6, 1))
+            sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(overlay_x + 3, overlay_y + overlay_h - 2, overlay_w - 6, 1))
 
         # Draw Retro Box
         self.ui.draw_retro_box(overlay_x, overlay_y, overlay_w, overlay_h, "SENSOR HISTORY (24h)", color="cyan")
@@ -2546,7 +2596,8 @@ class HASDL2App:
             graph_h = overlay_h - (inner_margin * 2) - 40
             
             # Use draw_graph method from RetroUI
-            self.ui.draw_graph(graph_x, graph_y, graph_w, graph_h, self.graph_data, color="cyan")
+            graph_color = "black" if is_dmg else "cyan"
+            self.ui.draw_graph(graph_x, graph_y, graph_w, graph_h, self.graph_data, color=graph_color)
         else:
             self.ui.draw_text("Loading data...", overlay_x + overlay_w//2 - 50, overlay_y + overlay_h//2, "gray")
 
@@ -2574,7 +2625,7 @@ class HASDL2App:
 
         # Render logo
         if logo_tex:
-            logo_y = (self.header_h - new_logo_h) // 2 # Center vertically in the new header
+            logo_y = (self.header_h - new_logo_h) // 2 # Center vertically in header
             icon_color = self.ui.colors.get("cyan", self.ui.colors["white"])
             sdl2.SDL_SetTextureColorMod(logo_tex, icon_color.r, icon_color.g, icon_color.b)
             sdl2.SDL_RenderCopy(self.renderer, logo_tex, None, sdl2.SDL_Rect(block_start_x, logo_y, new_logo_w, new_logo_h))
@@ -2583,8 +2634,8 @@ class HASDL2App:
         else:
             text_start_x = block_start_x # If no logo, text starts at block-start
 
-        # Render text (8px moved up)
-        self.ui.draw_text(line1, text_start_x, 0, "white", xl=True)
+        # Render text
+        self.ui.draw_text(line1, text_start_x, 5, "white", xl=True)
 
         if self.view_mode == "grid":
             if self.settings_active:
@@ -2592,7 +2643,7 @@ class HASDL2App:
                 if self.settings_view != "menu":
                     title = f"SETTINGS - {self.settings_view.replace('_', ' ').upper()}"
                 self.ui.draw_retro_box(self.h_gap, self.main_y, self.width - 2 * self.h_gap, self.main_area_h, title)
-                self._render_settings_grid(self.h_gap + self.margin, self.main_y + 13, self.main_area_h)
+                self._render_settings_unified(self.h_gap + self.margin, self.main_y + 13, self.width - 2 * self.h_gap - 2 * self.margin, self.main_area_h - 20)
             elif self.active_list == "domains":
                 title = "DASHBOARD"
                 self.ui.draw_retro_box(self.h_gap, self.main_y, self.width - 2 * self.h_gap, self.main_area_h, title)
@@ -2616,7 +2667,7 @@ class HASDL2App:
             title = "SETTINGS" if self.settings_active else "ENTITIES"
             self.ui.draw_retro_box(self.col2_x, self.main_y, self.col2_w, self.main_area_h, title)
             if self.settings_active:
-                self._render_settings_panel(self.col2_x + self.margin, self.main_y + 13, self.main_area_h)
+                self._render_settings_unified(self.col2_x + self.margin, self.main_y + 13, self.col2_w - 2 * self.margin, self.main_area_h - 20)
             else:
                 self._render_entities_list(self.col2_x + self.margin, self.main_y + 13, self.main_area_h)
 
@@ -2674,7 +2725,351 @@ class HASDL2App:
         else:
             self.ui.draw_text("Settings", x + icon_w, y_pos - 2, "cyan")
 
-    def _render_settings_panel(self, x, y, box_h):
+    def _render_settings_unified(self, x, y, box_w, box_h):
+        """Unified rendering for settings options in both grid and list view modes."""
+        highlight_w = box_w
+        is_grid_view = (box_w > 400)
+        
+        if self.settings_view in ["menu", "submenu_connection", "submenu_display", "submenu_system"]:
+            if self.settings_view == "menu":
+                menu_items = [
+                    ("Connection", "wifi_0"),
+                    ("Display", "scene"),
+                    ("System & Prefs", "categories")
+                ]
+            elif self.settings_view == "submenu_connection":
+                menu_items = [
+                    ("Server Connection", "wifi_0"),
+                    ("WiFi Debug", "wifi_err"),
+                    ("WebSocket Service", "script")
+                ]
+            elif self.settings_view == "submenu_display":
+                menu_items = [
+                    ("UI Theme", "scene"),
+                    ("UI Font", "input_boolean"),
+                    ("Flash Color", "favorites"),
+                    ("Display Brightness", "brightness")
+                ]
+            elif self.settings_view == "submenu_system":
+                menu_items = [
+                    ("Visible Categories", "categories"), 
+                    ("System Details", "sensor"),
+                    ("About", "ha_logo")
+                ]
+            
+            cols = 3 if is_grid_view else 1
+            gap = 16 if is_grid_view else 0
+            
+            cell_w = (box_w - (cols - 1) * gap) // cols if is_grid_view else highlight_w
+            cell_h = 75 if is_grid_view else 28
+            
+            total_rows = (len(menu_items) + cols - 1) // cols
+            total_h = total_rows * (cell_h + gap) - gap
+            
+            scroll_y = 0
+            if total_h > box_h:
+                scroll_y = int((self.settings_scroll_row / cols) * (cell_h + gap))
+
+            clip_rect = sdl2.SDL_Rect(int(x), int(y), int(box_w), int(box_h))
+            sdl2.SDL_RenderSetClipRect(self.renderer, clip_rect)
+
+            for i, (label, icon_key) in enumerate(menu_items):
+                col = i % cols
+                row = i // cols
+                
+                cell_x = x + col * (cell_w + gap)
+                cell_y = y + row * (cell_h + gap) - scroll_y
+                
+                if cell_y + cell_h < y or cell_y > y + box_h:
+                    continue
+                    
+                is_selected = (self.settings_active and self.active_list == "entities" and self.settings_index == i)
+                
+                if is_grid_view:
+                    if is_selected:
+                        self.ui.draw_selection_highlight(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, color="cyan")
+                        self.ui.draw_rounded_rect(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, "cyan")
+                    self.ui.draw_rounded_rect(int(cell_x), int(cell_y), cell_w, cell_h, "white" if is_selected else "grey")
+                    
+                    icon_tex = self.domain_icons.get(icon_key)
+                    if icon_tex:
+                        icon_size = 32
+                        icon_x = int(cell_x + (cell_w - icon_size) // 2)
+                        icon_y = int(cell_y + 10)
+                        dst = sdl2.SDL_Rect(icon_x, icon_y, icon_size, icon_size)
+                        icon_color = self._get_default_icon_color()
+                        sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
+                        sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                        sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
+                    
+                    tw, th = self.ui.get_text_size(label, small=True)
+                    self.ui.draw_text(label, cell_x + (cell_w - tw) // 2, cell_y + 50, "white", small=True)
+                else:
+                    icon_tex = self.domain_icons.get(icon_key)
+                    if icon_tex:
+                        icon_size = 24
+                        icon_draw_y = int(cell_y + (cell_h - icon_size) // 2)
+                        if icon_key == "ha_logo": icon_size = 19
+                        icon_draw_y = int(cell_y + (cell_h - icon_size) // 2)
+                        dst = sdl2.SDL_Rect(int(x), icon_draw_y, icon_size, icon_size)
+                        icon_color = self._get_default_icon_color()
+                        sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
+                        sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
+                        sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
+
+                    if is_selected:
+                        color = "cyan"
+                        self.ui.draw_selection_highlight(int(x - 6), int(cell_y - 1), highlight_w, cell_h, color="cyan")
+                        self.ui.draw_rounded_rect(int(x - 6), int(cell_y - 1), highlight_w, cell_h, "cyan")
+                        self.ui.draw_pointer(int(x - 20 + self.pulse_x), int(cell_y + (cell_h - 16) // 2), width=10, height=16, color="cyan", alpha=self.pulse_alpha)
+                    else:
+                        color = "white"
+                    
+                    text_w, text_h = self.ui.get_text_size(label)
+                    text_draw_y = int(cell_y + (cell_h - text_h) // 2)
+                    self.ui.draw_text(label, x + 34, text_draw_y, color)
+                
+            sdl2.SDL_RenderSetClipRect(self.renderer, None)
+            
+            if total_h > box_h:
+                if not is_grid_view:
+                    self.ui.draw_scrollbar(int(x + box_w - self.SCROLLBAR_WIDTH - 4), y, box_h, scroll_y, total_h, box_h)
+                else:
+                    self.ui.draw_scrollbar(int(x + box_w + 5), y, box_h, scroll_y, total_h, box_h)
+
+        elif self.settings_view == "font":
+            self.ui.draw_text("Select UI Font:", x, y, "cyan", large=is_grid_view)
+            
+            cols = 2 if is_grid_view else 1
+            gap = 16 if is_grid_view else 0
+            
+            cell_w = (box_w - (cols - 1) * gap) // cols if is_grid_view else highlight_w
+            cell_h = 75 if is_grid_view else 28
+            
+            y_start = y + (40 if is_grid_view else 30)
+            avail_h = box_h - (40 if is_grid_view else 30)
+            
+            current_font = self.config.get("font", "m5x7.ttf")
+            if current_font == "pixel": current_font = "m5x7.ttf"
+            elif current_font == "sans-serif": current_font = "Inter-Regular.ttf"
+            
+            total_rows = (len(self.available_fonts) + cols - 1) // cols
+            total_h = total_rows * (cell_h + gap) - gap
+            
+            scroll_y = 0
+            if total_h > avail_h:
+                scroll_y = int((self.settings_scroll_row / cols) * (cell_h + gap))
+            
+            clip_rect = sdl2.SDL_Rect(int(x), int(y_start), int(box_w), int(avail_h))
+            sdl2.SDL_RenderSetClipRect(self.renderer, clip_rect)
+            
+            for i, font_info in enumerate(self.available_fonts):
+                col = i % cols
+                row = i // cols
+                
+                cell_x = x + col * (cell_w + gap)
+                cell_y = y_start + row * (cell_h + gap) - scroll_y
+                
+                if cell_y + cell_h < y_start or cell_y > y_start + avail_h:
+                    continue
+                
+                is_selected = (self.settings_active and self.active_list == "entities" and i == self.settings_index)
+                is_active = (font_info["filename"] == current_font)
+                
+                if is_grid_view:
+                    if is_selected:
+                        self.ui.draw_selection_highlight(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, color="cyan")
+                        self.ui.draw_rounded_rect(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, "cyan")
+                    self.ui.draw_rounded_rect(int(cell_x), int(cell_y), cell_w, cell_h, "white" if is_selected else "grey")
+                    if is_active:
+                        self.ui.draw_text("ACTIVE", cell_x + 12, cell_y + 50, "yellow", small=True)
+                    self.ui.draw_text(font_info["name"], cell_x + 12, cell_y + 12, "white", small=False)
+                else:
+                    color = "cyan" if is_selected else "white"
+                    if is_selected:
+                        self.ui.draw_selection_highlight(int(x - 6), int(cell_y - 1), highlight_w, cell_h, color="cyan")
+                        self.ui.draw_rounded_rect(int(x - 6), int(cell_y - 1), highlight_w, cell_h, "cyan")
+                        self.ui.draw_pointer(int(x - 20 + self.pulse_x), int(cell_y + (cell_h - 16) // 2), width=10, height=16, color="cyan", alpha=self.pulse_alpha)
+                    if is_active:
+                        self.ui.draw_text(">", x, cell_y + 2, "yellow", small=True)
+                    self.ui.draw_text(font_info["name"], x + 20, cell_y + 2, color, small=True)
+            
+            sdl2.SDL_RenderSetClipRect(self.renderer, None)
+
+        elif self.settings_view == "categories":
+            self.ui.draw_text("Visible Categories:", x, y, "cyan", large=is_grid_view)
+            y_start = y + (40 if is_grid_view else 30)
+            avail_h = box_h - (40 if is_grid_view else 30)
+            
+            cols = 3 if is_grid_view else 1
+            gap = 16 if is_grid_view else 0
+            cell_w = (box_w - (cols - 1) * gap) // cols if is_grid_view else highlight_w
+            cell_h = 75 if is_grid_view else 28
+            
+            for i, domain in enumerate(VIEWABLE_DOMAINS):
+                col = i % cols
+                row = i // cols
+                
+                cell_x = x + col * (cell_w + gap)
+                cell_y = y_start + row * (cell_h + gap)
+                
+                is_selected = (self.settings_active and self.active_list == "entities" and i == self.settings_index)
+                domain_state = self.config["domains"].get(domain, "enabled")
+                
+                if is_grid_view:
+                    if is_selected:
+                        self.ui.draw_selection_highlight(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, color="cyan")
+                        self.ui.draw_rounded_rect(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, "cyan")
+                    self.ui.draw_rounded_rect(int(cell_x), int(cell_y), cell_w, cell_h, "white" if is_selected else "grey")
+                    self.ui.draw_text(domain.capitalize(), cell_x + 12, cell_y + 12, "white", small=True)
+                    status_text = "VISIBLE" if domain_state == "enabled" else "HIDDEN"
+                    status_color = "green" if domain_state == "enabled" else "gray"
+                    self.ui.draw_text(status_text, cell_x + 12, cell_y + 50, status_color, small=True)
+                else:
+                    color = "cyan" if is_selected else "white"
+                    if is_selected:
+                        self.ui.draw_selection_highlight(int(x - 6), int(cell_y - 1), highlight_w, cell_h, color="cyan")
+                        self.ui.draw_rounded_rect(int(x - 6), int(cell_y - 1), highlight_w, cell_h, "cyan")
+                        self.ui.draw_pointer(int(x - 20 + self.pulse_x), int(cell_y + (cell_h - 16) // 2), width=10, height=16, color="cyan", alpha=self.pulse_alpha)
+                    self.ui.draw_text(domain.capitalize(), x, cell_y + 2, color, small=True)
+                    self.ui.draw_text("V" if domain_state == "enabled" else "H", x + highlight_w - 20, cell_y + 2, "green" if domain_state == "enabled" else "gray", small=True)
+
+        elif self.settings_view == "flash_color":
+            self.ui.draw_text("Select Flash Color:", x, y, "cyan", large=is_grid_view)
+            y_start = y + (40 if is_grid_view else 30)
+            avail_h = box_h - (40 if is_grid_view else 30)
+            
+            cols = 3 if is_grid_view else 1
+            gap = 16 if is_grid_view else 0
+            cell_w = (box_w - (cols - 1) * gap) // cols if is_grid_view else highlight_w
+            cell_h = 75 if is_grid_view else 28
+            
+            current_color = self.config.get("flash_color", "yellow")
+            
+            for i, col_name in enumerate(self.flash_colors):
+                col = i % cols
+                row = i // cols
+                
+                cell_x = x + col * (cell_w + gap)
+                cell_y = y_start + row * (cell_h + gap)
+                
+                is_selected = (self.settings_active and self.active_list == "entities" and i == self.settings_index)
+                is_active = (col_name == current_color)
+                
+                if is_grid_view:
+                    if is_selected:
+                        self.ui.draw_selection_highlight(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, color="cyan")
+                        self.ui.draw_rounded_rect(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, "cyan")
+                    self.ui.draw_rounded_rect(int(cell_x), int(cell_y), cell_w, cell_h, "white" if is_selected else "grey")
+                    if is_active:
+                        self.ui.draw_text("ACTIVE", cell_x + 12, cell_y + 50, "yellow", small=True)
+                    self.ui.draw_text(col_name.capitalize(), cell_x + 40, cell_y + 12, "white", small=False)
+                    self.ui.draw_rounded_rect(int(cell_x + 12), int(cell_y + 12), 20, 20, col_name)
+                else:
+                    color = "cyan" if is_selected else "white"
+                    if is_selected:
+                        self.ui.draw_selection_highlight(int(x - 6), int(cell_y - 1), highlight_w, cell_h, color="cyan")
+                        self.ui.draw_rounded_rect(int(x - 6), int(cell_y - 1), highlight_w, cell_h, "cyan")
+                        self.ui.draw_pointer(int(x - 20 + self.pulse_x), int(cell_y + (cell_h - 16) // 2), width=10, height=16, color="cyan", alpha=self.pulse_alpha)
+                    if is_active:
+                        self.ui.draw_text(">", x, cell_y + 2, "yellow", small=True)
+                    self.ui.draw_text(col_name.capitalize(), x + 20, cell_y + 2, color, small=True)
+                    self.ui.draw_rounded_rect(int(x + highlight_w - 40), int(cell_y + 2), 20, 16, col_name)
+                    
+        elif self.settings_view == "theme":
+            self.ui.draw_text("Select UI Theme:", x, y, "cyan", large=is_grid_view)
+            y_start = y + (40 if is_grid_view else 30)
+            avail_h = box_h - (40 if is_grid_view else 30)
+            
+            theme_keys = list(self.themes.keys())
+            
+            cols = 3 if is_grid_view else 1
+            gap = 16 if is_grid_view else 0
+            cell_w = (box_w - (cols - 1) * gap) // cols if is_grid_view else highlight_w
+            cell_h = 75 if is_grid_view else 28
+            
+            total_rows = (len(theme_keys) + cols - 1) // cols
+            total_h = total_rows * (cell_h + gap) - gap
+            
+            scroll_y = 0
+            if total_h > avail_h:
+                scroll_y = int((self.settings_scroll_row / cols) * (cell_h + gap))
+                
+            clip_rect = sdl2.SDL_Rect(int(x), int(y_start), int(box_w), int(avail_h))
+            sdl2.SDL_RenderSetClipRect(self.renderer, clip_rect)
+            
+            for i, theme_key in enumerate(theme_keys):
+                col = i % cols
+                row = i // cols
+                
+                cell_x = x + col * (cell_w + gap)
+                cell_y = y_start + row * (cell_h + gap) - scroll_y
+                
+                if cell_y + cell_h < y_start or cell_y > y_start + avail_h:
+                    continue
+                
+                is_selected = (self.settings_active and self.active_list == "entities" and i == self.settings_index)
+                is_active = (theme_key == self.current_theme)
+                
+                theme_data = self.themes[theme_key]
+                display_name = theme_data.get("name", theme_key.capitalize().replace("_", " "))
+                
+                if is_grid_view:
+                    if is_selected:
+                        self.ui.draw_selection_highlight(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, color="cyan")
+                        self.ui.draw_rounded_rect(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, "cyan")
+                    self.ui.draw_rounded_rect(int(cell_x), int(cell_y), cell_w, cell_h, "white" if is_selected else "grey")
+                    if is_active:
+                        self.ui.draw_text("ACTIVE", cell_x + 12, cell_y + 50, "yellow", small=True)
+                    
+                    bg_col = theme_data.get("bg", [10, 10, 15, 255])[:3]
+                    cyan_col = theme_data.get("cyan", [0, 163, 255, 255])[:3]
+                    preview_x = int(cell_x + 12)
+                    preview_y = int(cell_y + 12)
+                    
+                    sdl2.SDL_SetRenderDrawColor(self.renderer, bg_col[0], bg_col[1], bg_col[2], 255)
+                    sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(preview_x, preview_y, 24, 18))
+                    sdl2.SDL_SetRenderDrawColor(self.renderer, cyan_col[0], cyan_col[1], cyan_col[2], 255)
+                    sdl2.SDL_RenderDrawRect(self.renderer, sdl2.SDL_Rect(preview_x, preview_y, 24, 18))
+                    sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(preview_x + 8, preview_y + 5, 8, 8))
+                    
+                    self.ui.draw_text(self.ui.truncate_text(display_name, cell_w - 45, small=True), cell_x + 40, cell_y + 14, "white", small=True)
+                else:
+                    color = "cyan" if is_selected else "white"
+                    if is_selected:
+                        self.ui.draw_selection_highlight(int(x - 6), int(cell_y - 1), highlight_w, cell_h, color="cyan")
+                        self.ui.draw_rounded_rect(int(x - 6), int(cell_y - 1), highlight_w, cell_h, "cyan")
+                        self.ui.draw_pointer(int(x - 20 + self.pulse_x), int(cell_y + (cell_h - 16) // 2), width=10, height=16, color="cyan", alpha=self.pulse_alpha)
+                    if is_active:
+                        self.ui.draw_text(">", x, cell_y + 2, "yellow", small=True)
+                    self.ui.draw_text(display_name, x + 20, cell_y + 2, color, small=True)
+                    
+                    bg_col = theme_data.get("bg", [10, 10, 15, 255])[:3]
+                    cyan_col = theme_data.get("cyan", [0, 163, 255, 255])[:3]
+                    preview_x = int(x + highlight_w - 40)
+                    preview_y = int(cell_y + 2)
+                    sdl2.SDL_SetRenderDrawColor(self.renderer, bg_col[0], bg_col[1], bg_col[2], 255)
+                    sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(preview_x, preview_y, 20, 16))
+                    sdl2.SDL_SetRenderDrawColor(self.renderer, cyan_col[0], cyan_col[1], cyan_col[2], 255)
+                    sdl2.SDL_RenderDrawRect(self.renderer, sdl2.SDL_Rect(preview_x, preview_y, 20, 16))
+                    sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(preview_x + 6, preview_y + 4, 8, 8))
+
+            sdl2.SDL_RenderSetClipRect(self.renderer, None)
+
+        elif self.settings_view == "wifidebug":
+            self._OBSOLETE_render_wifi_debug_view(x, y, box_h)
+        elif self.settings_view == "edit_url":
+            self._render_edit_url_view(x, y)
+        elif self.settings_view == "connection":
+            self._render_connection_view(x, y)
+        elif self.settings_view == "system_details":
+            self._render_system_details_view(x, y, box_h)
+        elif self.settings_view == "websocket":
+            self._render_websocket_view(x, y)
+        elif self.settings_view == "about":
+            self._render_about_view(x, y)
+
+    def _OBSOLETE_render_settings_panel(self, x, y, box_h):
         """Renders the settings options in the middle column."""
         highlight_w = self.col2_w - self.margin
         
@@ -2686,22 +3081,50 @@ class HASDL2App:
 
         if self.settings_view == "menu":
             menu_items = [
+                ("Connection", "wifi_0"),
+                ("Display", "scene"),
+                ("System & Prefs", "categories")
+            ]
+        elif self.settings_view == "submenu_connection":
+            menu_items = [
                 ("Server Connection", "wifi_0"),
-                ("Visible Categories", "categories"), 
-                ("Display Brightness", "brightness"),
-                ("Flash Color", "favorites"),
+                ("WiFi Debug", "wifi_err"),
+                ("WebSocket Service", "script")
+            ]
+        elif self.settings_view == "submenu_display":
+            menu_items = [
                 ("UI Theme", "scene"),
                 ("UI Font", "input_boolean"),
-                ("WiFi Debug", "wifi_err"),
-                ("WebSocket Service", "script"),
+                ("Flash Color", "favorites"),
+                ("Display Brightness", "brightness")
+            ]
+        elif self.settings_view == "submenu_system":
+            menu_items = [
+                ("Visible Categories", "categories"), 
                 ("System Details", "sensor"),
                 ("About", "ha_logo")
             ]
+            
+        if self.settings_view in ["menu", "submenu_connection", "submenu_display", "submenu_system"]:
+            item_h = 28
+            total_h = len(menu_items) * item_h
+            available_h = box_h - 10
+            
+            scroll_y = 0
+            if total_h > available_h:
+                # Proportionally scroll based on selected index to keep it visible
+                scroll_y = int((self.settings_index / (len(menu_items) - 1)) * (total_h - available_h))
+
+            # Set clip rect so items don't overflow the box
+            clip_rect = sdl2.SDL_Rect(int(self.col2_x), int(y), int(self.col2_w), int(box_h))
+            sdl2.SDL_RenderSetClipRect(self.renderer, clip_rect)
+
+            y_offset = -scroll_y
             for i, (label, icon_key) in enumerate(menu_items):
                 is_selected = (self.settings_active and self.active_list == "entities" and self.settings_index == i)
                 
                 # Calculate vertical position for the current item
-                current_item_y = y + (i * item_h)
+                current_item_y = y + y_offset
 
                 # Render icon
                 icon_tex = self.domain_icons.get(icon_key)
@@ -2709,12 +3132,12 @@ class HASDL2App:
                     # Center icon vertically within the item_h space
                     icon_size = 24
                     icon_draw_y = int(current_item_y + (item_h - icon_size) // 2)
-                    y_offset = 0
+                    icon_y_offset = 0
                     if icon_key == "ha_logo":
                         icon_size = 19
-                        y_offset = -2
+                        icon_y_offset = -2
 
-                    icon_draw_y = int(current_item_y + (item_h - icon_size) // 2 + y_offset)
+                    icon_draw_y = int(current_item_y + (item_h - icon_size) // 2 + icon_y_offset)
                     dst = sdl2.SDL_Rect(int(x), icon_draw_y, icon_size, icon_size)
                     icon_color = self._get_default_icon_color()
                     sdl2.SDL_SetTextureColorMod(icon_tex, icon_color.r, icon_color.g, icon_color.b)
@@ -2737,6 +3160,17 @@ class HASDL2App:
                 text_w, text_h = self.ui.get_text_size(label)
                 text_draw_y = int(current_item_y + (item_h - text_h) // 2)
                 self.ui.draw_text(label, x + 34, text_draw_y, color)
+                
+                y_offset += item_h
+                
+            sdl2.SDL_RenderSetClipRect(self.renderer, None)
+            
+            # Draw scrollbar if needed
+            if total_h > available_h:
+                self.ui.draw_scrollbar(
+                    int(self.col2_x + self.col2_w - self.SCROLLBAR_WIDTH - 4), y, box_h,
+                    scroll_y, total_h, available_h
+                )
 
         elif self.settings_view == "categories":
             self.ui.draw_text("Visible Categories:", x, y, "cyan")
@@ -2828,13 +3262,17 @@ class HASDL2App:
         elif self.settings_view == "font":
             self.ui.draw_text("Select UI Font:", x, y, "cyan")
             y_list_start = y + 30
-            font_keys = ["pixel", "sans-serif"]
-            font_names = ["Pixel Font (Default)", "Sans-Serif Font"]
             
-            for i, name in enumerate(font_names):
+            current_font = self.config.get("font", "m5x7.ttf")
+            if current_font == "pixel":
+                current_font = "m5x7.ttf"
+            elif current_font == "sans-serif":
+                current_font = "Inter-Regular.ttf"
+            
+            for i, font_info in enumerate(getattr(self, "available_fonts", [])):
                 y_list = y_list_start + (i * item_h)
                 is_selected = (self.settings_active and self.active_list == "entities" and i == self.settings_index)
-                is_active = (font_keys[i] == self.config.get("font", "pixel"))
+                is_active = (font_info["filename"] == current_font)
                 
                 if is_selected:
                     color = "cyan"
@@ -2847,7 +3285,7 @@ class HASDL2App:
                 if is_active:
                     self.ui.draw_text(">", x, y_list + 2, "yellow", small=True)
                 
-                self.ui.draw_text(name, x + 20, y_list + 2, color, small=True)
+                self.ui.draw_text(font_info["name"], x + 20, y_list + 2, color, small=True)
 
         elif self.settings_view == "theme":
             self.ui.draw_text("Select UI Theme:", x, y, "cyan")
@@ -2893,7 +3331,7 @@ class HASDL2App:
                 sdl2.SDL_RenderFillRect(self.renderer, sdl2.SDL_Rect(preview_x + 6, preview_y + 4, 8, 8))
 
         elif self.settings_view == "wifidebug":
-            self._render_wifi_debug_view(x, y, box_h)
+            self._OBSOLETE_render_wifi_debug_view(x, y, box_h)
         elif self.settings_view == "edit_url":
             self._render_edit_url_view(x, y)
         elif self.settings_view == "connection":
@@ -2905,7 +3343,7 @@ class HASDL2App:
         elif self.settings_view == "about":
             self._render_about_view(x, y)
 
-    def _render_settings_grid(self, x, y_start, box_h):
+    def _OBSOLETE_render_settings_grid(self, x, y_start, box_h):
         """Renders settings menus and submenus in grid layout."""
         if self.settings_view == "menu":
             menu_items = [
@@ -2914,7 +3352,7 @@ class HASDL2App:
                 ("Brightness", "brightness", ("Adjust hardware screen", "brightness level")),
                 ("Flash Color", "favorites", ("Select color feedback", "for button presses")),
                 ("UI Theme", "scene", ("Change retro color", "theme of the interface")),
-                ("UI Font", "input_boolean", ("Select interface font", "Pixel vs. Sans-Serif")),
+                ("UI Font", "input_boolean", ("Select interface font", "dynamically loaded")),
                 ("WiFi Debug", "wifi_err", ("View network debug info", "and interface status")),
                 ("WebSocket Service", "script", ("WebSocket connection", "status and controls")),
                 ("System Details", "sensor", ("Hardware statistics", "and system resources")),
@@ -3228,28 +3666,39 @@ class HASDL2App:
 
         elif self.settings_view == "font":
             self.ui.draw_text("Select UI Font", x + 20, y_start + 10, "cyan", large=True)
-            font_keys = ["pixel", "sans-serif"]
-            font_names = ["Pixel Font", "Sans-Serif"]
             
             cols = 2
-            rows = 1
             gap = 16
-            
             box_w = self.width - 2 * self.h_gap - 2 * self.margin - 40
             cell_w = (box_w - (cols - 1) * gap) // cols
             cell_h = 75
             
             y_grid = y_start + 50
+            scroll_offset = (self.settings_scroll_row // cols) * (cell_h + gap)
             
-            for i, name in enumerate(font_names):
+            current_font = self.config.get("font", "m5x7.ttf")
+            if current_font == "pixel":
+                current_font = "m5x7.ttf"
+            elif current_font == "sans-serif":
+                current_font = "Inter-Regular.ttf"
+            
+            # Set clip rect to prevent drawing outside the box
+            clip_rect = sdl2.SDL_Rect(int(self.col2_x), int(y_start), int(self.col2_w), int(self.main_area_h))
+            sdl2.SDL_RenderSetClipRect(self.renderer, clip_rect)
+            
+            for i, font_info in enumerate(getattr(self, "available_fonts", [])):
                 col = i % cols
                 row = i // cols
                 
                 cell_x = x + 20 + col * (cell_w + gap)
-                cell_y = y_grid + row * (cell_h + gap)
+                cell_y = y_grid + row * (cell_h + gap) - scroll_offset
+                
+                # Skip rendering if fully outside the visible area
+                if cell_y + cell_h < y_start or cell_y > y_start + self.main_area_h:
+                    continue
                 
                 is_selected = (self.settings_index == i)
-                is_active = (font_keys[i] == self.config.get("font", "pixel"))
+                is_active = (font_info["filename"] == current_font)
                 
                 if is_selected:
                     self.ui.draw_selection_highlight(int(cell_x - 2), int(cell_y - 2), cell_w + 4, cell_h + 4, color="cyan")
@@ -3261,7 +3710,8 @@ class HASDL2App:
                     self.ui.draw_text("ACTIVE", cell_x + 12, cell_y + 50, "yellow", small=True)
                 
                 # Draw font name
-                self.ui.draw_text(name, cell_x + 12, cell_y + 12, "white", small=False)
+                self.ui.draw_text(font_info["name"], cell_x + 12, cell_y + 12, "white", small=False)
+            sdl2.SDL_RenderSetClipRect(self.renderer, None)
 
         elif self.settings_view == "theme":
             self.ui.draw_text("Select UI Theme", x + 20, y_start + 10, "cyan", large=True)
@@ -3509,7 +3959,8 @@ class HASDL2App:
                 icon_offset += 8
                 
             # Text color: Yellow for favorites, Cyan for selection, White for others
-            if is_fav:
+            is_dmg = self.current_theme == "monochrome"
+            if is_fav and not is_dmg:
                 color = "yellow"
             elif is_selected:
                 color = "cyan"
@@ -3533,7 +3984,14 @@ class HASDL2App:
             else:
                 display_label = label[:max_chars]
 
-            self.ui.draw_text(display_label, x + icon_offset, y + 2, color)
+            tw, th = self.ui.draw_text(display_label, x + icon_offset, y + 2, color)
+            
+            if is_fav and is_dmg:
+                # Underline favorites in DMG theme
+                sdl_color = self.ui.colors.get(color, self.ui.colors["white"])
+                sdl2.SDL_SetRenderDrawColor(self.renderer, sdl_color.r, sdl_color.g, sdl_color.b, 255)
+                line_y = y + 2 + th - 2 # Shift slightly up so it's directly under the text baseline
+                sdl2.SDL_RenderDrawLine(self.renderer, int(x + icon_offset), int(line_y), int(x + icon_offset + tw), int(line_y))
 
         # Scrollbar for the entities list
         if len(entities) > visible_entities:
@@ -3682,9 +4140,19 @@ class HASDL2App:
                 sdl2.SDL_RenderCopy(self.renderer, icon_tex, None, dst)
                 sdl2.SDL_SetTextureColorMod(icon_tex, 255, 255, 255)
                 
+            is_fav = self.is_favorite(entity_id)
+            is_dmg = self.current_theme == "monochrome"
+            text_color = "yellow" if (is_fav and not is_dmg) else "white"
+            
             label = display_name(entity_id, entity)
             display_label = self.ui.truncate_text(label, cell_w - 60, small=False)
-            self.ui.draw_text(display_label, cell_x + 52, cell_y + 14, "white", small=False)
+            tw, th = self.ui.draw_text(display_label, cell_x + 52, cell_y + 14, text_color, small=False)
+            
+            if is_fav and is_dmg:
+                sdl_color = self.ui.colors.get(text_color, self.ui.colors["white"])
+                sdl2.SDL_SetRenderDrawColor(self.renderer, sdl_color.r, sdl_color.g, sdl_color.b, 255)
+                line_y = cell_y + 14 + th - 2
+                sdl2.SDL_RenderDrawLine(self.renderer, int(cell_x + 52), int(line_y), int(cell_x + 52 + tw), int(line_y))
             
             # Progress bar for adjustable entities
             attrs = entity.get("attributes", {})
@@ -3919,7 +4387,7 @@ class HASDL2App:
             
         return info
 
-    def _render_wifi_debug_view(self, x, y, box_h):
+    def _OBSOLETE_render_wifi_debug_view(self, x, y_start, box_h):
         """Renders the scrollable WiFi debug console."""
         self.ui.draw_text("WiFi Debug (Use D-Pad to scroll):", x, y, "cyan")
         y_start = y + 30

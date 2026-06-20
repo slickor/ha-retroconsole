@@ -124,6 +124,12 @@ Goal: Stable operation on real devices.
     - [x] Implement runtime font switching (e.g., Pixel vs. Sans-Serif).
 - [x] Expand Settings UI to handle scrolling for more than 9 items.
 
+## Phase 9.1: Unified Settings & Dynamic Fonts (v0.34.0) (Completed)
+- [x] **Settings Submenus:** Reorganize settings into logical categories (Connection, Display, System & Prefs).
+- [x] **Dynamic Font Loading:** Auto-discover `.ttf` fonts from `assets/fonts/` directory.
+- [x] **Unified Rendering Engine:** Merge `_render_settings_panel` and `_render_settings_grid` into a single adaptive method.
+- [x] **Unified Navigation:** Consolidate input handling for both view modes.
+
 ## Phase 10: Future Plans
 - [ ] **Area & Floorplan Support:**
     - [ ] Fetch Area/Device mapping from HA API.
