@@ -1,5 +1,11 @@
 # Changelog
 
+All notable changes to this project will be documented in this file.
+
+## [0.34.2] - 2026-06-21
+### Changed
+- **Documentation:** Updated `reddit_posts.md` to clarify the application runs from standard Ports folders instead of claiming full PortMaster compatibility yet.
+
 ## [0.34.1] - 2026-06-20
 ### Added
 - **Deployment:** Extended `github_push.ps1` to automatically create a GitHub Release and attach the compiled `v0.34.1.zip` via the GitHub CLI.

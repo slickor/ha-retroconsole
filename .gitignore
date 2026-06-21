@@ -19,3 +19,4 @@ screenshots/
 tools/generate_screenshots.py
 tools/generate_gif.py
 tools/capture_live_screenshots.py
+reddit_posts.md
