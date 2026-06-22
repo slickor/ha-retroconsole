@@ -828,6 +828,17 @@ class HASDL2App:
                 "gray": [48, 98, 48, 255],
                 "white": [15, 56, 15, 255],
                 "scrollbar_track": [155, 188, 15, 255]
+            },
+            "synthwave": {
+                "name": "80s Outrun",
+                "cyan": [255, 20, 147, 255],
+                "yellow": [255, 230, 0, 255],
+                "bg": [5, 0, 15, 255],
+                "box_bg": [30, 0, 60, 180],
+                "gray": [120, 30, 150, 255],
+                "white": [255, 255, 255, 255],
+                "scrollbar_track": [60, 0, 100, 255],
+                "magenta": [255, 20, 147, 255]
             }
         }
         themes_path = Path(self.config_path).parent / "themes.json"
@@ -845,6 +856,21 @@ class HASDL2App:
                 loaded = json.load(f)
                 if isinstance(loaded, dict) and len(loaded) > 0:
                     print(f"Loaded themes from {themes_path}")
+                    
+                    # Merge any missing default themes
+                    merged = False
+                    for k, v in default_themes.items():
+                        if k not in loaded:
+                            loaded[k] = v
+                            merged = True
+                    
+                    if merged:
+                        try:
+                            with open(themes_path, "w") as f_out:
+                                json.dump(loaded, f_out, indent=4)
+                        except Exception:
+                            pass
+                            
                     return loaded
                 else:
                     print("themes.json is empty or invalid format, using defaults.")
@@ -2914,7 +2940,7 @@ class HASDL2App:
                 cell_y = y_start + row * (cell_h + gap)
                 
                 is_selected = (self.settings_active and self.active_list == "entities" and i == self.settings_index)
-                domain_state = self.config["domains"].get(domain, "enabled")
+                domain_state = "hidden" if domain in self.config.get("hidden_domains", []) else "enabled"
                 
                 if is_grid_view:
                     if is_selected:

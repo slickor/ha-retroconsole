@@ -2,14 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.34.3] - 2026-06-21
+### Fixed
+- **UI:** Fixed a bug where new themes (like '80s Outrun') were not appearing on devices that already had an older `themes.json` file. The app now automatically merges missing default themes into existing configs.
+- **UI:** Fixed a `KeyError: 'domains'` crash when navigating to "Visible Categories" in Settings due to stale dictionary lookup.
+- **Sideloading:** Enhanced `build_zip.ps1` to automatically create both `images/` (ArkOS/muOS) and `Imgs/` (CrossMix) folders containing the game cover, enabling zero-config automatic image scraping for manual installations.
+- **Push Script:** Fixed layout path detection in `push_sd.ps1` for muOS devices.
+
 ## [0.34.2] - 2026-06-21
 ### Changed
-- **Documentation:** Updated `reddit_posts.md` to clarify the application runs from standard Ports folders instead of claiming full PortMaster compatibility yet.
+- **Documentation:** Minor internal documentation updates.
 
 ## [0.34.1] - 2026-06-20
 ### Added
 - **Deployment:** Extended `github_push.ps1` to automatically create a GitHub Release and attach the compiled `v0.34.1.zip` via the GitHub CLI.
-- **Documentation:** Added prepared Reddit posts for r/R36S, r/trimui, r/homeassistant, and r/SBCGaming.
 
 
 ## [0.34.0] - 2026-06-20
