@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.35.0] - 2026-06-24
+### Fixed
+- **PortMaster:** Fixed `KeyError: 'attr'` crash on newer PortMaster/muOS versions by providing an explicit `"attr"` block in `port.json`.
+
+## [0.34.4] - 2026-06-23
+### Fixed
+- **PortMaster:** Fixed an invalid format in `port.json` where the `"version"` field was using a semantic version string. Switched to `version: 2` and moved the string to `"version_name"`.
+
 ## [0.34.3] - 2026-06-21
 ### Fixed
 - **UI:** Fixed a bug where new themes (like '80s Outrun') were not appearing on devices that already had an older `themes.json` file. The app now automatically merges missing default themes into existing configs.
